@@ -63,6 +63,7 @@ p(obj.foo(@, 2))  -- use this instead
 
 ```
 
+The Luaty compiler strives to show meaningful error message with line number. 
 To run a Luaty source file, use
 ```
 luajit lt.lua source.lt
@@ -71,9 +72,24 @@ To compile a Luaty source file to Lua, use
 ```
 luajit lt.lua -c source.lt > dest.lua
 ```
-
 Please see the test folder for more code examples.
 
-The compiler strives to show meaningful error message with line number. 
-However, Luaty is still new so do expect some bugs. 
+
+Known issues
+---
+As `fn` and `var` are introduced as keywords, Luaty could not compile codes that reference existing libararies having these identifiers.
+Eg:
+```
+p(obj.fn)  -- Error: 'name' expected instead of fn
+p(obj.var)  -- ok
+p(obj.var )  -- Error: 'name' expected instead of var
+```
+Note that `p(obj.var)` works because the lexer is hacked to interpret `var` as keyword only if it is followed by a whitespace.
+This a tradeoff to save typing as `local` and `function` are easily the two most used keywords in Lua. 
+
+
+Status
+---
+Luaty is still new so do expect some bugs. 
+
 
