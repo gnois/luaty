@@ -1,3 +1,8 @@
+Luaty
+
+Based on LuaJIT Language Toolkit, a toolkit for language implementations
+https://github.com/franko/luajit-lang-toolkit
+
 The MIT License (MIT)
 
 Copyright (c) 2015 Wi Siong Ko
