@@ -1,0 +1,6 @@
+var k = "foo"
+var some_f = fn(s) 
+    return string.byte(s) 
+k = tonumber(k) or some_f(k) or k
+print("K", k)
+

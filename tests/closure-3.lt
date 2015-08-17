@@ -1,0 +1,11 @@
+var foo = fn(n)
+    var f
+    for k = n, n + 10
+        if k % 7 == 0
+            f = fn(x) 
+               return k + x
+            break
+    return f
+
+var f = foo(1)
+print(f(3))

@@ -1,0 +1,11 @@
+var foo = fn(k)
+    return k*k < 49
+
+
+var sum = 0
+var i = 1
+while i < 10 and foo(i) 
+    sum = sum + i*i
+    i = i + 1
+
+print(sum)

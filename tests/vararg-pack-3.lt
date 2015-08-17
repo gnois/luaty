@@ -1,0 +1,10 @@
+var foo = fn(msg, ...)
+    var arg = {"wait", "a", "moment", ...}
+    print(msg)
+    for k = 1, #arg 
+        print(arg[k])
+    
+
+
+foo("Hey", "hello", "boy")
+

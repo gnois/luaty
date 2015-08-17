@@ -1,0 +1,9 @@
+var foo = fn(@, k)
+    return k * @.value
+
+
+var create_obj = fn(x)
+    return { value = x, foo = foo }
+
+
+print(create_obj(3.141592).foo(@, 2))

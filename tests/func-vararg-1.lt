@@ -1,0 +1,10 @@
+var format = string.format
+
+var  printf = fn(fmt, ...)
+    print(format(fmt, ...))
+
+var name = "Ciccio"
+printf("Ciao %s, come stai ?", name)
+var a, b = 3.25, 225
+printf("Some numbers, float: %g, integer: %i", a, b)
+

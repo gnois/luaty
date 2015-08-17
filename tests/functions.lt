@@ -1,0 +1,11 @@
+var pn = fn(a)
+print(a)
+print(b)
+
+var x = {a, b, c,
+    d, 
+    g, h, (fn(a, b) print(a .. b))('a', 'b'), 
+    c, d, 3
+}
+
+return fn()

@@ -1,0 +1,21 @@
+var foo = fn(a, b)
+    var x
+    if a < b  
+        x = 0 
+    if a > b
+        x = 1 
+    if a <= b  
+        x = 2 
+    if a >= b  
+        x = 3 
+    if a == b  
+        x = 4 
+    if a ~= b  
+        x = 5 
+    if not (a < b)  
+        x = 6 
+    return x
+
+
+var x, y = 7, 3
+print(foo(x, y), foo(y, x), foo(x, x))

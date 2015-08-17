@@ -1,0 +1,16 @@
+	-- a
+print(0)
+   --b
+  
+	-- o
+var f = fn(a, b)  -- r
+   -- b
+	print (a)
+        -- c
+--[[ d 
+	]]
+  
+	print(b)
+	-- e
+--
+print(1)

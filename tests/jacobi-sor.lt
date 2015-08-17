@@ -1,0 +1,100 @@
+var RANDOM_SEED = 101009 -- Must be odd.
+
+------------------------------------------------------------------------------
+-- This is a Lagged Fibonacci Pseudo-random Number Generator with
+-- j, k, M = 5, 17, 31. Pretty weak, but same as C/Java SciMark.
+------------------------------------------------------------------------------
+
+var rand
+
+var rand_init = fn(seed)
+  var Rm, Rj = {}, 1
+  for i=1,17 Rm[i] = 0 
+  for i=17,1,-1 
+    seed = (seed*9069) % (2^31)
+    Rm[i] = seed
+
+  rand = fn()
+    var j, m = Rj, Rm
+    var h = j - 5
+    if h < 1 h = h + 17 
+    var k = m[h] - m[j]
+    if k < 0 k = k + 2147483647 
+    m[j] = k
+    if j < 17 Rj = j + 1 else Rj = 1 
+    return k * (1.0/2147483647.0)
+
+    
+var random_vector = fn(n)
+  var v = {}
+  for x=1,n v[x] = rand() 
+  return v
+
+
+var quasi_diag_randmat = fn(n, alpha)
+  var a = {}
+  for y = 1, n 
+    var v = {}
+    a[y] = v
+    for x = 1, n 
+      var z = rand()
+      v[x] = x == y and z or alpha * z / n
+
+  return a
+
+  
+var sor_iter = fn(A, n, b, x, om)
+  for i = 1, n 
+    var sig = 0
+    var Ai = A[i]
+    for j = 1, n if i ~= j sig = sig + Ai[j] * x[j]
+    x[i] = x[i] + om * ((b[i] - sig) / Ai[i] - x[i])
+
+var print_vector = fn(v, n)
+  for i = 1, n 
+    io.write(string.format("%12g ", v[i]))
+  io.write("\n")
+
+rand_init(RANDOM_SEED)
+
+var N = 100
+var A = quasi_diag_randmat(N, 0.1)
+var b = random_vector(N)
+var x = {}
+for i = 1, N 
+   x[i] = b[i] / A[i][i] 
+
+var xp = {}
+for i = 1, N xp[i] = 0 
+
+for cycle = 1, 100 
+  sor_iter(A, N, b, x, 1.25)
+
+  var diff = 0
+  for i = 1, N 
+    var d = (x[i] - xp[i])^2
+    xp[i] = x[i]
+    diff = diff + d
+  
+
+  diff = math.sqrt(diff)
+
+  print(string.format("Iteration: %4i, Residual: %14g", cycle, diff))
+
+  if diff < 1.0e-6 
+    break 
+
+
+print("Solution:")
+print_vector(x, N)
+
+var res = 0
+for i = 1, N 
+  var t = 0
+  var Ai = A[i]
+  for j = 1, N 
+    t = t + Ai[j] * x[j] 
+  res = res + (t - b[i])^2
+
+
+print(string.format("Exactness residual: %g", res))

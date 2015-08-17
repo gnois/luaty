@@ -1,0 +1,16 @@
+var foo
+
+var init = fn (choice)
+    if choice == 1 
+        foo = fn(x)
+            return x*x + 1
+        
+    else
+        foo = fn(x)
+            return x
+        
+    
+
+
+init(1)
+print(foo(3))

@@ -1,0 +1,18 @@
+
+
+var func = fn()
+
+--fn()  -- causes code generator to error with node nil
+-- fixed by disallow fn() statement
+
+--(fn())()
+
+if false
+
+(fn(a)
+	print(a)
+)(5)
+
+print(".", func(), ".")
+
+

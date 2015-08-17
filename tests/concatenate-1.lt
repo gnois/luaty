@@ -1,0 +1,5 @@
+var foo = fn(a, flag)
+	return a .. (flag and 'boom' or 'pst')
+
+
+print(foo('ciao', true), foo('ciao', false))

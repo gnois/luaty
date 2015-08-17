@@ -1,0 +1,11 @@
+var foo = fn(x, y)
+    var a, b, c
+    var boo = fn(z)
+       a, b = z*z + 1, z - 1
+    
+    boo(x * y - x + y)
+    c = x + y
+    return a * b * c
+
+
+print(foo(3, 7))

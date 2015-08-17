@@ -1,0 +1,6 @@
+var foo =  fn(n)
+    return 1ULL * n
+
+
+print(foo(8))
+

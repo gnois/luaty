@@ -1,0 +1,26 @@
+var BaseClass = fn(base)
+	var private = base
+
+	var @ = {
+		foo = fn()
+			return private
+	}
+	return @
+
+
+var DerivedClass = fn(base, derived)
+	var private = derived
+
+	var @ = BaseClass(base)
+	@.public = derived
+
+	-- overrride base foo()
+	var foo_ = @.foo
+	@.foo = fn()
+		return private + @.public + foo_()
+
+	return @
+
+
+var i = DerivedClass(1, 2)
+print(i.foo()) --> 5

@@ -1,0 +1,12 @@
+var hasfn = fn(t)
+    for _, x in ipairs(t) 
+        if x % 2 == 0 
+            print('list has even number')
+            goto has
+        
+
+    print('list lacks even number')
+    ::has::
+
+
+hasfn( { 1, 3, 7, 9, 4, 11, 13} )

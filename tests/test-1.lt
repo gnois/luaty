@@ -1,0 +1,7 @@
+var x = {}
+for k = 1, 10 
+    x[k] = k*k + 1
+
+for k = 1, 10 
+    print(x[k]) 
+

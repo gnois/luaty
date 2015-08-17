@@ -1,0 +1,24 @@
+var foo = fn(x)
+	return x, x + 1, 2*x
+
+var prova = fn(...)
+	return ...
+
+var one = fn(...)
+	return (...)
+
+var single_value = fn(x)
+	return (foo(x))
+
+var alls = fn(x)
+	return foo(x)
+
+print(foo(2))
+print( (foo(2)) )
+
+print(alls(foo(2)))
+print(single_value(foo(2)))
+
+print( one(foo(2)) )
+
+print( prova(foo(2)) )

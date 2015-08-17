@@ -1,0 +1,5 @@
+var x = {}
+for k = 1, 10
+    k, x[k] = k + 1, k*k + 1
+
+print(x[1], x[2], x[3])

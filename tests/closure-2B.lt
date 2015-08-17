@@ -1,0 +1,29 @@
+var make = fn(p)
+	if p > 10
+		var n = p + 1
+		return {
+			incr = fn(i)
+				n = n + i
+			, mult = fn(i) 
+				n = n * i
+			, get  = fn() 
+				return n
+		}
+	else
+		var n = 2*p
+		return {
+			incr = fn(i) 
+				n = n + i
+			, mult = fn(i) 
+				n = n * i
+			,get  = fn()
+				return n
+		}
+
+		
+var obj = make(7)
+obj.mult(3)
+obj.incr(1)
+obj.mult(2)
+obj.incr(5)
+print(obj.get())

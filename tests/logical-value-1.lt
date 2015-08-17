@@ -1,0 +1,29 @@
+var foo1 = fn(x, y)
+    return x < y and x + y
+
+
+var foo1bis = fn(x, y, somef)
+    return x < y and somef(x, y)
+
+
+var foo2 = fn(x, y)
+    return x < y and x == y
+
+
+var foo3 = fn(x, y)
+    return x < y or x - y
+
+
+var foo4 = fn(x, y)
+    return x < y or x == y
+
+
+var diff = fn(a, b) 
+    return a - b 
+
+var x, y = 3, 7
+print(foo1(x, y), foo1(y, x))
+print(foo1bis(x, y, diff), foo1bis(y, x, diff))
+print(foo2(x, y), foo2(y, x))
+print(foo3(x, y), foo3(y, x))
+print(foo4(x, y), foo4(y, x))

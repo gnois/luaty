@@ -1,0 +1,14 @@
+var foo = fn(ls)
+	var sum = 0
+	var fs = {}
+	for i, v in ipairs(ls) 
+		sum = sum + v*v
+		fs[i] = fn(x) 
+			return i + x 
+	
+	return sum, fs
+
+
+var sum, fs = foo({1, 3, 7, 12})
+print(sum)
+print(fs[1](7), fs[2](7), fs[3](7))

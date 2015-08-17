@@ -1,0 +1,20 @@
+
+var foo = fn(n)
+	var f
+	var s = 0
+	for k = 1, n
+		var ksq, kc, kq = k*k, k^3, k^4
+		if k % 7 == 0
+			var kq = k/7 + 1
+			f = fn(x) 
+				return x + k
+			return f
+		
+		var kadd = kc - kq
+		s = s + kadd
+	
+	return f
+
+
+var f = foo(10)
+print(f(3))

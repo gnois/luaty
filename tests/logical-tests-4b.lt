@@ -1,0 +1,6 @@
+var foo = fn(a, b)
+	return not (a < b)
+
+
+var x, y = 7, 3
+print(foo(x, y), foo(y, x))

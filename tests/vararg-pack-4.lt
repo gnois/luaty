@@ -1,0 +1,13 @@
+var foo = fn(x)
+    return x, 2*x, x^2-1
+
+
+var boo = fn(x)
+    var arg = { foo(x) }
+    for k = 1, #arg 
+        print(arg[k])
+    
+
+
+boo(7)
+

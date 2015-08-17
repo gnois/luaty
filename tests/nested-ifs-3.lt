@@ -1,0 +1,14 @@
+var foo = fn(x, y)
+    if x < y 
+        if x*x < y*y 
+            if x + y < x - y 
+                return x
+            else return y
+        else
+            return y*y
+    else
+        return x + y
+
+
+
+print(foo(3, 4), foo(4, 3))

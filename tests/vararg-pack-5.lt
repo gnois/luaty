@@ -1,0 +1,8 @@
+var foo = fn(...)
+    var arg = {..., "friend"}
+    for k = 1, #arg 
+        print(arg[k])
+    
+
+foo("hello", "boy")
+

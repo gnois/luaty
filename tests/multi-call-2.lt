@@ -1,0 +1,7 @@
+var format = string.format
+
+var printf = fn(...)
+    print(format(...))
+
+
+printf("%s %d", 'ciccio', 124)

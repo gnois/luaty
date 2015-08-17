@@ -1,0 +1,250 @@
+--
+-- GSL shell interactive interface to GSL library
+-- Based on the Lua programming language
+--
+-- Copyright (C) 2009-2013 Francesco Abbate.
+-- See Copyright Notice in gsl-shell-jit.c
+--
+-- This file provided an implementation of the quicksort algorithm.
+-- Based on the libstdc++ std::sort implementation included with GCC.
+--
+
+var bit = require('bit')
+
+var band, rshift = bit.band, bit.rshift
+
+var insertion_thresold = 16
+
+var less_than = fn(a, b)
+    return a < b
+
+
+var lg2 = fn(a)
+    var c = 0
+    while a > 0 
+        a = rshift(a, 1)
+        c = c + 1
+    
+    return c - 1
+
+
+var div2 = fn(a)
+    return rshift(a, 1)
+
+
+var heapsort = fn(array, i0, i1, f)
+    f = f or less_than
+
+    var push_heap = fn(first, hole, top, value)
+        var parent = div2(hole - 1)
+        while hole > top and f(array[first + parent], value) 
+            array[first + hole] = array[first + parent]
+            hole = parent
+            parent = div2(hole - 1)
+        
+        array[first + hole] = value
+    
+
+    var adjust_heap = fn(first, hole, len, value)
+        var top = hole
+        var second = hole
+        while second < div2(len - 1) 
+            second = 2 * (second + 1)
+            if f(array[first + second], array[first + (second - 1)]) 
+                second = second - 1
+            
+            array[first + hole] = array[first + second]
+            hole = second
+        
+        if band(len, 1) == 0 and second == div2(len - 2) 
+            second = 2 * (second + 1)
+            array[first + hole] = array[first + (second - 1)]
+            hole = second - 1
+        
+        push_heap(first, hole, top, value)
+    
+
+    var pop_heap = fn(first, last, result)
+        var value = array[result]
+        array[result] = array[first]
+        adjust_heap(first, 0, last - first, value)
+    
+
+    var make_heap = fn(first, last)
+        if last - first < 2 
+            return 
+        var len = last - first
+        var parent = div2(len - 2)
+        while true 
+            var value = array[first + parent]
+            adjust_heap(first, parent, len, value)
+            if parent == 0 
+                return
+            
+            parent = parent - 1
+        
+    
+
+    var heap_select = fn(first, middle, last)
+        make_heap(first, middle)
+        for i = middle, last - 1 
+            if f(array[i], array[first]) 
+                pop_heap(first, middle, i)
+            
+        
+    
+
+    var sort_heap = fn(first, last)
+        while last - first > 1 
+            last = last - 1
+            pop_heap(first, last, last)
+        
+    
+
+    heap_select(i0, i1 + 1, i1 + 1)
+    sort_heap(i0, i1 + 1)
+
+
+var insertion_sort = fn(array, compare, istart, iend)
+    for i = istart + 1, iend
+        var current_value = array[i]
+        var hole_index = i
+        while hole_index > istart and compare(current_value, array[hole_index - 1]) 
+            array[hole_index] = array[hole_index - 1]
+            hole_index = hole_index - 1
+        
+        array[hole_index] = current_value
+    
+
+
+var quicksort = fn(array, i0, i1, f)
+    f = f or less_than
+
+    var move_median_first = fn(a, b, c)
+        if f(array[a], array[b]) 
+            if f(array[b], array[c]) 
+                array[a], array[b] = array[b], array[a]
+            else
+                array[a], array[c] = array[c], array[a]
+            
+        else if f(array[a], array[c]) 
+            return
+        else if f(array[b], array[c]) 
+            array[a], array[c] = array[c], array[a]
+        else
+            array[a], array[b] = array[b], array[a]
+        
+    
+
+    var partition = fn(first, last, pivot_value)
+        while true 
+            while f(array[first], pivot_value) 
+                first = first + 1
+            
+            while f(pivot_value, array[last]) 
+                last = last - 1
+            
+            if first >= last 
+                return first
+            
+            array[first], array[last] = array[last], array[first]
+            first = first + 1
+            last = last - 1
+        
+    
+
+    var partition_pivot = fn(first, last)
+        var mid = div2(first + last)
+        move_median_first(first, mid, last)
+        return partition(first + 1, last, array[first])
+    
+
+    var quicksort_loop
+    quicksort_loop= fn(first, last, depth)
+        while last - first > insertion_thresold 
+            if depth == 0 
+                heapsort(array, first, last, f)
+                return
+            
+            depth = depth - 1
+            var cut = partition_pivot(first, last)
+            quicksort_loop(cut, last, depth)
+            -- array[first], array[first + 1] = array[first + 1], array[first]
+            last = cut - 1
+        
+    
+
+    var complete = quicksort_loop(i0, i1, 2 * lg2(i1 - i0 + 1))
+    insertion_sort(array, f, i0, i1)
+
+
+var array_search = fn(array, i0, i1, val)
+    for k = i0, i1 
+        if array[k] == val 
+            return k 
+    
+
+
+-- sort arrays "array" and "slave" in place for indices from i0 to i1
+-- based on values of "array" using the comparison function "f"
+var quicksort_mirror = fn(array, slave, i0, i1, f)
+
+    var swap = fn(index, a, b)
+        array[a], array[b] = array[b], array[a]
+        slave[a], slave[b] = slave[b], slave[a]
+        index[a], index[b] = index[b], index[a]
+    
+
+    var n = i1 - i0 + 1
+    var id, iv = {}, {}
+    for k = 1, n 
+        id[k], iv[k] = k, k 
+    quicksort(id, i0, i1, fn(a, b) 
+        return f(array[a], array[b]) 
+    )
+    for k = 1, n 
+        var val = id[k]
+        if val > k 
+            swap(iv, k, val)
+        else if val < k 
+            val = array_search(iv, k, n, val)
+            swap(iv, k, val)
+        
+    
+
+
+-- Use a very weak pseudo-number generator just for testing purpose.
+var my_random = fn(s)
+    s.x = (16807 * s.x) % 2147483647
+    return s.x
+
+
+var test_sort = fn(name, sort_fn, gen)
+    var s = { x = 934 } -- random runmber generator
+    print(string.format("******** %s **********", name))
+    var x={}
+    for i = 1, 1000 
+        x[i] = gen(s, i) 
+    quicksort(x, 1, #x)
+    for k = 1, 1000 
+        print(x[k]) 
+
+
+test_sort("QUICKSORT 1", quicksort, fn(s) 
+    return my_random(s) % 65536 
+)
+test_sort("QUICKSORT 2", quicksort, fn(s, i) 
+    return i 
+)
+test_sort("QUICKSORT 3", quicksort, fn(s, i) 
+    return 1000 - i 
+)
+test_sort("HEAPSORT 1", heapsort, fn(s) 
+    return my_random(s) % 65536 
+)
+test_sort("HEAPSORT 2", heapsort, fn(s, i) 
+    return i 
+)
+test_sort("HEAPSORT 3", heapsort, fn(s, i) 
+    return 1000 - i 
+)

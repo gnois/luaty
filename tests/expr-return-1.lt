@@ -1,0 +1,27 @@
+var f1 = fn(x, y, z)
+	return y
+
+
+var f2 = fn(x, y, z)
+	return x, y, z
+
+
+var f3 = fn(x, y, z)
+	return x + y + z
+
+
+var u = 7
+var f4 = fn(x)
+	return x + u
+
+
+var f5 = fn(x)
+	return u
+
+
+var a, b, c = 3, 5, 21
+print(f1(a, b, c))
+print(f2(a, b, c))
+print(f3(a, b, c))
+print(f4(a))
+print(f5(a))

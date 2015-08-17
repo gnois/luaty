@@ -1,0 +1,7 @@
+var foo = fn(k)
+    return k, k*k, 2*k + 1
+
+
+var x = 3
+var a, b, c = foo(x)
+print(a, b, c)

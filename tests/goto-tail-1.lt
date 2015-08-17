@@ -1,0 +1,10 @@
+var fact = fn (n, ans)
+  ::call::
+  if n == 0 
+    return ans
+  else
+    n, ans = n - 1, ans * n
+    goto call
+  
+
+print(fact(6, 1))

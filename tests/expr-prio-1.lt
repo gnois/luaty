@@ -1,0 +1,14 @@
+var x, y = 2, 3
+
+var a = (2 + x) * y
+var b = x + 2 * y
+var c = 2 ^ x ^ y
+var d = (2 ^ x) ^ y
+var e = 2 * x / y
+var f = 2 * (x / y)
+var g = 2 + x + y
+var h = 2 + (x + y)
+var i = -x * y
+var l = -x^2 + (-x)^2
+
+print(a, b, c, d, e, f, g, h, i, l)

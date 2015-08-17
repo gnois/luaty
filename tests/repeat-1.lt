@@ -1,0 +1,10 @@
+var foo = fn(n)
+	var i, sum = 1, 0
+	do
+		sum = sum + i*i
+		i = i + 1
+	until i > 10
+	return sum
+
+
+print(foo(10))

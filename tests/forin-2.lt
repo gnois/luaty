@@ -1,0 +1,21 @@
+var squares_iter= fn (ls, i)
+	if i + 1 <= #ls 
+		var v = ls[i + 1]
+		return i + 1, v, v*v
+	
+
+
+var squares= fn (ls)
+	return squares_iter, ls, 0
+
+
+var foo= fn (ls)
+	var s, ssq = 0, 0
+	for i, v, vsq in squares(ls) 
+		s = s + v
+		ssq = ssq + vsq
+	
+	return s, ssq
+
+
+print(foo({3, 7, -2, 5}))

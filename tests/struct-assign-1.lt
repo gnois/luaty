@@ -1,0 +1,7 @@
+var init = fn(x)
+    return {name= 'foo', value = x*x}
+
+
+var s = init(2.5)
+var v = s.value
+print(v)

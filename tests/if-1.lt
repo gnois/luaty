@@ -1,0 +1,7 @@
+var foo = fn(x, y)
+	if x < y 
+		return x + y
+	else
+		return x - y
+
+print(foo(3,7), foo(7,3))

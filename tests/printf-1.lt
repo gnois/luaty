@@ -1,0 +1,13 @@
+
+var s1 = "Hello"
+var s2 = "Ciccio"
+
+var format = string.format
+
+var some_table = { pi = 3.14 }
+
+var printf = fn(...)
+  io.write(format(...))
+
+
+printf("I say: %s %s!\n", s1, s2)

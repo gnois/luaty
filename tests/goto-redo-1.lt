@@ -1,0 +1,7 @@
+for x=1, 10 
+    ::redo::
+    print(x)
+    x = x^2 + 1
+    if x < 100 
+        goto redo 
+

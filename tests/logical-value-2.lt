@@ -1,0 +1,19 @@
+var foo = fn(x, y)
+    if x < y and x == y 
+        return x
+    else
+        return y
+    
+
+
+var boo = fn(x, y)
+    if x < y or x == y 
+        return x
+    else
+        return y
+    
+
+
+var x, y = 3, 7
+print(foo(x, y), foo(y, x))
+print(boo(x, y), boo(y, x))

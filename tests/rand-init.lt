@@ -1,0 +1,58 @@
+var darray = fn() 
+    return {} 
+var iarray = darray
+
+var rand, rand_init
+
+if jit and jit.status and jit.status() 
+  -- LJ2 has bit operations and zero-based arrays (internally).
+  var bit = require("bit")
+  var band, sar = bit.band, bit.arshift
+  rand_init = fn(seed)
+    var Rm, Rj, Ri = iarray(17), 16, 11
+    for i=0,16 
+        Rm[i] = 0 
+    for i=16,0,-1 
+      seed = band(seed*9069, 0x7fffffff)
+      Rm[i] = seed
+    
+    rand = fn()
+      var i = band(Ri+1, sar(Ri-16, 31))
+      var j = band(Rj+1, sar(Rj-16, 31))
+      Ri, Rj = i, j
+      var k = band(Rm[i] - Rm[j], 0x7fffffff)
+      Rm[j] = k
+      return k * (1.0/2147483647.0)
+    
+  
+else
+  rand_init = fn(seed)
+    var Rm, Rj = {}, 1
+    for i=1,17 
+        Rm[i] = 0 
+    for i=17,1,-1 
+      seed = (seed*9069) % (2^31)
+      Rm[i] = seed
+    
+    rand = fn()
+      var j, m = Rj, Rm
+      var h = j - 5
+      if h < 1 
+        h = h + 17 
+      var k = m[h] - m[j]
+      if k < 0 
+        k = k + 2147483647 
+      m[j] = k
+      if j < 17 
+        Rj = j + 1 
+      else 
+        Rj = 1 
+      return k * (1.0/2147483647.0)
+    
+  
+
+
+rand_init(15)
+for k = 1, 10 
+  print(rand())
+

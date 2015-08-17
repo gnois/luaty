@@ -1,0 +1,55 @@
+var a = (7 % 2 == 1)
+var b = (8 % 2 == 1)
+var c = (9 % 2 == 1)
+
+if not a  
+    print("a") 
+else
+    print("b") 
+if not a and 10  
+    print("a") 
+else 
+    print("b") 
+if not a or  10  
+    print("a") 
+else 
+    print("b") 
+
+if not b  
+    print("a") 
+else 
+    print("b") 
+if not b and 10  
+    print("a") 
+else 
+    print("b") 
+if not b or  10  
+    print("a") 
+else 
+    print("b") 
+
+if (not a) and b or c  
+    print("a")
+else
+    print("b") 
+if (not a) and (not b or c) or c
+    print("a")
+else 
+    print("b") 
+if (not a or c) and not b or c 
+    print("a")
+else 
+    print("b") 
+
+if (not b) and a or b  
+    print("a") 
+else 
+    print("b") 
+if (not b) and (not c or b) or b 
+    print("a") 
+else
+    print("b") 
+if (not b or a) and not c or b  
+    print("a") 
+else
+    print("b") 

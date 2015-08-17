@@ -1,0 +1,5 @@
+var foo = fn(a, b, c)
+	return a .. b .. c
+
+
+print(foo('ciao', 'ciccio', 'boum'))
