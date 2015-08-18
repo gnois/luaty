@@ -27,28 +27,40 @@ local function token2str(tok)
     end
 end
 
-local function error_lex(chunkname, line, em, ...)
+local function throw(chunkname, line, em, ...)
     local emfmt = string.format(em, ...)
     local msg = string.format("%s:%d   %s", chunkname, line, emfmt)
     error("LT-ERROR" .. msg, 0)
 end
 
+
 local function lex_error(ls, token, em, ...)
-    local tok = ''
+    local tok
+    if token == 'TK_name' or token == 'TK_string' or token == 'TK_number' then
+        tok = ls.save_buf
+    elseif token then
+        tok = token2str(token)
+    end
+    if tok then
+        em = string.format("%s near %s", em, tok)
+    end
+    throw(ls.chunkname, ls.linenumber, em, ...)
+end
+
+
+local function parse_error(ls, token, em, ...)
     if token then
+        local tok
         if token == 'TK_name' or token == 'TK_string' or token == 'TK_number' then
             tok = ls.save_buf
         else 
-            tok = token2str(token)
-            --[[
-            if token == 'TK_indent' or token == 'TK_dedent' then
-                nexttok, nexttokval = ls:lookahead()
-                em = string.format("%s before '%s'", em, nexttokval or token2str(nexttok))
-            end]]
+            tok = string.format("'%s'", token2str(token))
         end
-        em = string.format("%s instead of %s", em, tok) 
+        if tok then
+            em = string.format("%s instead of %s", em, tok) 
+        end
     end
-    error_lex(ls.chunkname, ls.linenumber, em, ...)
+    throw(ls.chunkname, ls.linenumber, em, ...)
 end
 
 local function char_isalnum(c)
@@ -537,8 +549,8 @@ end
 
 
 local Lexer = {
-    token2str = token2str,
-    error = lex_error,
+    token2str = token2str
+    , error = parse_error
 }
 
 function Lexer.nl(ls, bool)

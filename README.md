@@ -65,7 +65,7 @@ p(obj.foo(@, 2))  -- use this instead
 
 ```
 
-The Luaty compiler uses handwritten lexer/parser, and emphasis on showing meaningful error message with line number.
+The Luaty compiler strives to show meaningful error message with line number.
 To run a Luaty source file, use
 ```
 luajit lt.lua source.lt

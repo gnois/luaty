@@ -41,9 +41,21 @@ function ExpressionRule:Identifier(node)
     return node.name, operator.ident_priority
 end
 
+function escape(str)
+    local escapes = {
+        ['\a'] = [[\a]], ['\b'] = [[\b]], ['\f'] = [[\f]], ['\n'] = [[\n]], ['\r'] = [[\r]], ['\t'] = [[\t]], ['\v'] = [[\v]]
+    }
+    str = str:gsub('\\', [[\\]])
+    for k, v in pairs(escapes) do
+      str = string.gsub(str, k, v)
+    end
+    str = str:gsub("\'", [[\']]):gsub('\"', [[\"]])
+    return str
+end
+
 function ExpressionRule:Literal(node)
     local val = node.value
-    local str = type(val) == "string" and format("%q", val) or tostring(val)
+    local str = type(val) == "string" and format('"%s"', escape(val)) or tostring(val)
     return str, operator.ident_priority
 end
 
