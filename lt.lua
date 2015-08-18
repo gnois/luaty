@@ -23,7 +23,7 @@ local k = 1
 while args[k] do
     local a = args[k]
     if string.sub(args[k], 1, 1) == "-" then
-        if string.sub(a, 1, 1) == "c" then
+        if string.sub(a, 2, 2) == "c" then
             run = false
         end
     else
