@@ -125,7 +125,6 @@ function expr_table(ast, ls)
         local key
         if ls.token == '[' then
             key = expr_bracket(ast, ls)
-            key = ast:expr_index(v, key)
             lex_check(ls, '=')
         elseif (ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')) and ls:lookahead() == '=' then
             local name = lex_str(ls)
@@ -137,11 +136,7 @@ function expr_table(ast, ls)
         ls:nl(false)
         -- expr() advanced the token before we can do anything, so skip newline if any
         lex_opt(ls, 'TK_newline')
-        local kv = { val }
-        if key then
-            kv[#kv + 1] = key
-        end 
-        kvs[#kvs + 1] = kv
+        kvs[#kvs + 1] = { val, key }  -- key can be nil
         if not lex_opt(ls, ',') then -- and not lex_opt(ls, ';') then 
             break
         end
