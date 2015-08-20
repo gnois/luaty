@@ -37,15 +37,15 @@ Example:
 a = 1           -- Error: undeclared identifier a
 var p = print
 var p = 'p'     -- Error: shadowing previous var p
-p 'nil'         -- Error: '=' expected instead of ''a''. * Valid in Lua
+p 'a'         -- Error: '=' expected instead of ''a''. But is actually valid in Lua
 function f()    -- Error: use 'fn' instead of 'function'
 fn f()          -- Error: fn() must be an expression
 
--- offside rule 3. single statement can be on the same line
+-- offside rule 3. single statement can stay on the same line
 if x ~= nil if type(x) == "table" p('table') else p('value') else p('nil')
 p((fn()	return 'a', 1)())
 
--- offside rule 2. Multiple statement should start a new block
+-- offside rule 2. Multiple statements should start a new block
 if true p(1) p(2)    -- beware, compiles to:    if true then p(1) end p(2)
 -- same as above
 if true
@@ -83,10 +83,14 @@ As `fn` and `var` are introduced as keywords, Luaty could not compile codes that
 Eg:
 ```
 p(obj.fn)  -- Error: 'name' expected instead of fn
-p(obj.var)  -- ok
-p(obj.var )  -- Error: 'name' expected instead of var
+var t = {
+	var= 4     -- ok
+	var = 6    -- Error: unexpected var
+}
+print(t.var)  -- ok
+p(obj.var )   -- Error: 'name' expected instead of var
 ```
-Notice that `p(obj.var)` works because the lexer is hacked to interpret `var` as keyword only if it is followed by a whitespace.
+Notice that `p(t.var)` and `var= 4` in `t` works because the lexer is hacked to interpret `var` as keyword only if it is followed by a whitespace.
 This a tradeoff as `local` and `function` are easily the two most used keywords in Lua. 
 
 
