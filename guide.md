@@ -10,6 +10,7 @@ Find: `local`
 Replace: `var`
 
 Remove all `then` and `end`
+
 Find: `then`
 Replace:
 
@@ -17,10 +18,12 @@ Find: `end`
 Replace:
 
 *Leave the `do` statements intact, but remove `do` after `while` and `for`
+
 Find: `do`
 Replace: 
 
 `Repeat` becomes `do`
+
 Find: `repeat`
 Replace: `do`
 
