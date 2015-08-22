@@ -79,16 +79,16 @@ function ExpressionRule:Identifier(node)
     return node.name, operator.ident_priority
 end
 
-function escape(str)
-    local escapes = {
-        ['\a'] = [[\a]], ['\b'] = [[\b]], ['\f'] = [[\f]], ['\n'] = [[\n]], ['\r'] = [[\r]], ['\t'] = [[\t]], ['\v'] = [[\v]]
+local function replace(c)
+    local esc = {
+        ['\\'] = [[\\]], ['"'] = [[\"]], ['\a'] = [[\a]], ['\b'] = [[\b]], ['\f'] = [[\f]], ['\n'] = [[\n]], ['\r'] = [[\r]], ['\t'] = [[\t]], ['\v'] = [[\v]]
     }
-    str = str:gsub('\\', [[\\]])
-    for k, v in pairs(escapes) do
-      str = string.gsub(str, k, v)
-    end
-    str = str:gsub("\'", [[\']]):gsub('\"', [[\"]])
-    return str
+    return esc[c] or string.format("\\%d", string.byte(c))
+end
+
+local function escape(s)
+    -- \' is not needed since we quote with \"
+    return string.gsub(s, '[%c\\"]', replace)
 end
 
 function ExpressionRule:Literal(node)

@@ -370,6 +370,13 @@ local function read_string(ls, delim)
     return get_string(ls, 1, 1)
 end
 
+local function skip_line(ls)
+    while not IsNewLine[ls.current] and ls.current ~= END_OF_STREAM do
+        add_comment(ls, ls.current)
+        nextchar(ls)
+    end
+end
+
 local function llex(ls)
     ls.save_buf = ''
     if ls.newline then
@@ -441,11 +448,11 @@ local function llex(ls)
                         read_long_string(ls, sep) -- long comment
                         add_comment(ls, ls.save_buf)  -- `read_long_string' may have change save_buf
                         ls.save_buf = '' 
+                    else
+                        skip_line(ls)
                     end
-                end
-                while not IsNewLine[ls.current] and ls.current ~= END_OF_STREAM do
-                    add_comment(ls, ls.current)
-                    nextchar(ls)
+                else
+                    skip_line(ls)
                 end
                 return 'TK_comment', get_comment(ls)
             else
