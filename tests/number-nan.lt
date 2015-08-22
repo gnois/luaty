@@ -1,0 +1,6 @@
+var foo = fn()
+    var x = 0/0
+    print(x)
+
+foo()
+
