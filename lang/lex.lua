@@ -276,11 +276,13 @@ local function read_long_string(ls, sep)
                 break
             end
             savebuf(ls, '\n')
-        elseif IsNewLine[c] then
-            inclinenumber(ls)
         else
-            savebuf(ls, ls.current)
-            nextchar(ls)
+            savebuf(ls, c)
+            if IsNewLine[c] then
+                inclinenumber(ls)
+            else
+                nextchar(ls)
+            end
         end
     end
     return get_string(ls, 2 + sep, 2 + sep)
@@ -321,7 +323,11 @@ local function read_escape_char(ls)
     elseif c == 'z' then -- Skip whitespace.
         nextchar(ls)
         while char_isspace(ls.current) do
-            if IsNewLine[ls.current] then inclinenumber(ls) else nextchar(ls) end
+            if IsNewLine[ls.current] then 
+                inclinenumber(ls) 
+            else 
+                nextchar(ls)
+            end
         end
     elseif IsNewLine[c] then
         savebuf(ls, '\n')
