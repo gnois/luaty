@@ -245,9 +245,6 @@ function expr_primary(ast, ls)
         lex_match(ls, ')', '(', line)
     elseif ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto') then
         vk, v = 'var', var_name(ast, ls)
-    --elseif ls.token == '@' then
-    --    vk, v = 'var', ast:identifier("self")
-    --    ls:next()
     else
         err_symbol(ls)
     end
@@ -431,24 +428,6 @@ local function parse_var(ast, ls)
     --end
 end
 
---[[  no more function() statement
-local function parse_func(ast, ls, line)
-    local needself = false
-    ls:next() -- Skip 'function'.
-    -- Parse function name.
-    local v = var_name(ast, ls)
-    while ls.token == '.' do -- Multiple dot-separated fields.
-        v = expr_field(ast, ls, v)
-    end
-    if ls.token == ':' then -- Optional colon to signify method call.
-        needself = true
-        v = expr_field(ast, ls, v)
-    end
-    local args, body, proto = parse_body(ast, ls, line, needself)
-    return ast:function_decl(v, args, body, proto)
-end
-]]
-
 local function parse_while(ast, ls, line)
     ls:next() -- Skip 'while'.
     ast:fscope_begin()
@@ -576,14 +555,8 @@ end
 local function parse_params(ast, ls, needself)
     lex_check(ls, "(")
     local args = { }
-    --[[if needself then
-        args[1] = ast:var_declare("self")
-    end]]
     if ls.token ~= ")" then
         repeat
-            --if ls.token == '@' then
-            --    args[#args+1] = ast:var_declare("self")
-            --   ls:next()
             if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto') then
                 local name = lex_str(ls)
                 args[#args+1] = ast:var_declare(name)

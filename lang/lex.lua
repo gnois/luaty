@@ -149,11 +149,9 @@ end
 local function inclinenumber(ls)
     local old = ls.current
     -- skip `\n' or `\r'
-    --spaceadd(ls, ls.current)
     nextchar(ls)
     if IsNewLine[ls.current] and ls.current ~= old then
         -- skip `\n\r' or `\r\n'
-        --spaceadd(ls, ls.current)
         nextchar(ls)
     end
     ls.linenumber = ls.linenumber + 1
@@ -436,7 +434,6 @@ local function llex(ls)
             return 'TK_eof'
         elseif current == ' ' or current == '\t' or current == '\b' or current == '\f' then
             -- skip space in between characters
-            --spaceadd(ls, current)
             nextchar(ls)  
         elseif current == '-' then
             nextchar(ls)
@@ -484,7 +481,6 @@ local function llex(ls)
                 until not char_isalnum(ls.current)
                 local s = get_string(ls, 0, 0)
                 -- hack for ngx.var.xxx  
-                -- lucky nobody is using `a.fn(`
                 if s == "var" and ls.current ~= ' ' and ls.current ~= '\t' then
                     return 'TK_name', s
                 end
