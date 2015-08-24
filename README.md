@@ -3,9 +3,8 @@ Luaty
 
 *[Lua] with less [ty]ping*
 
-Luaty is a opinionated Lua dialect with offside syntax like Coffeescript. It is written in Lua based on the excellent [Luajit Language Toolkit](https://github.com/franko/luajit-lang-toolkit), and compiles to Lua. 
-
-Its primary raison d'etre is allow faster Lua coding with arguably cleaner syntax. Many Coffeescript features like class, comprehension etc... are simply absent. For a much more feature-rich Coffeescript clone, please see [Moonscript](https://github.com/leafo/moonscript).
+Luaty is a opinionated Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule). It is written in Lua based on the excellent [Luajit Language Toolkit](https://github.com/franko/luajit-lang-toolkit), and compiles to Lua. 
+Its primary raison d'etre is allow faster Lua coding with arguably cleaner syntax. 
 
 Characteristics:
 ---
@@ -31,13 +30,13 @@ The offside (indentation) rule
 4. statements and expressions are newline sensitive, but not table definition
 
 
-Example:
+Code example:
 ---
 ```
 a = 1           -- Error: undeclared identifier a
 var p = print
 var p = 'p'     -- Error: shadowing previous var p
-p 'a'         -- Error: '=' expected instead of ''a''. But is actually valid in Lua
+p 'a'           -- Error: '=' expected instead of 'a'. But is valid in Lua
 function f()    -- Error: use 'fn' instead of 'function'
 fn f()          -- Error: fn() must be an expression
 
@@ -46,7 +45,7 @@ if x ~= nil if type(x) == "table" p('table') else p('value') else p('nil')
 p((fn()	return 'a', 1)())
 
 -- offside rule 2. Multiple statements should start a new block
-if true p(1) p(2)    -- beware, compiles to:    if true then p(1) end p(2)
+if true p(1) p(2)    -- beware, compiles to:  if true then p(1) end p(2)
 -- same as above
 if true
   p(1)
@@ -60,8 +59,8 @@ var obj = {
   foo = foo 
 }
 -- no more ':'
-p(obj:foo(2))     -- Error: ')' expected instead of ':'
-p(obj.foo(@, 2))  -- use this instead
+p(obj:foo(2))       -- Error: ')' expected instead of ':'
+p(obj.foo(@, 2))    -- use this instead
 
 ```
 
@@ -82,16 +81,16 @@ Known issues
 As `fn` and `var` are introduced as keywords, Luaty could not compile codes that reference existing libararies having these identifiers.
 Eg:
 ```
-p(obj.fn)  -- Error: 'name' expected instead of fn
+p(obj.fn)     -- Error: 'name' expected instead of fn
 var t = {
-	var= 4     -- ok
-	var = 6    -- Error: unexpected var
+   var= 4     -- ok
+   var = 6    -- Error: unexpected var
 }
-print(t.var)  -- ok
+p(t.var)  -- ok
 p(obj.var )   -- Error: 'name' expected instead of var
 ```
 Notice that `p(t.var)` and `var= 4` in `t` works because the lexer is hacked to interpret `var` as keyword only if it is followed by a whitespace.
-This a tradeoff as `local` and `function` are easily the two most used keywords in Lua. 
+This is a tradeoff as `local` and `function` are easily the two most used keywords in Lua. 
 
 
 Status
