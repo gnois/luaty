@@ -79,21 +79,9 @@ function ExpressionRule:Identifier(node)
     return node.name, operator.ident_priority
 end
 
-local function replace(c)
-    local esc = {
-        ['\\'] = [[\\]], ['"'] = [[\"]], ['\a'] = [[\a]], ['\b'] = [[\b]], ['\f'] = [[\f]], ['\n'] = [[\n]], ['\r'] = [[\r]], ['\t'] = [[\t]], ['\v'] = [[\v]]
-    }
-    return esc[c] or string.format("\\%d", string.byte(c))
-end
-
-local function escape(s)
-    -- \' is not needed since we quote with \"
-    return string.gsub(s, '[%c\\"]', replace)
-end
-
 function ExpressionRule:Literal(node)
     local val = node.value
-    local str = type(val) == "string" and format('"%s"', escape(val)) or tostring(val)
+    local str = type(val) == "string" and format('"%s"', val) or tostring(val)
     return str, operator.ident_priority
 end
 

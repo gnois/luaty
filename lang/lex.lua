@@ -18,6 +18,8 @@ local ReservedKeyword = {['and'] = 1, ['break'] = 2, ['do'] = 3, ['else'] = 4, [
 local TokenSymbol = { TK_ge = '>=', TK_le = '<=' , TK_concat = '..', TK_eq = '==', TK_ne = '~=', TK_indent = '<indent>', TK_dedent = '<dedent>', TK_newline = '<newline>', TK_eof = '<eof>' }
 
 local IsNewLine = { ['\n'] = true, ['\r'] = true }
+
+local IsEscape = { a = true, b = true, f = true, n = true, r = true, t = true, v = true }
  
 local function token2str(tok)
     if string.match(tok, "^TK_") then
@@ -294,29 +296,29 @@ local function hex_char(c)
     end
 end
 
-local Escapes = {
-    a = '\a', b = '\b', f = '\f', n = '\n', r = '\r', t = '\t', v = '\v'
-}
-
 local function read_escape_char(ls)
+    savebuf(ls, ls.current)  -- we want two slashes
     local c = nextchar(ls) -- Skip the '\\'.
-    local esc = Escapes[c]
+    local esc = IsEscape[c]
     if esc then
-        savebuf(ls, esc)
+        savebuf(ls, c)
         nextchar(ls)
     elseif c == 'x' then -- Hexadecimal escape '\xXX'.
+        savebuf(ls, c)
         local ch1 = hex_char(nextchar(ls))
         local hc
         if ch1 then
+            savebuf(ls, ls.current)
             local ch2 = hex_char(nextchar(ls))
             if ch2 then
+                savebuf(ls, ls.current)
                 hc = strchar(ch1 * 16 + ch2)
             end
         end
         if not hc then
             lex_error(ls, 'TK_string', "invalid escape sequence")
         end
-        savebuf(ls, hc)
+        --savebuf(ls, hc)
         nextchar(ls)
     elseif c == 'z' then -- Skip whitespace.
         nextchar(ls)
@@ -338,18 +340,22 @@ local function read_escape_char(ls)
         if not char_isdigit(c) then
             lex_error(ls, 'TK_string', "invalid escape sequence")
         end
+        savebuf(ls, c)
         local bc = band(strbyte(c), 15) -- Decimal escape '\ddd'.
         if char_isdigit(nextchar(ls)) then
+            savebuf(ls, ls.current)
             bc = bc * 10 + band(strbyte(ls.current), 15)
             if char_isdigit(nextchar(ls)) then
+                savebuf(ls, ls.current)
                 bc = bc * 10 + band(strbyte(ls.current), 15)
-                if bc > 255 then
-                    lex_error(ls, 'TK_string', "invalid escape sequence")
-                end
                 nextchar(ls)
             end
         end
-        savebuf(ls, strchar(bc))
+        -- cannot save in the end, "\04922" should be "122" but becomes "\4922" which is invalid
+        --savebuf(ls, strchar(bc))
+        if bc > 255 then
+            lex_error(ls, 'TK_string', "invalid escape sequence")
+        end
     end
 end
 
