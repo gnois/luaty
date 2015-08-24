@@ -31,7 +31,7 @@ while args[k] do
     end
     k = k + 1
 end
-
+filename = 'tests\\string-method.lt'
 if not filename then usage() end
 
 local compile = require("lang.compile")

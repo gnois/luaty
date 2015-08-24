@@ -182,7 +182,7 @@ function ExpressionRule:SendExpression(node)
     -- replace the last . with :
     local dot = string.match(callee, ".*%.()")
     local method = callee:sub(1, dot-2) .. ':' .. callee:sub(dot)
-    if prio < operator.ident_priority or is_literal(node.receiver) then
+    if prio < operator.ident_priority or is_literal(node.callee) then
         method = "(" .. method .. ")"
     end
     local exp = format("%s(%s)", method, self:expr_list(node.arguments))
