@@ -332,7 +332,7 @@ local function read_escape_char(ls)
     elseif IsNewLine[c] then
         savebuf(ls, '\n')
         inclinenumber(ls)
-    elseif c == '\\' or c == '\"' or c == '\'' then
+    elseif c == '\\' or c == '"' or c == "'" then
         savebuf(ls, c)
         nextchar(ls)
     elseif c == END_OF_STREAM then
@@ -426,7 +426,7 @@ local function llex(ls)
                 if not tabs then
                     tabs = ls.current
                 elseif tabs ~= ls.current then
-                    lex_error(ls, nil, "Indentation cannot mix tab and space")
+                    lex_error(ls, nil, "indentation cannot mix tab and space")
                 end
                 ind = ind + 1
                 nextchar(ls)
@@ -472,7 +472,7 @@ local function llex(ls)
                 if not ls.tabs then 
                     ls.tabs = tabs
                 elseif tabs ~= ls.tabs then
-                    lex_error(ls, nil, "Cannot mix tab and space as indentation")
+                    lex_error(ls, nil, "cannot mix tab and space as indentation")
                 end
             end
             return 'TK_newline'

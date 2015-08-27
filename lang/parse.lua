@@ -175,7 +175,7 @@ function expr_simple(ast, ls)
         return expr_table(ast, ls)
     elseif tk == 'TK_fn' then
         ls:next()
-        local args, body, proto = parse_body(ast, ls, ls.linenumber, false)
+        local args, body, proto = parse_body(ast, ls, ls.linenumber)
         return ast:expr_function(args, body, proto)
     else
         return expr_primary(ast, ls)
@@ -260,10 +260,8 @@ function expr_primary(ast, ls)
             err_syntax(ls, "use `@` in argument list as self instead of `:`")
         elseif ls.token == '(' then -- or ls.token == 'TK_string' or ls.token == '{' then
             local args = parse_args(ast, ls)
-            -- if first argument is @, it should be a method call 
-            -- put @ other than the first arg to get normal function call
-            local a = args[1]
-            if a and a.kind == 'Identifier' and a.name == 'self' then
+            -- if vk is indexed and first argument is @, it is a method call 
+            if vk == 'indexed' and args[1] and args[1].kind == 'Identifier' and args[1].name == 'self' then
                 table.remove(args, 1)
                 vk, v = 'call', ast:expr_method_call(v, args, line)
             else
@@ -409,7 +407,7 @@ local function parse_var(ast, ls)
     --[[
     if lex_opt(ls, 'TK_fn') then -- Local function declaration.
         local name = lex_str(ls)
-        local args, body, proto = parse_body(ast, ls, line, false)
+        local args, body, proto = parse_body(ast, ls, line)
         return ast:local_function_decl(name, args, body, proto)
     else -- Local variable declaration.
     ]]
@@ -552,7 +550,7 @@ local function parse_stmt(ast, ls)
 end
 
 -- Parse function definition parameters
-local function parse_params(ast, ls, needself)
+local function parse_params(ast, ls)
     lex_check(ls, "(")
     local args = { }
     if ls.token ~= ")" then
@@ -609,12 +607,12 @@ function parse_opt_block(ast, ls, line, match_token)
 end
 
 -- Parse body of a function
-function parse_body(ast, ls, line, needself)
+function parse_body(ast, ls, line)
     local pfs = ls.fs
     ls.fs.varargs = false
     ast:fscope_begin()
     ls.fs.firstline = line
-    local args = parse_params(ast, ls, needself)
+    local args = parse_params(ast, ls)
     local body = parse_opt_block(ast, ls, line, 'TK_fn')
     ast:fscope_end()
     local proto = ls.fs
