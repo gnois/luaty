@@ -30,7 +30,7 @@ The offside (indentation) rule
 4. statements and expressions are newline sensitive, but not table definition
 
 
-Code example:
+Code examples:
 ---
 ```
 a = 1           -- Error: undeclared identifier a
@@ -50,6 +50,12 @@ if true p(1) p(2)    -- beware, compiles to:  if true then p(1) end p(2)
 if true
   p(1)
 p(2)
+
+-- offside rule 3. statements are newline sensitive
+pcall(fn(x) 
+	return x
+, 10))                     -- evaluates to true, `10`
+pcall(fn(x) return x, 10)  -- beware, evaluates to true, nil, 10
 
 -- function is always expression, and `self` if any must be explicit
 var foo = fn(@, k)
@@ -76,7 +82,7 @@ luajit lt.lua -c source.lt > dest.lua
 Please see the test folder for more code examples.
 
 
-Known issues
+Limitations
 ---
 As `fn` and `var` are introduced as keywords, Luaty could not compile codes that reference existing libararies having these identifiers.
 Eg:
