@@ -84,9 +84,17 @@ function ExpressionRule:Identifier(node)
     return node.name, operator.ident_priority
 end
 
+local function escape(s)
+    local replace = {
+        ['"'] = [[\"]], ['\a'] = [[\a]], ['\b'] = [[\b]], ['\f'] = [[\f]], ['\n'] = [[\n]], ['\r'] = [[\r]], ['\t'] = [[\t]], ['\v'] = [[\v]]
+    }
+    -- \' is not needed since we quote with \"
+    return string.gsub(s, '["\a\b\f\n\r\t\v]', replace)
+end
+
 function ExpressionRule:Literal(node)
     local val = node.value
-    local str = type(val) == "string" and format('"%s"', val) or tostring(val)
+    local str = type(val) == "string" and format('"%s"', escape(val)) or tostring(val)
     return str, operator.ident_priority
 end
 

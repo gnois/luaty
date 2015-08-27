@@ -296,14 +296,17 @@ local function hex_char(c)
     end
 end
 
+-- this function works tightly with luacode-generator ExpressionRule:Literal
 local function read_escape_char(ls)
-    savebuf(ls, ls.current)  -- we want two slashes
     local c = nextchar(ls) -- Skip the '\\'.
     local esc = IsEscape[c]
     if esc then
+        -- eg: convert '\n' to '\\n', which is no longer newline
+        savebuf(ls, '\\')
         savebuf(ls, c)
         nextchar(ls)
     elseif c == 'x' then -- Hexadecimal escape '\xXX'.
+        savebuf(ls, '\\')
         savebuf(ls, c)
         local ch1 = hex_char(nextchar(ls))
         local hc
@@ -332,7 +335,11 @@ local function read_escape_char(ls)
     elseif IsNewLine[c] then
         savebuf(ls, '\n')
         inclinenumber(ls)
-    elseif c == '\\' or c == '"' or c == "'" then
+    elseif c == '\\' then
+        savebuf(ls, '\\')
+        savebuf(ls, c)
+        nextchar(ls)
+    elseif c == '"' or c == "'" then
         savebuf(ls, c)
         nextchar(ls)
     elseif c == END_OF_STREAM then
@@ -340,6 +347,7 @@ local function read_escape_char(ls)
         if not char_isdigit(c) then
             lex_error(ls, 'TK_string', "invalid escape sequence")
         end
+        savebuf(ls, '\\')
         savebuf(ls, c)
         local bc = band(strbyte(c), 15) -- Decimal escape '\ddd'.
         if char_isdigit(nextchar(ls)) then
