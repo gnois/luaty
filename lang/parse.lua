@@ -257,7 +257,7 @@ function expr_primary(ast, ls)
             key = expr_bracket(ast, ls)
             vk, v = 'indexed', ast:expr_index(v, key)
         elseif ls.token == ':' then
-            err_syntax(ls, "use `@` in argument list as self instead of `:`")
+            err_syntax(ls, "use of `:` is not supported")
         elseif ls.token == '(' then -- or ls.token == 'TK_string' or ls.token == '{' then
             local args = parse_args(ast, ls)
             -- if vk is indexed and first argument is @, it is a method call 
@@ -609,7 +609,7 @@ end
 -- Parse body of a function
 function parse_body(ast, ls, line)
     local pfs = ls.fs
-    ls.fs.varargs = false
+    ls.fs = { varargs = false }
     ast:fscope_begin()
     ls.fs.firstline = line
     local args = parse_params(ast, ls)

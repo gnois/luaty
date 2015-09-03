@@ -138,7 +138,9 @@ function ExpressionRule:UnaryExpression(node)
     local arg, arg_prio = self:expr_emit(node.argument)
     local op_prio = operator.unary_priority
     if arg_prio < op_prio then arg = format("(%s)", arg) end
-    return format("%s %s", node.operator, arg), operator.unary_priority
+    local op = node.operator
+    if op == 'not' then op = 'not ' end
+    return format("%s%s", op, arg), operator.unary_priority
 end
 
 ExpressionRule.LogicalExpression = ExpressionRule.BinaryExpression
