@@ -1,9 +1,10 @@
 local function usage()
     io.stderr:write [[
 Luaty usage: 
-  luajit lt.lua [-c] source.lt 
+  luajit lt.lua [-c] source.lt [dest.lua]
   where:
-    -c   Compile into Lua without running.
+    -c   Write into dest.lua without running. 
+         If dest.lua is not provided, default to source.lua
 ]]
   os.exit(1)
 end
@@ -19,27 +20,39 @@ end
 
 local run = true
 local args = {...}
+local filenames = {}
 local k = 1
 while args[k] do
     local a = args[k]
-    if string.sub(args[k], 1, 1) == "-" then
+    if string.sub(a, 1, 1) == "-" then
         if string.sub(a, 2, 2) == "c" then
             run = false
+        else
+            usage()
         end
     else
-        filename = args[k]
+        table.insert(filenames, a)
     end
     k = k + 1
 end
 
-if not filename then usage() end
+if #filenames < 1 or #filenames > 2 then
+    usage()
+end
 
+local source = filenames[1]
 local compile = require("lang.compile")
+local luacode = check(compile.file(source))
 
-local luacode = check(compile.file(filename))
 if run then
     local fn = assert(loadstring(luacode))
     fn()
 else
-    print(luacode)
+    local dest = filenames[2] or string.gsub(filenames[1], "%.lt", '.lua')
+    while dest == source do
+        dest = dest .. '.lua'
+    end
+    --print("Compiled " .. source .. " to " .. dest)
+    local f = io.open(dest, 'w')
+    f:write(luacode)
 end

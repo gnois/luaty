@@ -1,5 +1,6 @@
 
-Luaty is best used when writing new code. 
+Luaty is best used when writing new code. On Windows, use:
+doskey luaty=luajit -e "package.path=package.path .. 'path-to-luaty\\?.lua'"  path-to-luaty\lt.lua $*
 
 However, you can always convert from a properly indented Lua code to Luaty manually to enjoy its cleaner syntax:
 
