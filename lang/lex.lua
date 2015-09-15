@@ -439,7 +439,9 @@ local function llex(ls)
                 ind = ind + 1
                 nextchar(ls)
             end
-            ls.newline = ind    -- prepare to handle newline
+            if ls.current ~= END_OF_STREAM then
+                ls.newline = ind    -- prepare to handle newline
+            end
         elseif current == END_OF_STREAM then
             if stack:top() > 0 then
                 stack:pop()
