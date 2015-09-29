@@ -35,14 +35,21 @@ local function throw(chunkname, line, em, ...)
     error("LT-ERROR" .. msg, 0)
 end
 
+local function fmt_token(ls, token)
+    if token then
+        local tok
+        if token == 'TK_name' or token == 'TK_string' or token == 'TK_number' then
+            tok = ls.save_buf
+        else
+            tok = string.format("'%s'", token2str(token))
+        end
+        -- replace % with %%, so as not to confuse string.format() later
+        return (string.gsub(tok, "%%.", function(p) return '%' .. p end))
+    end
+end
 
 local function lex_error(ls, token, em, ...)
-    local tok
-    if token == 'TK_name' or token == 'TK_string' or token == 'TK_number' then
-        tok = ls.save_buf
-    elseif token then
-        tok = token2str(token)
-    end
+    local tok = fmt_token(ls, token)
     if tok then
         em = string.format("%s near %s", em, tok)
     end
@@ -51,16 +58,9 @@ end
 
 
 local function parse_error(ls, token, em, ...)
-    if token then
-        local tok
-        if token == 'TK_name' or token == 'TK_string' or token == 'TK_number' then
-            tok = ls.save_buf
-        else 
-            tok = string.format("'%s'", token2str(token))
-        end
-        if tok then
-            em = string.format("%s instead of %s", em, tok) 
-        end
+    local tok = fmt_token(ls, token)
+    if tok then
+        em = string.format("%s instead of %s", em, tok) 
     end
     throw(ls.chunkname, ls.linenumber, em, ...)
 end
@@ -275,7 +275,6 @@ local function read_long_string(ls, sep)
                 nextchar(ls)
                 break
             end
-            savebuf(ls, '\n')
         else
             savebuf(ls, c)
             if IsNewLine[c] then
