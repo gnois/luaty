@@ -73,6 +73,10 @@ function AST.literal(ast, val)
     return build("Literal", { value = val })
 end
 
+function AST.longstrliteral(ast, txt)
+    return build("LongStringLiteral", { text = txt })
+end
+
 function AST.expr_vararg(ast)
     return build("Vararg", { })
 end

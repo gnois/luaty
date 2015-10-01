@@ -160,6 +160,8 @@ function expr_simple(ast, ls)
         e = ast:literal(val)
     elseif tk == 'TK_string' then
         e = ast:literal(val)
+    elseif tk == 'TK_longstring' then
+        e = ast:longstrliteral(val)
     elseif tk == 'TK_nil' then
         e = ast:literal(nil)
     elseif tk == 'TK_true' then
@@ -365,6 +367,10 @@ function parse_args(ast, ls)
         local a = ls.tokenval
         ls:next()
         args = { ast:literal(a) }
+    elseif ls.token == 'TK_longstring' then
+        local a = ls.tokenval
+        ls:next()
+        args = { ast:longstrliteral(a) }
     else
         err_syntax(ls, "function arguments expected")
     end

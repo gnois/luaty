@@ -98,6 +98,10 @@ function ExpressionRule:Literal(node)
     return str, operator.ident_priority
 end
 
+function ExpressionRule:LongStringLiteral(node)
+    return node.text, operator.ident_priority
+end
+
 function ExpressionRule:MemberExpression(node)
     local object, prio = self:expr_emit(node.object)
     if prio < operator.ident_priority or is_literal(node.object) then

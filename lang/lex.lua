@@ -257,13 +257,13 @@ local function lex_number(ls)
     end
 end
 
-local function read_long_string(ls, sep)
+local function read_long_string(ls, sep, comment)
     -- skip 2nd `['
     savebuf(ls, ls.current)
     nextchar(ls)
-    if IsNewLine[ls.current] then -- string starts with a newline?
-        inclinenumber(ls) -- skip it
-    end
+    --if IsNewLine[ls.current] then -- string starts with a newline?
+    --    inclinenumber(ls) -- skip it
+    --end
     while true do
         local c = ls.current
         if c == END_OF_STREAM then
@@ -284,7 +284,8 @@ local function read_long_string(ls, sep)
             end
         end
     end
-    return get_string(ls, 2 + sep, 2 + sep)
+    --return get_string(ls, 2 + sep, 2 + sep)
+    return get_string(ls, 0, 0)
 end
 
 local function hex_char(c)
@@ -463,7 +464,7 @@ local function llex(ls)
                     add_comment(ls, ls.save_buf)  -- `skip_sep' may have changed save_buf
                     ls.save_buf = ''
                     if sep >= 0 then
-                        read_long_string(ls, sep) -- long comment
+                        read_long_string(ls, sep, true) -- long comment
                         add_comment(ls, ls.save_buf)  -- `read_long_string' may have change save_buf
                         ls.save_buf = '' 
                     else
@@ -511,11 +512,11 @@ local function llex(ls)
                 local sep = skip_sep(ls)
                 if sep >= 0 then
                     local str = read_long_string(ls, sep)
-                    return 'TK_string', str
+                    return 'TK_longstring', str
                 elseif sep == -1 then
                     return '['
                 else
-                    lex_error(ls, 'TK_string', "delimiter error")
+                    lex_error(ls, 'TK_longstring', "delimiter error")
                 end
             elseif current == '=' then
                 nextchar(ls)
