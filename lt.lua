@@ -53,6 +53,6 @@ else
         dest = dest .. '.lua'
     end
     --print("Compiled " .. source .. " to " .. dest)
-    local f = io.open(dest, 'w')
+    local f = io.open(dest, 'wb')
     f:write(luacode)
 end
