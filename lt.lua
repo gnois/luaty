@@ -53,6 +53,10 @@ else
         dest = dest .. '.lua'
     end
     --print("Compiled " .. source .. " to " .. dest)
-    local f = io.open(dest, 'wb')
-    f:write(luacode)
+    local f, err = io.open(dest, 'wb')
+    if not f then
+        error(err)
+    else
+        f:write(luacode)
+    end
 end
