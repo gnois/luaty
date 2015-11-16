@@ -1,13 +1,11 @@
-Luaty
+Luaty - [Lua] with less [ty]ping
 
 Based on LuaJIT Language Toolkit, a toolkit for language implementations
 https://github.com/franko/luajit-lang-toolkit
 
 The MIT License (MIT)
 
-Copyright (c) 2015 Wi Siong Ko
-Copyright (c) 2013-2014 Francesco Abbate
-Copyright (c) 2013-2014 Richard Hundt and contributors
+Copyright Wi Siong Ko, Francesco Abbate, Richard Hundt and contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
