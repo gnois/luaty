@@ -1,0 +1,114 @@
+(fn(a, b) print(a .. b))('a', 'b')
+var func = fn()
+
+print(" · "
+, 100, 7, 8, 9)
+print(
+" · ", 100, 7, 8, 9)
+print(" · ", 
+	100, 7, {8, 9,
+		0, 82},
+	5
+)
+print(" · "
+	, 
+	100, 7, 8, 9
+)
+print(" · ", 
+	100, 7, 8, 9
+)
+
+var g = fn() print('g func')
+var b = fn(x)  print(x)
+var kk = fn(f) f()
+
+var mm = { fn() }
+var m = {
+	1
+}
+var n = {
+	foo = fn()
+		return nil
+}
+
+var x = {a, b, c,
+	d, 
+	g, h, (fn(a, b) print(a .. b))('a', 'b'), 
+	c, d, 3
+}
+
+var j = { 76,
+	['if'] = 33, 36, 1, fn(x, y) 
+	, b(3,4),
+	2
+	,3 
+}
+
+var h = { 76,
+	['if'] = 33, 36, 1, fn(x, y),
+	b(3,
+		4),
+	2
+	,3
+}
+
+var q = { 1, { 2, { 3, { 4, 
+		{ 5, 6 
+		},
+		7 }, 8 }
+		, 9 }
+, 10}
+
+var r = {{ 1, { 2, { 3, { 4, 
+		{ 5, 6 
+		},
+		7 }, 8 }
+		, 9 }
+		, 10
+		}
+, 20}
+
+
+var z = { 76,
+	['if'] = 33, 36, 1, fn(x, y)
+		return x, y
+	, b(3,4),
+	2
+	,3
+}
+
+var ux = { 
+	['if'] = 33, 36, 1, fn(x, y)
+		return x, y
+	, b(
+		3
+		,
+		4
+		)
+	,
+	2
+	,3
+}
+
+var y = { 76
+	,
+	['if'] = 33, 36, 1, fn(x, y)
+		return x, y
+	, b(3,4),
+	2
+	,3,5
+}
+
+
+var foo = fn(ls)
+	var sum = 0
+	for i, v in ipairs(ls)
+		sum = sum + v*v
+	return sum
+
+print(foo(
+	{1, 3,
+	7, 12}
+	)
+)
+

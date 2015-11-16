@@ -413,7 +413,7 @@ local function llex(ls)
         end
     elseif ls.indent then
         if ls.indent > 0 and stack:top() == 0 then
-            lex_error(ls, nil, "unmatched indentation")
+            lex_error(ls, nil, "unaligned or dangling <indent>")
         end
         stack:pop()
         if ls.indent == stack:top() then
@@ -563,9 +563,10 @@ local function do_lex(ls)
     local token, value
     while true do
         token, value = llex(ls)
-        if token == 'TK_newline' then
-            if ls.want_nl then break end
-        elseif token ~= 'TK_comment' then 
+        --if token == 'TK_newline' then
+        --    if ls.want_nl then break end
+        --else
+        if token ~= 'TK_comment' then 
             break
         end
     end
@@ -578,9 +579,11 @@ local Lexer = {
     , error = parse_error
 }
 
+--[[
 function Lexer.nl(ls, bool)
     ls.want_nl = bool
 end
+]]
 
 function Lexer.next(ls)
     ls.lastline = ls.linenumber
@@ -593,10 +596,12 @@ function Lexer.next(ls)
 end
 
 function Lexer.lookahead(ls)
-    assert(ls.tklookahead == 'TK_eof')
-    ls.tklookahead, ls.tklookaheadval = do_lex(ls)
+    if ls.tklookahead == 'TK_eof' then
+        ls.tklookahead, ls.tklookaheadval = do_lex(ls)
+    end
     return ls.tklookahead, ls.tklookaheadval
 end
+
 
 local LexerClass = { __index = Lexer }
 
@@ -609,8 +614,8 @@ local function lex_setup(read_func, chunkname)
         lastline = 1,
         read_func = read_func,
         chunkname = chunkname,
-        tabs = nil,
-        want_nl = true
+        tabs = nil
+        --want_nl = true
     }
     stack:push(0)
     nextchar(ls)
