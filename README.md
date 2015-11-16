@@ -14,7 +14,6 @@ Characteristics:
   * No more `then`, `end`, `do`
   * `local` becomes `var`, `repeat` becomes `do`, `elseif` becomes `else if`, `function` to `fn`, `self` can be `@`
 
-For eg:
 ```
 var x = false    -- `var` compiles to `local` 
 if not x
@@ -26,7 +25,6 @@ if not x
   * Assigning to undeclared (a.k.a global) variable
   * Shadowing another variable in the same scope
 
-For eg:
 ```
 a = 1           -- Error: undeclared identifier a
 var p = print
@@ -39,7 +37,6 @@ var p = 'p'     -- Error: shadowing previous var p
   * function call always need parenthesis
   * `:` not supported, `self` or `@` need to be explicitly specified as function parameter instead
 
-For eg:
 ```
 p 'a'           -- Error: '=' expected instead of 'a'. This is valid in Lua
 function f()    -- Error: use 'fn' instead of 'function'
@@ -62,11 +59,11 @@ That's it!
 Luaty has so few features that its code very much resembles Lua. It's therefore very easy to convert a properly indented Lua code to Luaty, and vice versa. If you knew Lua, you already knew most of Luaty.
 
 
-The offside (indentation) rule with examples
+The offside (indentation) rule
 ---
-1. either tab(s) or space(s) can be used as indent, but not both. 
+- either tab(s) or space(s) can be used as indent, but not both. 
 
-2. compound statements always start at an indented newline. (Analoguous to statements within C curly braces)
+- compound statements always start at an indented newline. (Analoguous to statements within C curly braces)
 
 ```
 if true
@@ -81,7 +78,7 @@ p(2)
 
 ```
 
-3. single statement may stay on the same line. (Analoguous to one statement in C without curly brace)
+- single statement may stay on the same line. (Analoguous to one statement in C without curly brace)
 
 ```
 if x ~= nil if type(x) == "table" p('table') else p('value') else p('nil')
@@ -95,8 +92,9 @@ print(pcall(fn(x) return x, 10))    -- prints true, nil, 10
 
 ```
 
-4. within table definition {} and call expression (), indentation is allowed until its closing brace or parenthesis, which must realign back to the starting indentation
+- within table definition {} and call expression (), indentation is allowed until its closing brace or parenthesis, which must realign back to the starting indentation
 
+```
 var y = { 1
 	, 
 	2}         -- Error: <dedent> expected
@@ -153,7 +151,7 @@ p(obj.var )   -- Error: 'name' expected instead of var
 
 ```
 
-Notice that `p(t.var)` and `var= 4` in table `t` still works because some hack is in place to interpret `var` as keyword only if it is followed by a whitespace.
+Notice that `p(t.var)` and `var= 4` in table `t` still works because some hack is done to interpret `var` as keyword only if it is followed by a whitespace.
 
 
 
