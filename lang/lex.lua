@@ -420,6 +420,9 @@ local function llex(ls)
             ls.indent = nil
         end
         return 'TK_dedent'
+    elseif ls.minus then
+        ls.minus = nil
+        return '-'
     end
    
     local tabs = nil
@@ -427,7 +430,7 @@ local function llex(ls)
         local current = ls.current
         
         if IsNewLine[current] then
-            tabs = nil  -- if come back here, is an empty line, reset tab space memory
+            tabs = nil  -- if come back here, is an empty line, reset tab space tracker
             inclinenumber(ls)
             local ind = 0
             while ls.current == ' ' or ls.current == '\t' do
@@ -450,7 +453,7 @@ local function llex(ls)
             return 'TK_eof'
         elseif current == ' ' or current == '\t' or current == '\b' or current == '\f' then
             -- skip space in between characters
-            nextchar(ls)  
+            nextchar(ls)
         elseif current == '-' then
             nextchar(ls)
             if ls.current == '-' then
@@ -474,6 +477,8 @@ local function llex(ls)
                     skip_line(ls)
                 end
                 return 'TK_comment', get_comment(ls)
+            elseif ls.newline then
+                ls.minus = true
             else
                 return '-'
             end
