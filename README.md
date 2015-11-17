@@ -15,9 +15,9 @@ Characteristics:
   * `local` becomes `var`, `repeat` becomes `do`, `elseif` becomes `else if`, `function` to `fn`, `self` can be `@`
 
 ```
-var x = false    -- `var` compiles to `local` 
+var x = false          -- `var` compiles to `local` 
 if not x
-	print 'nay'   -- `then` and `end` not needed
+	print('nay')   -- `then` and `end` not needed
 
 ```
 
@@ -38,7 +38,7 @@ var p = 'p'     -- Error: shadowing previous var p
   * `:` not supported, `self` or `@` need to be explicitly specified as function parameter instead
 
 ```
-p 'a'           -- Error: '=' expected instead of 'a'. This is valid in Lua
+print 'a'           -- Error: '=' expected instead of 'a'. This is valid in Lua
 function f()    -- Error: use 'fn' instead of 'function'
 fn f()          -- Error: fn() must be an expression
 
@@ -51,7 +51,7 @@ var obj = {
 }
 -- no more ':'
 p(obj:foo(2))       -- Error: ')' expected instead of ':'
-p(obj.foo(@, 2))    -- use this instead
+p(obj.foo(@, 2))    -- ok, use this instead
 
 ```
 
@@ -102,13 +102,13 @@ var y = { 1
 var z = { 1
 	,
 	2
-}             -- Ok, last line realign back with a dedent
+}                  -- Ok, last line realign back with a dedent
 
 print(
 	1,
 	2
 	, 3,
-4, 5)         -- Ok, last line realign back to `print(`
+4, 5)              -- Ok, last line realign back to `print(`
 
 ```
 
@@ -151,7 +151,7 @@ p(obj.var )   -- Error: 'name' expected instead of var
 
 ```
 
-Notice that `p(t.var)` and `var= 4` in table `t` still works because some hack is done to interpret `var` as keyword only if it is followed by a whitespace.
+Notice that `p(t.var)` and `var= 4` in table `t` still works because hack is done to interpret `var` as keyword only if it is followed by a whitespace.
 
 
 
