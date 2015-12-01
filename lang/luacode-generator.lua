@@ -153,6 +153,7 @@ function ExpressionRule:ConcatenateExpression(node)
     local ls = {}
     local cat_prio = operator.left_priority("..")
     for k = 1, #node.terms do
+        local kprio
         ls[k], kprio = self:expr_emit(node.terms[k])
         if kprio < cat_prio then ls[k] = format("(%s)", ls[k]) end
     end
@@ -411,6 +412,7 @@ local function generate(tree, name)
 
     function self:expr_emit(node)
         local rule = ExpressionRule[node.kind]
+        if not rule then error("cannot find an expression rule for " .. node.kind) end
         return rule(self, node)
     end
 
