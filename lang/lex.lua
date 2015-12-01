@@ -444,6 +444,8 @@ local function llex(ls)
             end
             if ls.current ~= END_OF_STREAM then
                 ls.newline = ind    -- prepare to handle newline
+            else
+                ls.newline = nil    -- reached EOF, ignore previous newline(s)
             end
         elseif current == END_OF_STREAM then
             if stack:top() > 0 then
