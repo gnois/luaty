@@ -108,21 +108,23 @@ local function scope_check(ast, ls, var)
     end
 end
 
-local function shadow_check(ast, ls, varlist)
-    if varlist then
-        n = #varlist
-        local var = varlist[n]
-        if n > 1 then
-            for i = 1, n - 1 do
-                if varlist[i] == var then
-                    err_syntax(ls, "duplicate `var " .. var .. "`")
-                end
+local function shadow_check(ast, ls, vars)
+    local n = #vars
+    for i = 1, n do
+        local v = vars[i]
+        for j = i+1, n do
+            if vars[j] == v then
+                err_syntax(ls, "duplicate `var " .. v .. "`")
             end
         end
+    
         local scope = ast.current
-        if scope.vars[var] then
-            err_syntax(ls, "shadowing previous `var " .. var .. "`")
-        end
+        repeat
+            if scope.vars[v] then
+                err_syntax(ls, "shadowing previous `var " .. v .. "`")
+            end
+            scope = scope.parent
+        until not scope
     end
 end
 local function lex_str(ls)
@@ -466,8 +468,9 @@ local function parse_var(ast, ls)
         local vl = { }
         repeat -- Collect LHS.
             vl[#vl+1] = lex_str(ls)
-            shadow_check(ast, ls, vl)
         until not lex_opt(ls, ',')
+        shadow_check(ast, ls, vl)
+
         local exps
         if lex_opt(ls, '=') then -- Optional RHS.
             exps = expr_list(ast, ls)
