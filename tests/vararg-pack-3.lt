@@ -1,4 +1,4 @@
-var foo = fn(msg, ...)
+var foo = \msg, ...->
     var arg = {"wait", "a", "moment", ...}
     print(msg)
     for k = 1, #arg 

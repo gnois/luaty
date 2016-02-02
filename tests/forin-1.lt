@@ -1,4 +1,4 @@
-var foo=fn(ls)
+var foo=\ls->
 	var sum = 0
 	for i, v in ipairs(ls) 
 		sum = sum + v*v

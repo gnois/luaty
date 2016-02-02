@@ -1,11 +1,11 @@
-var pn = fn(a)
+var pn = \a->
 print(a)
 print(b)
 
 var x = {a, b, c,
     d, 
-    g, h, (fn(a, b) print(a .. b))('a', 'b'), 
+    g, h, (\a, b-> print(a .. b))('a', 'b'), 
     c, d, 3
 }
 
-return fn()
+return ->

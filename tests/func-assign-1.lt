@@ -1,6 +1,6 @@
 var a, b = 3, 7
 
-var foo = fn(k)
+var foo = \k->
     return 2*k + 1
 
 

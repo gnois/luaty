@@ -1,4 +1,4 @@
-var foo = fn(a, b, c)
+var foo = \a, b, c->
 	return a .. b .. c
 
 

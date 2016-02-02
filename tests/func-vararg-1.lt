@@ -1,6 +1,6 @@
 var format = string.format
 
-var  printf = fn(fmt, ...)
+var  printf = \fmt, ...->
     print(format(fmt, ...))
 
 var name = "Ciccio"

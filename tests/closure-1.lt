@@ -1,6 +1,6 @@
-var foo = fn(x, y)
+var foo = \x, y->
     var a, b, c
-    var boo = fn(z)
+    var boo = \z->
        a, b = z*z + 1, z - 1
     
     boo(x * y - x + y)

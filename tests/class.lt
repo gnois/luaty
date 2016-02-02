@@ -1,14 +1,14 @@
-var BaseClass = fn(base)
+var BaseClass = \base->
 	var private = base
 
 	var @ = {
-		foo = fn()
+		foo = ->
 			return private
 	}
 	return @
 
 
-var DerivedClass = fn(base, derived)
+var DerivedClass = \base, derived->
 	var private = derived
 
 	var @ = BaseClass(base)
@@ -16,7 +16,7 @@ var DerivedClass = fn(base, derived)
 
 	-- overrride base foo()
 	var foo_ = @.foo
-	@.foo = fn()
+	@.foo = ->
 		return private + @.public + foo_()
 
 	return @

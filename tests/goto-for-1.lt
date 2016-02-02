@@ -1,4 +1,4 @@
-var hasfn = fn(t)
+var hasfn = \t->
     for _, x in ipairs(t) 
         if x % 2 == 0 
             print('list has even number')

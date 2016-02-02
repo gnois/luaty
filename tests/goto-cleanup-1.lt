@@ -1,10 +1,10 @@
 
-var undo_h = fn()
+var undo_h = ->
   print("undo_h")
-var undo_g = fn() 
+var undo_g = -> 
  print("undo_g")
 
-var f = fn(x, y, z)
+var f = \x, y, z->
     if x > y 
      goto fail 
     if x > z 

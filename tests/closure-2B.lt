@@ -1,22 +1,22 @@
-var make = fn(p)
+var make = \p->
 	if p > 10
 		var n = p + 1
 		return {
-			incr = fn(i)
+			incr = \i->
 				n = n + i
-			, mult = fn(i) 
+			, mult = \i-> 
 				n = n * i
-			, get  = fn() 
+			, get = -> 
 				return n
 		}
 	else
 		var n = 2*p
 		return {
-			incr = fn(i) 
+			incr = \i-> 
 				n = n + i
-			, mult = fn(i) 
+			, mult = \i-> 
 				n = n * i
-			,get  = fn()
+			,get = ->
 				return n
 		}
 

@@ -12,7 +12,8 @@ Characteristics:
 ---
 - Less typing with removed or shorter keywords
   * No more `then`, `end`, `do`
-  * `local` becomes `var`, `repeat` becomes `do`, `elseif` becomes `else if`, `function` to `fn`, `self` can be `@`
+  * `local` becomes `var`, `repeat` becomes `do`, `elseif` becomes `else if`, `self` can be `@`
+  * `function` becomes -> or \arg1, arg2 -> 
 
 ```
 var x = false          -- `var` compiles to `local` 
@@ -30,17 +31,24 @@ a = 1           -- Error: undeclared identifier a
 var p = print
 var p = 'p'     -- Error: shadowing previous var p
 
+for i, j in pairs({})
+	var i = 10         -- Error: shadowing previous var i
+
+var f = \z->
+	var z = 10         -- Error: shadowing previous var z
+
 ```
 
 - Consistency is prefered over syntactic sugar
-  * function definition is always an expression instead of statement
+  * function definition is always a lambda expression instead of statement
   * function call always need parenthesis
   * `:` not supported, `self` or `@` need to be explicitly specified as function parameter instead
 
 ```
 print 'a'           -- Error: '=' expected instead of 'a'. This is valid in Lua
-function f()    -- Error: use 'fn' instead of 'function'
-fn f()          -- Error: fn() must be an expression
+function f()        -- Error: use 'fn' instead of 'function'
+-> print('x')         -- Error: lambda -> must be an expression
+(-> print('x'))()     -- Ok, immediately invoked lambda
 
 -- `self` if any, must be explicit
 var foo = fn(@, k)
@@ -51,8 +59,21 @@ var obj = {
 }
 -- no more ':'
 p(obj:foo(2))       -- Error: ')' expected instead of ':'
-p(obj.foo(@, 2))    -- ok, use this instead
+p(obj.foo(@, 2))    -- Ok, use this instead
 
+```
+
+- Optional curried lambda syntax with \arg1, arg2 ~>
+  * ... varargs not supported
+  * at least 2 lambda arguments are needed to be curried
+  * requires [curry.lua](https://github.com/gnois/luaty/blob/master/tests/curry.lua) or compatible library
+  
+```
+var curry = require('tests.curry')
+var add = \w, x, y, z ~>
+	return w + x + y + z
+
+assert(add(4)(7, 8)(9) == add(4, 7, 8, 9))
 ```
 
 That's it! 
@@ -84,13 +105,17 @@ p(2)
 if x ~= nil if type(x) == "table" p('table') else p('value') else p('nil')
 print((fn() return 'a', 1)())      -- prints a  1
 
--- newline makes a difference
+
+To supporting multiple return values, proper indentation is required especially when passing lamdas as function argument. Consider:
+
 print(pcall(fn(x) 
 	return x
-, 10))                              -- prints true, `10`
-print(pcall(fn(x) return x, 10))    -- prints true, nil, 10
+, 10))                                 -- prints true, 10
+print(pcall(fn(x) return x, 10))       -- prints true, nil, 10
 
 ```
+It should be easily visible that the 2nd case has a lambda returning multiple values.
+
 
 - within table definition {} and call expression (), indentation is allowed until its closing brace or parenthesis, which must realign back to the starting indentation
 
@@ -136,12 +161,11 @@ luajit lt.lua -c source.lt dest.lua
 
 Limitations
 ---
-As `fn` and `var` are taken as keywords, Luaty could not compile codes that use them as identifiers.
-It is an opinionated tradeoff as `local` and `function` are easily the two most used keywords in Lua. 
+As `var` are used as keyword to replace `local`, Luaty could not compile codes that use them as identifiers.
+It is an opinionated tradeoff as `local` is one of the most used keywords in Lua.
 
 Eg:
 ```
-p(obj.fn)     -- Error: 'name' expected instead of fn
 var t = {
    var= 4     -- ok
    var = 6    -- Error: unexpected var
@@ -152,6 +176,7 @@ p(obj.var )   -- Error: 'name' expected instead of var
 ```
 
 Notice that `p(t.var)` and `var= 4` in table `t` still works because hack is done to interpret `var` as keyword only if it is followed by a whitespace.
+
 
 
 

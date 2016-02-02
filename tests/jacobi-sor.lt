@@ -7,14 +7,14 @@ var RANDOM_SEED = 101009 -- Must be odd.
 
 var rand
 
-var rand_init = fn(seed)
+var rand_init = \seed->
   var Rm, Rj = {}, 1
   for i=1,17 Rm[i] = 0 
   for i=17,1,-1 
     seed = (seed*9069) % (2^31)
     Rm[i] = seed
 
-  rand = fn()
+  rand = ->
     var j, m = Rj, Rm
     var h = j - 5
     if h < 1 h = h + 17 
@@ -25,13 +25,13 @@ var rand_init = fn(seed)
     return k * (1.0/2147483647.0)
 
     
-var random_vector = fn(n)
+var random_vector = \n->
   var v = {}
   for x=1,n v[x] = rand() 
   return v
 
 
-var quasi_diag_randmat = fn(n, alpha)
+var quasi_diag_randmat = \n, alpha->
   var a = {}
   for y = 1, n 
     var v = {}
@@ -43,14 +43,14 @@ var quasi_diag_randmat = fn(n, alpha)
   return a
 
   
-var sor_iter = fn(A, n, b, x, om)
+var sor_iter = \A, n, b, x, om->
   for i = 1, n 
     var sig = 0
     var Ai = A[i]
     for j = 1, n if i ~= j sig = sig + Ai[j] * x[j]
     x[i] = x[i] + om * ((b[i] - sig) / Ai[i] - x[i])
 
-var print_vector = fn(v, n)
+var print_vector = \v, n->
   for i = 1, n 
     io.write(string.format("%12g ", v[i]))
   io.write("\n")

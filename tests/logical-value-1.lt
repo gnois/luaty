@@ -1,24 +1,24 @@
-var foo1 = fn(x, y)
+var foo1 = \x, y->
     return x < y and x + y
 
 
-var foo1bis = fn(x, y, somef)
+var foo1bis = \x, y, somef->
     return x < y and somef(x, y)
 
 
-var foo2 = fn(x, y)
+var foo2 = \x, y->
     return x < y and x == y
 
 
-var foo3 = fn(x, y)
+var foo3 = \x, y->
     return x < y or x - y
 
 
-var foo4 = fn(x, y)
+var foo4 = \x, y->
     return x < y or x == y
 
 
-var diff = fn(a, b) 
+var diff = \a, b->
     return a - b 
 
 var x, y = 3, 7

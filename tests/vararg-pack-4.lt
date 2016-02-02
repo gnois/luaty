@@ -1,8 +1,8 @@
-var foo = fn(x)
+var foo = \x->
     return x, 2*x, x^2-1
 
 
-var boo = fn(x)
+var boo = \x->
     var arg = { foo(x) }
     for k = 1, #arg 
         print(arg[k])

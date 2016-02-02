@@ -4,7 +4,7 @@ for x=1, 5
     ::redo::
     var y = x^2 + 1
     if x < 30
-        l[#l+1] = fn()
+        l[#l+1] = ->
             return y
         x = y
         goto redo

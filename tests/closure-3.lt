@@ -1,8 +1,8 @@
-var foo = fn(n)
+var foo = \n->
     var f
     for k = n, n + 10
         if k % 7 == 0
-            f = fn(x) 
+            f = \x->
                return k + x
             break
     return f

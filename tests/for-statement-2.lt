@@ -1,4 +1,4 @@
-var foo = fn(n)
+var foo = \n->
 	var sum = 0
 	for i = n, n*n+n, n+1
 		sum = sum + i*i

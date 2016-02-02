@@ -1,4 +1,4 @@
-var foo = fn(a, b, c, d)
+var foo = \a, b, c, d->
     a = a or 1
     b = b + 2*d + c
     c = c + 1

@@ -15,11 +15,11 @@ var band, rshift = bit.band, bit.rshift
 
 var insertion_thresold = 16
 
-var less_than = fn(a, b)
+var less_than = \a, b->
     return a < b
 
 
-var lg2 = fn(a)
+var lg2 = \a->
     var c = 0
     while a > 0 
         a = rshift(a, 1)
@@ -28,14 +28,14 @@ var lg2 = fn(a)
     return c - 1
 
 
-var div2 = fn(a)
+var div2 = \a->
     return rshift(a, 1)
 
 
-var heapsort = fn(array, i0, i1, f)
+var heapsort = \array, i0, i1, f->
     f = f or less_than
 
-    var push_heap = fn(first, hole, top, value)
+    var push_heap = \first, hole, top, value->
         var parent = div2(hole - 1)
         while hole > top and f(array[first + parent], value) 
             array[first + hole] = array[first + parent]
@@ -45,7 +45,7 @@ var heapsort = fn(array, i0, i1, f)
         array[first + hole] = value
     
 
-    var adjust_heap = fn(first, hole, len, value)
+    var adjust_heap = \first, hole, len, value->
         var top = hole
         var second = hole
         while second < div2(len - 1) 
@@ -64,13 +64,13 @@ var heapsort = fn(array, i0, i1, f)
         push_heap(first, hole, top, value)
     
 
-    var pop_heap = fn(first, last, result)
+    var pop_heap = \first, last, result->
         var value = array[result]
         array[result] = array[first]
         adjust_heap(first, 0, last - first, value)
     
 
-    var make_heap = fn(first, last)
+    var make_heap = \first, last->
         if last - first < 2 
             return 
         var len = last - first
@@ -85,7 +85,7 @@ var heapsort = fn(array, i0, i1, f)
         
     
 
-    var heap_select = fn(first, middle, last)
+    var heap_select = \first, middle, last->
         make_heap(first, middle)
         for i = middle, last - 1 
             if f(array[i], array[first]) 
@@ -94,7 +94,7 @@ var heapsort = fn(array, i0, i1, f)
         
     
 
-    var sort_heap = fn(first, last)
+    var sort_heap = \first, last->
         while last - first > 1 
             last = last - 1
             pop_heap(first, last, last)
@@ -105,7 +105,7 @@ var heapsort = fn(array, i0, i1, f)
     sort_heap(i0, i1 + 1)
 
 
-var insertion_sort = fn(array, compare, istart, iend)
+var insertion_sort = \array, compare, istart, iend->
     for i = istart + 1, iend
         var current_value = array[i]
         var hole_index = i
@@ -117,10 +117,10 @@ var insertion_sort = fn(array, compare, istart, iend)
     
 
 
-var quicksort = fn(array, i0, i1, f)
+var quicksort = \array, i0, i1, f->
     f = f or less_than
 
-    var move_median_first = fn(a, b, c)
+    var move_median_first = \a, b, c->
         if f(array[a], array[b]) 
             if f(array[b], array[c]) 
                 array[a], array[b] = array[b], array[a]
@@ -136,7 +136,7 @@ var quicksort = fn(array, i0, i1, f)
         
     
 
-    var partition = fn(first, last, pivot_value)
+    var partition = \first, last, pivot_value->
         while true 
             while f(array[first], pivot_value) 
                 first = first + 1
@@ -153,14 +153,14 @@ var quicksort = fn(array, i0, i1, f)
         
     
 
-    var partition_pivot = fn(first, last)
+    var partition_pivot = \first, last->
         var mid = div2(first + last)
         move_median_first(first, mid, last)
         return partition(first + 1, last, array[first])
     
 
     var quicksort_loop
-    quicksort_loop= fn(first, last, depth)
+    quicksort_loop= \first, last, depth->
         while last - first > insertion_thresold 
             if depth == 0 
                 heapsort(array, first, last, f)
@@ -178,7 +178,7 @@ var quicksort = fn(array, i0, i1, f)
     insertion_sort(array, f, i0, i1)
 
 
-var array_search = fn(array, i0, i1, val)
+var array_search = \array, i0, i1, val->
     for k = i0, i1 
         if array[k] == val 
             return k 
@@ -187,9 +187,9 @@ var array_search = fn(array, i0, i1, val)
 
 -- sort arrays "array" and "slave" in place for indices from i0 to i1
 -- based on values of "array" using the comparison function "f"
-var quicksort_mirror = fn(array, slave, i0, i1, f)
+var quicksort_mirror = \array, slave, i0, i1, f->
 
-    var swap = fn(index, a, b)
+    var swap = \index, a, b->
         array[a], array[b] = array[b], array[a]
         slave[a], slave[b] = slave[b], slave[a]
         index[a], index[b] = index[b], index[a]
@@ -199,7 +199,7 @@ var quicksort_mirror = fn(array, slave, i0, i1, f)
     var id, iv = {}, {}
     for k = 1, n 
         id[k], iv[k] = k, k 
-    quicksort(id, i0, i1, fn(a, b) 
+    quicksort(id, i0, i1, \a, b->
         return f(array[a], array[b]) 
     )
     for k = 1, n 
@@ -214,12 +214,12 @@ var quicksort_mirror = fn(array, slave, i0, i1, f)
 
 
 -- Use a very weak pseudo-number generator just for testing purpose.
-var my_random = fn(s)
+var my_random = \s->
     s.x = (16807 * s.x) % 2147483647
     return s.x
 
 
-var test_sort = fn(name, sort_fn, gen)
+var test_sort = \name, sort_fn, gen->
     var s = { x = 934 } -- random runmber generator
     print(string.format("******** %s **********", name))
     var x={}
@@ -230,21 +230,21 @@ var test_sort = fn(name, sort_fn, gen)
         print(x[k]) 
 
 
-test_sort("QUICKSORT 1", quicksort, fn(s) 
+test_sort("QUICKSORT 1", quicksort, \s-> 
     return my_random(s) % 65536 
 )
-test_sort("QUICKSORT 2", quicksort, fn(s, i) 
+test_sort("QUICKSORT 2", quicksort, \s, i->
     return i 
 )
-test_sort("QUICKSORT 3", quicksort, fn(s, i) 
+test_sort("QUICKSORT 3", quicksort, \s, i->
     return 1000 - i 
 )
-test_sort("HEAPSORT 1", heapsort, fn(s) 
+test_sort("HEAPSORT 1", heapsort, \s->
     return my_random(s) % 65536 
 )
-test_sort("HEAPSORT 2", heapsort, fn(s, i) 
+test_sort("HEAPSORT 2", heapsort, \s, i->
     return i 
 )
-test_sort("HEAPSORT 3", heapsort, fn(s, i) 
+test_sort("HEAPSORT 3", heapsort, \s, i->
     return 1000 - i 
 )

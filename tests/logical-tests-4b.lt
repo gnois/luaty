@@ -1,4 +1,4 @@
-var foo = fn(a, b)
+var foo = \a, b->
 	return not (a < b)
 
 

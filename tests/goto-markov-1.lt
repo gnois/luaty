@@ -1,10 +1,10 @@
 -- Use a very weak pseudo-number generator just for testing purpose.
-var my_random = fn(s)
+var my_random = \s->
     s.x = (16807 * s.x) % 2147483647
     return s.x % 50
 
 
-var markov = fn()
+var markov = ->
     var s = { x = 13 }
     ::a::
     print('A')

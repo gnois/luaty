@@ -1,10 +1,10 @@
-var make = fn(n)
+var make = \n->
 	return {
-		incr = fn(i)
+		incr = \i->
 			n = n + i
-		, mult = fn(i)
+		, mult = \i->
 			n = n * i
-		, get  = fn()
+		, get = ->
 			return n
 	}
 

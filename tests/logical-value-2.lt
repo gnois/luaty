@@ -1,4 +1,4 @@
-var foo = fn(x, y)
+var foo = \x, y ->
     if x < y and x == y 
         return x
     else
@@ -6,7 +6,7 @@ var foo = fn(x, y)
     
 
 
-var boo = fn(x, y)
+var boo = \x, y->
     if x < y or x == y 
         return x
     else

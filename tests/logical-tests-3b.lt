@@ -1,4 +1,4 @@
-var foo = fn(x, y)
+var foo = \x, y->
 	if (x < y) and (x*x < y*y) 
 		print('boom')
 	

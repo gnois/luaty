@@ -1,4 +1,4 @@
-var foo = fn(v, i)
+var foo = \v, i->
 	v.f[i+1], v.x, v.s[i] = i*i, i+5, 7*i
 
 

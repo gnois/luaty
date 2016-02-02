@@ -1,4 +1,4 @@
-var foo = fn(a, flag)
+var foo = \a, flag->
 	return a .. (flag and 'boom' or 'pst')
 
 

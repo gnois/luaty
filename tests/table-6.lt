@@ -4,4 +4,4 @@ var html = {
 	["&"] = "&amp;"
 }
 	
-var f = fn()
+var f = ->

@@ -1,0 +1,19 @@
+return \len, f->
+    var curry
+    curry = \len, parts, f->
+        return \...->
+            var args = {...}
+            var comb = {}
+            var a, c = 1, 1
+            while c <= #parts
+                comb[c] = parts[c]
+                c = c + 1
+            while a <= #args
+                comb[c] = args[a]
+                a = a + 1
+                c = c + 1
+            if c > len
+                return f(unpack(comb))
+            return \...->
+                return curry(len, comb, f)(...)
+    return curry(len, {}, f)

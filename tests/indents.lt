@@ -1,5 +1,5 @@
-(fn(a, b) print(a .. b))('a', 'b')
-var func = fn()
+(\a, b-> print(a .. b))('a', 'b')
+var func = ->
 
 print(" · "
 , 100, 7, 8, 9)
@@ -18,34 +18,34 @@ print(" · ",
 	100, 7, 8, 9
 )
 
-var g = fn() print('g func')
-var b = fn(x)  print(x)
-var kk = fn(f) f()
+var g = -> print('g func')
+var b = \x ->  print(x)
+var kk = \f -> f()
 
-var mm = { fn() }
+var mm = { -> }
 var m = {
 	1
 }
 var n = {
-	foo = fn()
+	foo = ->
 		return nil
 }
 
 var x = {a, b, c,
 	d, 
-	g, h, (fn(a, b) print(a .. b))('a', 'b'), 
+	g, h, (\a, b-> print(a .. b))('a', 'b'), 
 	c, d, 3
 }
 
 var j = { 76,
-	['if'] = 33, 36, 1, fn(x, y) 
+	['if'] = 33, 36, 1, \x, y->
 	, b(3,4),
 	2
 	,3 
 }
 
 var h = { 76,
-	['if'] = 33, 36, 1, fn(x, y),
+	['if'] = 33, 36, 1, \x, y->,
 	b(3,
 		4),
 	2
@@ -70,7 +70,7 @@ var r = {{ 1, { 2, { 3, { 4,
 
 
 var z = { 76,
-	['if'] = 33, 36, 1, fn(x, y)
+	['if'] = 33, 36, 1, \x, y->
 		return x, y
 	, b(3,4),
 	2
@@ -78,7 +78,7 @@ var z = { 76,
 }
 
 var ux = { 
-	['if'] = 33, 36, 1, fn(x, y)
+	['if'] = 33, 36, 1, \x, y->
 		return x, y
 	, b(
 		3
@@ -92,7 +92,7 @@ var ux = {
 
 var y = { 76
 	,
-	['if'] = 33, 36, 1, fn(x, y)
+	['if'] = 33, 36, 1, \x, y->
 		return x, y
 	, b(3,4),
 	2
@@ -100,7 +100,7 @@ var y = { 76
 }
 
 
-var foo = fn(ls)
+var foo = \ls->
 	var sum = 0
 	for i, v in ipairs(ls)
 		sum = sum + v*v

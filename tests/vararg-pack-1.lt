@@ -1,4 +1,4 @@
-var foo = fn(...)
+var foo = \...->
     var arg = {...}
     for k = 1, #arg 
         print(arg[k])

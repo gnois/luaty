@@ -1,15 +1,15 @@
 
 
-var func = fn()
+var func = ->
 
---fn()  -- causes code generator to error with node nil
--- fixed by disallow fn() statement
+--->  -- causes code generator to error with node nil
+-- fixed by disallow -> statement
 
---(fn())()
+--(->)()
 
 if false
 
-(fn(a)
+(\a->
 	print(a)
 )(5)
 

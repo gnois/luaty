@@ -1,13 +1,13 @@
-var multi = fn(...)
+var multi = \...->
 	return ...
 
 
-var onearg1 = fn(x, ...)
+var onearg1 = \x, ...->
 	print ("onearg1", x)
 	return x, ...
 
 
-var onearg2 = fn(x, ...)
+var onearg2 = \x, ...->
 	print("onearg2", x)
 	return ...
 

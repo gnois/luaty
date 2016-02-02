@@ -1,4 +1,4 @@
-var foo = fn(msg, ...)
+var foo = \msg, ...->
     var arg = {...}
     print(msg)
     for k = 1, #arg 

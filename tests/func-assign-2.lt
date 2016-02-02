@@ -1,12 +1,12 @@
 var foo
 
-var init = fn (choice)
+var init = \ choice ->
     if choice == 1 
-        foo = fn(x)
+        foo = \x->
             return x*x + 1
         
     else
-        foo = fn(x)
+        foo = \x->
             return x
         
     

@@ -1,4 +1,4 @@
-var foo = fn(n)
+var foo = \n->
    var sum = 0
    var i = 1
    do

@@ -13,9 +13,9 @@ local ASCII_A, ASCII_Z = 65, 90
 
 local END_OF_STREAM = -1
 
-local ReservedKeyword = {['and'] = 1, ['break'] = 2, ['do'] = 3, ['else'] = 4, ['elseif'] = 5, ['end'] = 6, ['false'] = 7, ['for'] = 8, ['function'] = 9, ['goto'] = 10, ['if'] = 11, ['in'] = 12, ['local'] = 13, ['nil'] = 14, ['not'] = 15, ['or'] = 16, ['repeat'] = 17, ['return'] = 18, ['then'] = 19, ['true'] = 20, ['until'] = 21, ['while'] = 22, ['var'] = 23, ['fn'] = 24 }
+local ReservedKeyword = { ['and'] = 1, ['break'] = 2, ['do'] = 3, ['else'] = 4, ['elseif'] = 5, ['end'] = 6, ['false'] = 7, ['for'] = 8, ['function'] = 9, ['goto'] = 10, ['if'] = 11, ['in'] = 12, ['local'] = 13, ['nil'] = 14, ['not'] = 15, ['or'] = 16, ['repeat'] = 17, ['return'] = 18, ['then'] = 19, ['true'] = 20, ['until'] = 21, ['while'] = 22, ['var'] = 23 }
 
-local TokenSymbol = { TK_ge = '>=', TK_le = '<=' , TK_concat = '..', TK_eq = '==', TK_ne = '~=', TK_indent = '<indent>', TK_dedent = '<dedent>', TK_newline = '<newline>', TK_eof = '<eof>' }
+local TokenSymbol = { TK_lambda = '->', TK_curry = '~>', TK_ge = '>=', TK_le = '<=' , TK_concat = '..', TK_eq = '==', TK_ne = '~=', TK_indent = '<indent>', TK_dedent = '<dedent>', TK_newline = '<newline>', TK_eof = '<eof>' }
 
 local IsNewLine = { ['\n'] = true, ['\r'] = true }
 
@@ -479,6 +479,9 @@ local function llex(ls)
                     skip_line(ls)
                 end
                 return 'TK_comment', get_comment(ls)
+            elseif ls.current == '>' then
+                nextchar(ls)
+                return 'TK_lambda'
             elseif ls.newline then
                 ls.minus = true
             else
@@ -536,7 +539,14 @@ local function llex(ls)
                 if ls.current ~= '=' then return '>' else nextchar(ls); return 'TK_ge' end
             elseif current == '~' then
                 nextchar(ls)
-                if ls.current ~= '=' then return '~' else nextchar(ls); return 'TK_ne' end
+                if ls.current == '=' then 
+                    nextchar(ls)
+                    return 'TK_ne'
+                elseif ls.current == '>' then 
+                    nextchar(ls)
+                    return 'TK_curry'
+                end     
+                return '~'
             elseif current == ':' then
                 nextchar(ls)
                 if ls.current ~= ':' then return ':' else nextchar(ls); return 'TK_label' end

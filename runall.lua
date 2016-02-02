@@ -60,7 +60,7 @@ print('Scanning ' .. dirname .. '\n\n')
 
 local files = scandir(dirname)
 for k, v in pairs(files) do
-    if #v > 0 then
+    if #v > 0 and string.sub(v, -string.len('.lt'))=='.lt' then
         print('\n' .. v .. ':')
         filename = dirname .. '\\' .. v    
         local luacode = check(compile.file(filename))

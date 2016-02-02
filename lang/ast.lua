@@ -35,10 +35,12 @@ function AST.expr_function(ast, args, body, proto)
    return func_expr(body, args, proto.varargs, proto.firstline, proto.lastline)
 end
 
+--[[
 function AST.local_function_decl(ast, name, args, body, proto)
     local id = ast:var_declare(name)
     return func_decl(id, body, args, proto.varargs, true, proto.firstline, proto.lastline)
 end
+--]]
 
 function AST.function_decl(ast, path, args, body, proto)
    return func_decl(path, body, args, proto.varargs, false, proto.firstline, proto.lastline)

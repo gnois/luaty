@@ -1,9 +1,9 @@
-var foo = fn(ls)
+var foo = \ls->
 	var sum = 0
 	var fs = {}
 	for i, v in ipairs(ls) 
 		sum = sum + v*v
-		fs[i] = fn(x) 
+		fs[i] = \x ->
 			return i + x 
 	
 	return sum, fs

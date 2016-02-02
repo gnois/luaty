@@ -1,4 +1,4 @@
-var foo = fn(...)
+var foo = \...->
    var arg = {n=select('#',...),...}
    -- arg.n is the real size
    for i = 1,arg.n 

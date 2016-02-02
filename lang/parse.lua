@@ -20,7 +20,7 @@ end
 
 local function err_symbol(ls)
     local sym = ls.tokenval or ls.token2str(ls.token)
-    local replace = {['end'] = "<dedent>", ['local'] = "'var'", ['function'] = "'fn'", ['elseif'] = "'else if'", ['repeat'] = "'do'"}
+    local replace = {['end'] = "<dedent>", ['local'] = "'var'", ['function'] = "\\...->", ['elseif'] = "'else if'", ['repeat'] = "'do'"}
     local rep = replace[sym]
     local msg
     if rep then
@@ -96,16 +96,18 @@ local function lex_match(ls, what, who, line)
 end
 
 
-local function scope_check(ast, ls, var)
+local function in_scope(ast, ls, var)
     if var.name then
         local scope = ast.current
         while not scope.vars[var.name] do
             scope = scope.parent
             if not scope then 
-                err_syntax(ls, "undeclared identifier " .. var.name)
+                return false
             end
         end
+        return true
     end
+    return false
 end
 
 local function shadow_check(ast, ls, vars)
@@ -211,10 +213,23 @@ function expr_simple(ast, ls)
         e = ast:expr_vararg()
     elseif tk == '{' then
         return expr_table(ast, ls)
-    elseif tk == 'TK_fn' then
-        ls:next()
-        local args, body, proto = parse_body(ast, ls, ls.linenumber)
-        return ast:expr_function(args, body, proto)
+    elseif tk == '\\' or tk == 'TK_lambda' then
+        if tk == '\\' then
+            ls:next()
+        end
+        local curry, args, body, proto = parse_body(ast, ls, ls.linenumber)
+        local lambda = ast:expr_function(args, body, proto)
+        if curry then
+            curry = ast:identifier('curry')
+            if not in_scope(ast, ls, curry) then
+                err_syntax(ls, curry.name .. "() is required for ~>")
+            end
+            local cargs = { ast:literal(#args), lambda }
+            return ast:expr_function_call(curry, cargs, line)
+        end
+        return lambda
+    elseif tk == 'TK_curry' then
+        err_syntax(ls, "no argument to curry with ~>")
     else
         return expr_primary(ast, ls)
     end
@@ -437,8 +452,8 @@ local function parse_assignment(ast, ls, vlist, var, vk)
         return parse_assignment(ast, ls, vlist, n_var, n_vk)
     else -- Parse RHS.
         lex_check(ls, '=')
-        if vk == 'var' then
-            scope_check(ast, ls, var)
+        if vk == 'var' and not in_scope(ast, ls, var) then
+            err_syntax(ls, "undeclared identifier " .. var.name)
         end
         local exps = expr_list(ast, ls)
         return ast:assignment_expr(vlist, exps, line)
@@ -458,13 +473,6 @@ end
 -- Parse 'var' statement.
 local function parse_var(ast, ls)
     local line = ls.linenumber
-    --[[
-    if lex_opt(ls, 'TK_fn') then -- Local function declaration.
-        local name = lex_str(ls)
-        local args, body, proto = parse_body(ast, ls, line)
-        return ast:local_function_decl(name, args, body, proto)
-    else -- Local variable declaration.
-    ]]
         local vl = { }
         repeat -- Collect LHS.
             vl[#vl+1] = lex_str(ls)
@@ -573,8 +581,8 @@ local function parse_stmt(ast, ls)
     --    stmt = parse_repeat(ast, ls, line)
     --elseif ls.token == 'TK_function' then
     --    stmt = parse_func(ast, ls, line)    
-    elseif ls.token == 'TK_fn' then
-        err_syntax(ls, "fn() must be an expression")
+    elseif ls.token == 'TK_lambda' or ls.token == 'TK_curry' then
+        err_syntax(ls, "lambda must be an expression")
     elseif ls.token == 'TK_var' then
         ls:next()
         stmt = parse_var(ast, ls, line)
@@ -606,9 +614,8 @@ end
 
 -- Parse function definition parameters
 local function parse_params(ast, ls)
-    lex_check(ls, "(")
     local args = { }
-    if ls.token ~= ")" then
+    if ls.token ~= 'TK_lambda' and ls.token ~= 'TK_curry' then
         repeat
             if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto') then
                 local name = lex_str(ls)
@@ -619,12 +626,24 @@ local function parse_params(ast, ls)
                 args[#args + 1] = ast:expr_vararg()
                 break
             else
-                err_token(ls, "<parameter> or `...` expected")
+                err_token(ls, "lambda argument expected")
             end
         until not lex_opt(ls, ',')
     end
-    lex_check(ls, ")")
-    return args
+    if ls.token == 'TK_lambda' then
+        ls:next()
+        return false, args
+    elseif ls.token == 'TK_curry' then
+        if ls.fs.varargs then
+            err_syntax(ls, "cannot curry varargs with ~>")
+        end
+        if #args < 2 then
+            err_syntax(ls, "at least 2 arguments needed with ~>")
+        end
+        ls:next()
+        return true, args
+    end
+    err_token(ls, "->")
 end
 
 function parse_block_stmts(ast, ls)
@@ -668,14 +687,15 @@ function parse_body(ast, ls, line)
     ls.fs = { varargs = false }
     ast:fscope_begin()
     ls.fs.firstline = line
-    local args = parse_params(ast, ls)
-    local body = parse_opt_block(ast, ls, line, 'TK_fn')
+    local curry, args = parse_params(ast, ls)
+    local body = parse_opt_block(ast, ls, line, 'TK_lambda')
     ast:fscope_end()
     local proto = ls.fs
     ls.fs.lastline = ls.linenumber
     ls.fs = pfs
-    return args, body, proto
+    return curry, args, body, proto
 end
+
 
 function parse_block(ast, ls, firstline)
     --ast:fscope_begin()
@@ -689,7 +709,7 @@ local function parse(ast, ls)
     indent = 0
     ls:next()
     lex_opt(ls, 'TK_newline')
-    ls.fs = { varargs = true }
+    ls.fs = { varargs = false }
     ast:fscope_begin()
     local args = { ast:expr_vararg(ast) }
     local chunk = parse_chunk(ast, ls)

@@ -3,7 +3,7 @@ print(0)
    --b
   
 	-- o
-var f = fn(a, b)  -- r
+var f = \a, b->  -- r
    -- b
 	print (a)
         -- c
@@ -14,3 +14,4 @@ var f = fn(a, b)  -- r
 	-- e
 --
 print(1)
+print(f(22, 33))

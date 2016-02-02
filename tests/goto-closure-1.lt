@@ -4,7 +4,7 @@ for z=1,10
     for y=1,10 
         for x=1,10 
             if x^2 + y^2 == z^2 
-                ls[#ls+1] = fn() 
+                ls[#ls+1] = -> 
                     return x, y, z 
                 goto zcontinue
 

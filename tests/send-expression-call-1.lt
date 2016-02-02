@@ -1,4 +1,4 @@
-var foo = fn(@, k)
+var foo = \@, k->
     return k * self.value
 
 

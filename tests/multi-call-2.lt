@@ -1,6 +1,6 @@
 var format = string.format
 
-var printf = fn(...)
+var printf = \...->
     print(format(...))
 
 

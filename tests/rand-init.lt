@@ -1,4 +1,4 @@
-var darray = fn() 
+var darray = ->
     return {} 
 var iarray = darray
 
@@ -8,7 +8,7 @@ if jit and jit.status and jit.status()
   -- LJ2 has bit operations and zero-based arrays (internally).
   var bit = require("bit")
   var band, sar = bit.band, bit.arshift
-  rand_init = fn(seed)
+  rand_init = \seed->
     var Rm, Rj, Ri = iarray(17), 16, 11
     for i=0,16 
         Rm[i] = 0 
@@ -16,7 +16,7 @@ if jit and jit.status and jit.status()
       seed = band(seed*9069, 0x7fffffff)
       Rm[i] = seed
     
-    rand = fn()
+    rand = ->
       var i = band(Ri+1, sar(Ri-16, 31))
       var j = band(Rj+1, sar(Rj-16, 31))
       Ri, Rj = i, j
@@ -26,7 +26,7 @@ if jit and jit.status and jit.status()
     
   
 else
-  rand_init = fn(seed)
+  rand_init = \seed->
     var Rm, Rj = {}, 1
     for i=1,17 
         Rm[i] = 0 
@@ -34,7 +34,7 @@ else
       seed = (seed*9069) % (2^31)
       Rm[i] = seed
     
-    rand = fn()
+    rand = ->
       var j, m = Rj, Rm
       var h = j - 5
       if h < 1 

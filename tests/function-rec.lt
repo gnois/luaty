@@ -1,5 +1,5 @@
 var fact
-fact = fn(n)
+fact = \n->
 	if n <= 1 
 		return 1
 	else

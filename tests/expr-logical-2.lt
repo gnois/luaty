@@ -1,11 +1,11 @@
-var boo = fn(a, b)
+var boo = \a, b->
 	if b 
 		return a
 	else
 		return a + 1
 
 
-var foo = fn(x, y)
+var foo = \x, y->
 	var z = x + y
 	return boo(z, x < y and x or y)
 

@@ -1,16 +1,16 @@
-var foo = fn(x)
+var foo = \x->
 	return x, x + 1, 2*x
 
-var prova = fn(...)
+var prova = \...->
 	return ...
 
-var one = fn(...)
+var one = \...->
 	return (...)
 
-var single_value = fn(x)
+var single_value = \x->
 	return (foo(x))
 
-var alls = fn(x)
+var alls = \x->
 	return foo(x)
 
 print(foo(2))

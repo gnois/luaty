@@ -1,4 +1,4 @@
-var foo = fn(a, b)
+var foo = \a, b->
     var x
     if a < b  
         x = 0 

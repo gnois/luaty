@@ -1,8 +1,8 @@
-var foo = fn(@, k)
+var foo = \@, k->
     return k * @.value
 
 
-var create_obj = fn(x)
+var create_obj = \x->
     return { value = x, foo = foo }
 
 

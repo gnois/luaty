@@ -1,0 +1,45 @@
+var curry = \len, f->
+		var _curry
+		_curry = \len, parts, f->
+			return \...->
+				var args = {...}
+				var comb = {}
+				var a, c = 1, 1
+				while c <= #parts
+					comb[c] = parts[c]
+					c = c + 1
+				while a <= #args
+					comb[c] = args[a]
+					a = a + 1
+					c = c + 1
+				if c > len
+					return f(unpack(comb))
+				return \...->
+					return _curry(len, comb, f)(...)
+		return _curry(len, {}, f)
+
+
+var sum = curry(5, \...->
+	var args = {...}
+	var total = 0
+	for k, v in ipairs(args)
+		total = total + v
+	return total
+)
+var f = sum(1, 2)
+var g = f(3)
+var h = g(4)
+print(h)
+print(h(7))
+
+
+
+--[[ underscore to dash and capitalize word
+-- t.foo_bar becomes t['Foo-Bar']
+var normalize = fn(txt)
+	--return string.gsub(txt, "_", "-").lower(@).gsub(@, "^%l", string.upper).gsub(@, "-%l", string.upper)
+	var gs = string.gsub
+	var p = compose(gs("_", "-"), string.lower, gs("^%l", string.upper), gs("-%l", string.upper))
+	return p(txt)
+
+]]

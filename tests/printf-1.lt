@@ -6,7 +6,7 @@ var format = string.format
 
 var some_table = { pi = 3.14 }
 
-var printf = fn(...)
+var printf = \...->
   io.write(format(...))
 
 

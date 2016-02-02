@@ -1,5 +1,5 @@
 var fact
-fact = fn(n, accu)
+fact = \n, accu->
 	if n <= 1 
 		return accu
 	else

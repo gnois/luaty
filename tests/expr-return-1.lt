@@ -1,21 +1,21 @@
-var f1 = fn(x, y, z)
+var f1 = \x, y, z->
 	return y
 
 
-var f2 = fn(x, y, z)
+var f2 = \x, y, z->
 	return x, y, z
 
 
-var f3 = fn(x, y, z)
+var f3 = \x, y, z->
 	return x + y + z
 
 
 var u = 7
-var f4 = fn(x)
+var f4 = \x->
 	return x + u
 
 
-var f5 = fn(x)
+var f5 = \x->
 	return u
 
 
