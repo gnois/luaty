@@ -46,7 +46,7 @@ var f = \z->
 
 ```
 print 'a'           -- Error: '=' expected instead of 'a'. This is valid in Lua
-function f()        -- Error: use 'fn' instead of 'function'
+function f()        -- Error: use '->' instead of 'function'
 -> print('x')         -- Error: lambda -> must be an expression
 (-> print('x'))()     -- Ok, immediately invoked lambda
 
@@ -142,8 +142,9 @@ print(
 Please see the [tests folder](https://github.com/gnois/luaty/tree/master/tests) for more code examples.
 
 
-Compilation
+Usage
 ---
+
 To run a Luaty source file, use
 ```
 luajit lt.lua source.lt
@@ -157,6 +158,8 @@ Output file can also be specified
 ```
 luajit lt.lua -c source.lt dest.lua
 ```
+
+
 
 Note that the Luaty compiler strives to show meaningful error message with line number. 
 Please report incorrect/confusing error message as bug.
