@@ -1,3 +1,4 @@
+-- adapted from https://github.com/ramda/ramda
 return \len, f->
     var curry
     curry = \len, parts, f->

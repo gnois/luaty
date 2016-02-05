@@ -13,7 +13,6 @@ Characteristics:
 - Less typing with removed or shorter keywords
   * No more `then`, `end`, `do`
   * `local` becomes `var`, `repeat` becomes `do`, `elseif` becomes `else if`, `self` can be `@`
-  * `function` becomes `->` or `\arg1, arg2 ->` expression
 
 ```
 var x = false          -- `var` compiles to `local` 
@@ -22,51 +21,33 @@ if not x
 
 ```
 
-- Compilation error when
+- Gives compilation error when
   * Assigning to undeclared (a.k.a global) variable
   * Shadowing another variable in the same scope
 
 ```
-a = 1           -- Error: undeclared identifier a
+a = 1              -- Error: undeclared identifier a
 var p = print
-var p = 'p'     -- Error: shadowing previous var p
-
-for i, j in pairs({})
-	var i = 10         -- Error: shadowing previous var i
+var p = 'p'        -- Error: shadowing previous var p
 
 var f = \z->
-	var z = 10         -- Error: shadowing previous var z
+	var z = 10      -- Error: shadowing previous var z
 
 ```
-
-- Consistency is prefered over syntactic sugar
-  * function definition is always a lambda expression instead of statement
+- function definition is always a lambda expression with  `->` or `\arg1, arg2 ->`, instead of a statement
   * function call always need parenthesis
-  * `:` not supported, `self` or `@` need to be explicitly specified as function parameter instead
 
 ```
-print 'a'           -- Error: '=' expected instead of 'a'. This is valid in Lua
-function f()        -- Error: use '->' instead of 'function'
+print 'a'             -- Error: '=' expected instead of 'a'. This is valid in Lua
+function f()          -- Error: use '->' instead of 'function'
 -> print('x')         -- Error: lambda -> must be an expression
 (-> print('x'))()     -- Ok, immediately invoked lambda
-
--- `self` if any, must be explicit
-var foo = \@, k ->
-  return k * @.value    -- @ is equivalent to `self`
-var obj = { 
-  value = 3.142,
-  foo = foo 
-}
--- no more ':'
-p(obj:foo(2))       -- Error: ')' expected instead of ':'
-p(obj.foo(@, 2))    -- Ok, use this instead
 
 ```
 
 - Optional curried lambda syntax with `\arg1, arg2 ~>`
-  * `...` varargs not supported
-  * at least 2 lambda arguments are needed to be curried
-  * requires [curry.lua](https://github.com/gnois/luaty/blob/master/tests/curry.lua) or compatible library
+  * works with 2 or more arguments, but `...` varargs is not supported
+  * requires [curry()](https://github.com/gnois/luaty/blob/master/tests/curry.lua) or compatible function
   
 ```
 var curry = require('tests.curry')
@@ -76,8 +57,24 @@ var add = \w, x, y, z ~>
 assert(add(4)(7, 8)(9) == add(4, 7, 8, 9))
 ```
 
-That's it! 
-Luaty has so few features that its code very much resembles Lua. It's therefore very easy to convert a properly indented Lua code to Luaty, and vice versa. If you knew Lua, you already knew most of Luaty.
+- method call with `:` not supported, `self` or `@` need to be explicitly specified as function parameter instead
+  * a function defined inside object is just a function with the object as its namespace
+
+```
+var obj = {
+	value = 3.142
+	, foo = \@, k ->
+		return k * @.value    -- @ is equivalent to `self`
+}
+-- no more ':'
+p(obj:foo(2))         -- Error: ')' expected instead of ':'
+p(obj.foo(@, 2))      -- Ok, specify @ explicitly
+p(obj.foo(obj, 2))    -- Ok, achieve similar to above
+
+```
+
+That's it!
+Luaty has so few features that its code very much resembles Lua. It's therefore very easy to convert a properly indented Lua code to Luaty, and vice versa. If you knew Lua, you already know most of Luaty.
 
 
 The offside (indentation) rule
@@ -167,7 +164,7 @@ Please report incorrect/confusing error message as bug.
 
 Limitations
 ---
-As `var` are used as keyword to replace `local`, Luaty could not compile codes that use them as identifiers.
+As `var` is treated as a keyword to replace `local`, Luaty could not compile codes that use them as identifiers.
 It is an opinionated tradeoff as `local` is one of the most used keywords in Lua.
 
 Eg:
