@@ -47,10 +47,10 @@ function f()          -- Error: use '->' instead of 'function'
 
 - Optional curried lambda syntax with `\arg1, arg2 ~>`
   * works with 2 or more arguments, but `...` varargs is not supported
-  * requires [curry()](https://github.com/gnois/luaty/blob/master/tests/curry.lua) or compatible function
+  * requires [curry()](https://github.com/gnois/luaty/blob/master/lib/curry.lua) or compatible function
   
 ```
-var curry = require('tests.curry')
+var curry = require('lib.curry')
 var add = \w, x, y, z ~>
 	return w + x + y + z
 
@@ -68,8 +68,8 @@ var obj = {
 }
 -- no more ':'
 p(obj:foo(2))         -- Error: ')' expected instead of ':'
-p(obj.foo(@, 2))      -- Ok, specify @ explicitly
-p(obj.foo(obj, 2))    -- Ok, achieve similar to above
+p(obj.foo(@, 2))      -- Ok, specify @ explicitly, compiles to obj:foo(2)
+p(obj.foo(obj, 2))    -- Ok, compiles to obj.foo(obj, 2), but achieve the same outcome
 
 ```
 

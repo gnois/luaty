@@ -1,0 +1,10 @@
+return \... ->
+	var list = {...}
+	return \...->
+		var acc = {...}
+		var l = #list
+		while l > 0
+			acc = { list[l](unpack(acc)) }
+			l = l - 1
+		return unpack(acc)
+
