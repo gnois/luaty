@@ -1,0 +1,9 @@
+var map = require('lib.map')
+
+var tenth = map(\x-> return x * 10)
+
+var out = tenth({4,5,6,7,8,9})
+assert(out[1] == 40)
+assert(out[2] == 50)
+assert(out[6] == 90)
+assert(not out[7])

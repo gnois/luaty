@@ -1,0 +1,12 @@
+var compose = require('lib.compose')
+
+var w = \a, b -> return a + 1, b - 1
+var x = \a, b -> return a / 2, b / 3
+var y = \a, b -> return a * 3, b * 2
+var z = \a, b -> return a .. b
+
+var f = compose(z, y, x, w)
+assert(f(3, 4) == '62')
+assert(f(9, 10) == '156')
+
+

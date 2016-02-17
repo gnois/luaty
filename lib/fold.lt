@@ -1,0 +1,17 @@
+var curry = require('lib.curry')
+
+return {
+	l = \f, acc, list ~>
+		var l = 0
+		while l < #list
+			l = l + 1
+			acc = f(acc, list[l])
+		return acc
+
+	, r = \f, acc, list ~>
+		var l = #list
+		while l > 0
+			acc = f(acc, list[l])
+			l = l - 1
+		return acc
+}

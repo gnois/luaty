@@ -1,0 +1,10 @@
+var fold = require('lib.fold')
+
+var add = \a, b -> return a + b
+var cat = \a, b -> return a .. b
+
+var adder = fold.l(add, 0)
+assert(adder({2,3,4,5,6,7}) == 27)
+
+var cater = fold.r(cat, 0)
+assert(cater({2,3,4,5,6,7}) == "0765432")
