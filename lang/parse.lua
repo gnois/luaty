@@ -4,7 +4,7 @@ local LJ_52 = false
 
 local IsLastStatement = { TK_return = true, TK_break  = true }
 local EndOfBlock = { TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true }
-local EmptyFunction = { TK_newline = true, [','] = true, ['}'] = true, [')'] = true } 
+local EmptyFunction = { TK_newline = true, [','] = true, ['}'] = true, [')'] = true }
 -- indentation stack within a multi line expr/stmt
 local indent
 
@@ -101,7 +101,7 @@ local function in_scope(ast, ls, var)
         local scope = ast.current
         while not scope.vars[var.name] do
             scope = scope.parent
-            if not scope then 
+            if not scope then
                 return false
             end
         end
@@ -119,7 +119,7 @@ local function shadow_check(ast, ls, vars)
                 err_syntax(ls, "duplicate `var " .. v .. "`")
             end
         end
-    
+
         local scope = ast.current
         repeat
             if scope.vars[v] then
@@ -179,6 +179,14 @@ function expr_table(ast, ls)
         local val = expr(ast, ls)
         lex_indent(ls, true)
         lex_dedent(ls)
+        if key then
+            for i = 1, #kvs do
+                local arr = kvs[i]
+                if arr[2] and arr[2].value == key.value then
+                    err_syntax(ls, "duplicate key '" .. key.value .. "' in table")
+                end
+            end
+        end
         kvs[#kvs + 1] = { val, key }  -- key can be nil
         if not lex_opt(ls, ',') then
             break
@@ -317,7 +325,7 @@ function expr_primary(ast, ls)
             err_syntax(ls, "use of `:` is not supported")
         elseif ls.token == '(' then -- or ls.token == 'TK_string' or ls.token == '{' then
             local args = parse_args(ast, ls)
-            -- if vk is indexed and first argument is @, it is a method call 
+            -- if vk is indexed and first argument is @, it is a method call
             if vk == 'indexed' and args[1] and args[1].kind == 'Identifier' and args[1].name == 'self' then
                 table.remove(args, 1)
                 vk, v = 'call', ast:expr_method_call(v, args, line)
@@ -418,7 +426,7 @@ function parse_args(ast, ls)
     lex_match(ls, ')', '(', line)
     -- leave the last dedent for caller
     --lex_dedent(ls)
-    
+
     --[[  function call must have parens `()`, in which we allow newlines
     if ls.token == '(' then
         ...
@@ -492,7 +500,7 @@ end
 local function parse_while(ast, ls, line)
     ls:next() -- Skip 'while'.
     ast:fscope_begin()
-    local cond = expr(ast, ls)    
+    local cond = expr(ast, ls)
     local body = parse_opt_block(ast, ls, line, 'TK_while')
     local lastline = ls.linenumber
     ast:fscope_end()
@@ -580,7 +588,7 @@ local function parse_stmt(ast, ls)
     --elseif ls.token == 'TK_repeat' then
     --    stmt = parse_repeat(ast, ls, line)
     --elseif ls.token == 'TK_function' then
-    --    stmt = parse_func(ast, ls, line)    
+    --    stmt = parse_func(ast, ls, line)
     elseif ls.token == 'TK_lambda' or ls.token == 'TK_curry' then
         err_syntax(ls, "lambda must be an expression")
     elseif ls.token == 'TK_var' then
@@ -663,13 +671,13 @@ local function parse_chunk(ast, ls)
     return ast:chunk(body, ls.chunkname, 0, lastline)
 end
 
--- parse single or indented compound statement 
+-- parse single or indented compound statement
 function parse_opt_block(ast, ls, line, match_token)
     local body = {}
     if lex_indent(ls) then
         body = parse_block(ast, ls, line)
-        --lex_match(ls, 'TK_dedent', match_token, line) 
-        if not lex_dedent(ls) then 
+        --lex_match(ls, 'TK_dedent', match_token, line)
+        if not lex_dedent(ls) then
             ls:error(ls.token, "<dedent> expected to end fn at line %d", line)
         end
     elseif not EndOfBlock[ls.token] and not EmptyFunction[ls.token] then

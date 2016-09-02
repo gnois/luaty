@@ -24,6 +24,7 @@ if not x
 - Gives compilation error when
   * Assigning to undeclared (a.k.a global) variable
   * Shadowing another variable in the same scope
+  * duplicated key exists in table
 
 ```
 a = 1              -- Error: undeclared identifier a
@@ -32,6 +33,11 @@ var p = 'p'        -- Error: shadowing previous var p
 
 var f = \z->
 	var z = 10      -- Error: shadowing previous var z
+
+var tbl = {
+	x = 1
+	, x = 3       -- Error: duplicate key 'x' in table
+}
 
 ```
 - function definition is always a lambda expression with  `->` or `\arg1, arg2 ->`, instead of a statement
