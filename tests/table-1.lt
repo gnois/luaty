@@ -1,3 +1,3 @@
 var name = 'secret'
-var t = { pi = 3.14, ciao = 'Hello!', [name] = 'sshhhh....' }
+var t = { pi = 3.14, ciao = 'Hello!', [name] = 'sshhhh....', ['ciao'] = 'Oh' }   -- duplicate key 'ciao'
 print(t.pi, t.ciao, t.secret)

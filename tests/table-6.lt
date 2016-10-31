@@ -1,7 +1,11 @@
 var html = {
-	["<"] = "&lt;",
-	[">"] = "&gt;",
+	"<" = "&lt;",
+	">" = "&gt;",
 	["&"] = "&amp;"
 }
 	
 var f = ->
+	for k, v in pairs(html)
+		print(k .. ': ' .. v)
+		
+f()

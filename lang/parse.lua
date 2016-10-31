@@ -95,7 +95,6 @@ local function lex_match(ls, what, who, line)
     end
 end
 
-
 local function in_scope(ast, ls, var)
     if var.name then
         local scope = ast.current
@@ -129,6 +128,23 @@ local function shadow_check(ast, ls, vars)
         until not scope
     end
 end
+
+local function same_ast(a, b)
+    if a and b and a.kind == b.kind then
+        for k, v in pairs(a) do
+            if "table" == type(v) then
+                if not same_ast(v, b[k]) then
+                    return false
+                end
+            elseif b[k] ~= v then
+                return false
+            end
+        end
+        return true
+    end  
+    return false
+end
+
 local function lex_str(ls)
     if ls.token ~= 'TK_name' and (LJ_52 or ls.token ~= 'TK_goto') then
         err_token(ls, 'TK_name')
@@ -175,6 +191,10 @@ function expr_table(ast, ls)
             local name = lex_str(ls)
             key = ast:literal(name)
             lex_check(ls, '=')
+        elseif ls.token == 'TK_string' and ls:lookahead() == '=' then
+            key = ast:literal(ls.tokenval)
+            ls:next()
+            lex_check(ls, '=')
         end
         local val = expr(ast, ls)
         lex_indent(ls, true)
@@ -182,8 +202,8 @@ function expr_table(ast, ls)
         if key then
             for i = 1, #kvs do
                 local arr = kvs[i]
-                if arr[2] and arr[2].value == key.value then
-                    err_syntax(ls, "duplicate key '" .. key.value .. "' in table")
+                if same_ast(arr[2], key) then
+                    err_syntax(ls, "duplicate key at position " .. i .. " and " .. (#kvs + 1) .. " in table")
                 end
             end
         end

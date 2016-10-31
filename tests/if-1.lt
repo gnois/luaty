@@ -5,3 +5,4 @@ var foo = \x, y->
 		return x - y
 
 print(foo(3,7), foo(7,3))
+

@@ -1,0 +1,11 @@
+var x = false
+var y
+if x y = 1 else y = 2
+print(y)
+assert(y == 2)
+
+var odd = \n -> return n % 2 == 1
+
+if odd(8) y = 1 else y = 2
+print(y)
+assert(y == 2)
