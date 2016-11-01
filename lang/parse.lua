@@ -183,6 +183,10 @@ function expr_table(ast, ls)
     while ls.token ~= '}' do
         lex_indent(ls, true)
         lex_dedent(ls)
+        -- in case the table ends immediately
+        if ls.token == '}' then
+          break
+        end
         local key
         if ls.token == '[' then
             key = expr_bracket(ast, ls)
