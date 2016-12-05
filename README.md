@@ -3,7 +3,7 @@ Luaty
 
 *[Lua] with less [ty]ping*
 
-Luaty is a opinionated Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule). It and compiles to Lua and is written in Lua based on the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit).
+Luaty is a opinionated Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule). It compiles to Lua and is written in Lua based on the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit).
 
 Its primary raison d'etre is allow faster Lua coding with arguably cleaner syntax.
 
