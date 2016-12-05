@@ -3,7 +3,7 @@ Luaty
 
 *[Lua] with less [ty]ping*
 
-Luaty is a opinionated Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule). It compiles to Lua and is written in Lua based on the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit).
+Luaty is a practical but opinionated Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule). It compiles to Lua and is written in Lua based on the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit).
 
 Its primary raison d'etre is allow faster Lua coding with arguably cleaner syntax.
 
@@ -51,7 +51,7 @@ function f()          -- Error: use '->' instead of 'function'
 ```
 
 - Optional curried lambda syntax with `\arg1, arg2 ~>`
-  * works with 2 or more arguments, but `...` varargs is not supported
+  * works with 2 or more arguments. `...` varargs is not supported for the obvious reason that we don't know when to stop currying
   * requires [curry()](https://github.com/gnois/luaty/blob/master/lib/curry.lua) or compatible function
 
 ```
@@ -81,7 +81,7 @@ p(obj.foo(obj, 2))    -- Ok, compiles to obj.foo(obj, 2), but achieve the same o
 That's it!
 Luaty has so few features that its code very much resembles Lua. It's therefore very easy to convert a properly indented Lua code to Luaty, and vice versa. If you knew Lua, you already know most of Luaty.
 
-On the other specturm, if you'd like a dialect with much more features and even terser syntax, please see [Moonscript](https://github.com/leafo/moonscript).
+On the other spectrum, if you'd like a dialect with many more features and an even terser syntax, please see [Moonscript](https://github.com/leafo/moonscript).
 
 
 The offside (indentation) rule
@@ -169,7 +169,7 @@ Note that the Luaty compiler strives to show meaningful error message with line 
 Please report incorrect/confusing error message as bug.
 
 
-Limitations
+Caveat
 ---
 As `var` is treated as a keyword to replace `local`, Luaty could not compile codes that use them as identifiers.
 It is an opinionated tradeoff as `local` is one of the most used keywords in Lua.
@@ -186,7 +186,6 @@ p(obj.var )   -- Error: 'name' expected instead of var
 ```
 
 Notice that `p(t.var)` and `var= 4` in table `t` still works because hack is done to interpret `var` as keyword only if it is followed by a whitespace.
-
 
 
 
