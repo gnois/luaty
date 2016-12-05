@@ -3,28 +3,27 @@ Luaty
 
 *[Lua] with less [ty]ping*
 
-Luaty is a opinionated Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule). It is written in Lua based on the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit), and compiles to Lua. 
+Luaty is a opinionated Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule). It and compiles to Lua and is written in Lua based on the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit).
 
-Its primary raison d'etre is allow faster Lua coding with arguably cleaner syntax. 
-
+Its primary raison d'etre is allow faster Lua coding with arguably cleaner syntax.
 
 Characteristics:
 ---
-- Less typing with removed or shorter keywords
+- Removed or shortened keywords to reduce keystrokes
   * No more `then`, `end`, `do`
   * `local` becomes `var`, `repeat` becomes `do`, `elseif` becomes `else if`, `self` can be `@`
 
 ```
-var x = false          -- `var` compiles to `local` 
+var x = false          -- `var` compiles to `local`
 if not x
 	print('nay')        -- `then` and `end` not needed
 
 ```
 
-- Gives compilation error when
+- Simple lint capability by giving compilation error when
   * Assigning to undeclared (a.k.a global) variable
   * Shadowing another variable in the same scope
-  * duplicated key exists in table
+  * duplicated key exists in table.
 
 ```
 a = 1              -- Error: undeclared identifier a
@@ -41,7 +40,7 @@ var tbl = {
 
 ```
 - function definition is always a lambda expression with  `->` or `\arg1, arg2 ->`, instead of a statement
-  * function call always need parenthesis
+- function call always require parenthesis
 
 ```
 print 'a'             -- Error: '=' expected instead of 'a'. This is valid in Lua
@@ -54,7 +53,7 @@ function f()          -- Error: use '->' instead of 'function'
 - Optional curried lambda syntax with `\arg1, arg2 ~>`
   * works with 2 or more arguments, but `...` varargs is not supported
   * requires [curry()](https://github.com/gnois/luaty/blob/master/lib/curry.lua) or compatible function
-  
+
 ```
 var curry = require('lib.curry')
 var add = \w, x, y, z ~>
@@ -82,10 +81,12 @@ p(obj.foo(obj, 2))    -- Ok, compiles to obj.foo(obj, 2), but achieve the same o
 That's it!
 Luaty has so few features that its code very much resembles Lua. It's therefore very easy to convert a properly indented Lua code to Luaty, and vice versa. If you knew Lua, you already know most of Luaty.
 
+On the other specturm, if you'd like a dialect with much more features and even terser syntax, please see [Moonscript](https://github.com/leafo/moonscript).
+
 
 The offside (indentation) rule
 ---
-- either tab(s) or space(s) can be used as indent, but not both. 
+- either tab(s) or space(s) can be used as indent, but not both.
 
 - compound statements always start at an indented newline. (Analoguous to statements within C curly braces)
 
@@ -126,7 +127,7 @@ It should be easily visible that the 2nd case has a lambda returning multiple va
 
 ```
 var y = { 1
-	, 
+	,
 	2}              -- Error: <dedent> expected
 
 var z = { 1
@@ -164,7 +165,7 @@ luajit lt.lua -c source.lt dest.lua
 
 
 
-Note that the Luaty compiler strives to show meaningful error message with line number. 
+Note that the Luaty compiler strives to show meaningful error message with line number.
 Please report incorrect/confusing error message as bug.
 
 
@@ -196,5 +197,4 @@ While Luaty is still new, it is already being actively used. However, it's defin
 Unrecognized syntax should hopefully end in compilation error, but in case compilation is successful, do exercise some caution by double checking the Lua output when necessary.
 
 Bug reports are welcomed.
-
 
