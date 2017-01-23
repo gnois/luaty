@@ -131,13 +131,42 @@ end
 
 local function same_ast(a, b)
     if a and b and a.kind == b.kind then
-        for k, v in pairs(a) do
+        -- http://stackoverflow.com/questions/27674367/lua-check-if-a-table-can-be-looped-through-via-ipairs-ipairs-starting-at-0
+        local last = 1
+        if #a ~= #b then
+            return false
+        end
+        for i, v in ipairs(a) do
+            last = i
             if "table" == type(v) then
-                if not same_ast(v, b[k]) then
+                if not same_ast(v, b[i]) then
                     return false
                 end
-            elseif b[k] ~= v then
+            elseif b[i] ~= v then
                 return false
+            end
+        end
+        for k, v in pairs(a) do
+            if "number" ~= type(k) or k < 1 or k > last or math.floor(k) ~= k then
+                if "table" == type(v) then
+                    if not same_ast(v, b[k]) then
+                        return false
+                    end
+                elseif b[k] ~= v then
+                    return false
+                end
+            end
+        end
+        -- b may have more keys than a
+        for k, v in pairs(b) do
+            if "number" ~= type(k) or k < 1 or k > last or math.floor(k) ~= k then
+                if "table" == type(v) then
+                    if not same_ast(v, a[k]) then
+                        return false
+                    end
+                elseif a[k] ~= v then
+                    return false
+                end
             end
         end
         return true
