@@ -1,0 +1,20 @@
+var none = \ ->
+	var c = '='
+	var esc = false
+	if esc
+		return '!'
+	else if c == '~'
+		esc = true
+		if c ~= '=' return '='
+		else
+			c = '-'
+			return c 
+	else if c == '"' or c == "'"
+		return '+'
+	else if c == '!'
+	else
+		if not c
+			error("invalid c")
+		return c
+
+print(none())

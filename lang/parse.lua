@@ -727,17 +727,18 @@ end
 -- parse single or indented compound statement
 function parse_opt_block(ast, ls, line, match_token)
     local body = {}
-    if lex_indent(ls) then
+    if lex_indent(ls, true) then
         body = parse_block(ast, ls, line)
         --lex_match(ls, 'TK_dedent', match_token, line)
         if not lex_dedent(ls) then
-            ls:error(ls.token, "<dedent> expected to end fn at line %d", line)
+            ls:error(ls.token, "<dedent> expected to end %s at line %d", ls.token2str(match_token), line)
         end
     elseif not EndOfBlock[ls.token] and not EmptyFunction[ls.token] then
         -- single statement
         -- this is not worst than C single statement without brace
         body[1] = parse_stmt(ast, ls)
         body.firstline, body.lastline = line, ls.linenumber
+        lex_indent(ls, true)
     end
     return body
 end
