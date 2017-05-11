@@ -10,6 +10,8 @@ Using a text editor, find and replace -
 Find: `local`
 Replace: `var`
 
+Indent using Select, Shft-Tab then Tab
+
 Remove all `then` and `end`
 
 Find: `then`
@@ -21,7 +23,7 @@ Replace:
 *Leave the `do` statements intact, but remove `do` after `while` and `for`
 
 Find: `do`
-Replace: 
+Replace:
 
 `Repeat` becomes `do`
 
@@ -31,11 +33,22 @@ Replace: `do`
 
 Turn on regular expression
 
-Find: `function (\w+)\(`
-Replace: `\1 = fn\(`
+Convert normal functions
+Find: `function (\w+)\((.*)\)`
+Replace: `\1 = \\\2 ->`
 
-Find: `function (\w+):(\w+)\(`
-Replace: `\1.\2 = fn\(@, `
+Convert member functions
+Find: `function (\w+).(\w+)\((.*)\)`
+Replace: `\1.\2 = \\\3 ->`
+
+
+Convert member functions that takes self parameter
+Find: `function (\w+):(\w+)\((.*)\)`
+Replace: `\1.\2 = \\@, \3 ->`
+Cleanup functions taking no argument
+Find: `,  ->`
+Replace: ` ->`
+
 
 
 Compile and fix other compilation errors.
