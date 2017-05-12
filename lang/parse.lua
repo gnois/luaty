@@ -5,6 +5,16 @@ local LJ_52 = false
 local IsLastStatement = { TK_return = true, TK_break  = true }
 local EndOfBlock = { TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true }
 local EmptyFunction = { TK_newline = true, [','] = true, ['}'] = true, [')'] = true }
+
+local ReservedKeyword = { ['and'] = 1, ['break'] = 2, ['do'] = 3, ['else'] = 4, ['elseif'] = 5, ['end'] = 6, ['false'] = 7, ['for'] = 8, ['function'] = 9, ['goto'] = 10, ['if'] = 11, ['in'] = 12, ['local'] = 13, ['nil'] = 14, ['not'] = 15, ['or'] = 16, ['repeat'] = 17, ['return'] = 18, ['then'] = 19, ['true'] = 20, ['until'] = 21, ['while'] = 22, ['var'] = 23 }
+
+local function is_keyword(ls)
+    local str = ls.token2str(ls.token)
+    if ReservedKeyword[str] then
+        return str
+    end
+end
+
 -- indentation stack within a multi line expr/stmt
 local indent
 
@@ -194,7 +204,15 @@ end
 
 local function expr_field(ast, ls, v)
     ls:next() -- Skip dot or colon.
-    local key = lex_str(ls)
+    local key = is_keyword(ls)
+    if key then
+        ls:next()
+        if key == "var" then  -- `var` is not a Lua keyword
+            return ast:expr_property(v, key)
+        end
+        return ast:expr_index(v, ast:literal(key))
+    end
+    key = lex_str(ls)
     return ast:expr_property(v, key)
 end
 
@@ -220,13 +238,20 @@ function expr_table(ast, ls)
         if ls.token == '[' then
             key = expr_bracket(ast, ls)
             lex_check(ls, '=')
-        elseif (ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')) and ls:lookahead() == '=' then
-            local name = lex_str(ls)
-            key = ast:literal(name)
-            lex_check(ls, '=')
-        elseif ls.token == 'TK_string' and ls:lookahead() == '=' then
-            key = ast:literal(ls.tokenval)
-            ls:next()
+        elseif ls:lookahead() == '=' then
+            if (ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')) then
+                local name = lex_str(ls)
+                key = ast:literal(name)
+            elseif ls.token == 'TK_string' then
+                key = ast:literal(ls.tokenval)
+                ls:next()
+            else
+                local name = is_keyword(ls)
+                if name then
+                    key = ast:literal(name)
+                    ls:next()
+                end
+            end
             lex_check(ls, '=')
         end
         local val = expr(ast, ls)

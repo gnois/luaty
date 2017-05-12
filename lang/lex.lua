@@ -507,9 +507,9 @@ local function llex(ls)
                 until not char_isalnum(ls.current)
                 local s = get_string(ls, 0, 0)
                 -- hack for ngx.var.xxx  
-                if s == "var" and ls.current ~= ' ' and ls.current ~= '\t' then
-                    return 'TK_name', s
-                end
+                --if s == "var" and ls.current ~= ' ' and ls.current ~= '\t' then
+                --   return 'TK_name', s
+                --end
                 local reserved = ReservedKeyword[s]
                 if reserved then
                     return 'TK_' .. s

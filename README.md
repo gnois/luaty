@@ -78,6 +78,24 @@ p(obj.foo(obj, 2))    -- Ok, compiles to obj.foo(obj, 2), but achieve the same o
 
 ```
 
+- table key and indexer can be keywords
+
+```
+-- compiler will bracket ['local'] and ['function']
+var t = {
+	var = 7
+	, local = 6
+	, function = 5
+}
+
+var x = t.var
+var y = t.local
+var z = t.function
+
+print(x, y, z)
+
+```
+
 That's it!
 Luaty has so few features that its code very much resembles Lua. It's therefore very easy to convert a properly indented Lua code to Luaty, and vice versa. If you knew Lua, you already know most of Luaty.
 
@@ -167,25 +185,6 @@ luajit lt.lua -c source.lt dest.lua
 
 Note that the Luaty compiler strives to show meaningful error message with line number.
 Please report incorrect/confusing error message as bug.
-
-
-Caveat
----
-As `var` is treated as a keyword to replace `local`, Luaty could not compile codes that use them as identifiers.
-It is an opinionated tradeoff as `local` is one of the most used keywords in Lua.
-
-Eg:
-```
-var t = {
-   var= 4     -- ok
-   var = 6    -- Error: unexpected var
-}
-p(t.var)      -- ok
-p(obj.var )   -- Error: 'name' expected instead of var
-
-```
-
-Notice that `p(t.var)` and `var= 4` in table `t` still works because hack is done to interpret `var` as keyword only if it is followed by a whitespace.
 
 
 
