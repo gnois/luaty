@@ -3,7 +3,8 @@ Luaty
 
 *[Lua] with less [ty]ping*
 
-Luaty is a practical but opinionated Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule). It compiles to Lua and is written in Lua based on the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit).
+Luaty is a practical but opinionated Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule). 
+It compiles to Lua and is written in Lua based on the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit).
 
 Its primary raison d'etre is allow faster Lua coding with arguably cleaner syntax.
 
@@ -20,7 +21,7 @@ if not x
 
 ```
 
-- Simple lint capability by giving compilation error when
+- Simple lint capability by giving error when
   * Assigning to undeclared (a.k.a global) variable
   * Shadowing another variable in the same scope
   * duplicated key exists in table.
@@ -73,15 +74,14 @@ var obj = {
 }
 -- no more ':'
 p(obj:foo(2))         -- Error: ')' expected instead of ':'
-p(obj.foo(@, 2))      -- Ok, specify @ explicitly, compiles to obj:foo(2)
-p(obj.foo(obj, 2))    -- Ok, compiles to obj.foo(obj, 2), but achieve the same outcome
+p(obj.foo(@, 2))      -- Ok, specify @ explicitly, becomes obj:foo(2)
+p(obj.foo(obj, 2))    -- Ok, achieves the same outcome
 
 ```
 
-- table key and indexer can be keywords
+- table keys and indexers can be keywords
 
 ```
--- compiler will bracket ['local'] and ['function']
 var t = {
 	var = 7
 	, local = 6
@@ -92,14 +92,12 @@ var x = t.var
 var y = t.local
 var z = t.function
 
-print(x, y, z)
+print(x, y, z)  -- prints 7  6  5
 
 ```
 
 That's it!
 Luaty has so few features that its code very much resembles Lua. It's therefore very easy to convert a properly indented Lua code to Luaty, and vice versa. If you knew Lua, you already know most of Luaty.
-
-On the other spectrum, if you'd like a dialect with many more features and an even terser syntax, please see [Moonscript](https://github.com/leafo/moonscript).
 
 
 The offside (indentation) rule
@@ -113,8 +111,8 @@ if true
 	p(1)
 	p(2)
 
-if true p(1) p(2)         -- beware, compiles to:  if true then p(1) end p(2)
--- compiles same as above
+if true p(1) p(2)         -- beware, becomes:  if true then p(1) end p(2)
+-- same outcome as above
 if true
   p(1)
 p(2)
@@ -183,9 +181,8 @@ luajit lt.lua -c source.lt dest.lua
 
 
 
-Note that the Luaty compiler strives to show meaningful error message with line number.
+Note that Luaty strives to show meaningful error message with line number.
 Please report incorrect/confusing error message as bug.
-
 
 
 Status
@@ -196,3 +193,7 @@ Unrecognized syntax should hopefully end in compilation error, but in case compi
 
 Bug reports are welcomed.
 
+
+Credit
+---
+Luaty is inspired by [Moonscript](https://github.com/leafo/moonscript), which is another offside dialect of Lua, with terser syntax and more features.
