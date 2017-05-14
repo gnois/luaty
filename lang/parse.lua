@@ -4,7 +4,7 @@ local LJ_52 = false
 
 local IsLastStatement = { TK_return = true, TK_break  = true }
 local EndOfBlock = { TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true }
-local EmptyFunction = { TK_newline = true, [','] = true, ['}'] = true, [')'] = true }
+local NewLine = { TK_newline = true } --, [','] = true, ['}'] = true, [')'] = true }
 
 local ReservedKeyword = { ['and'] = 1, ['break'] = 2, ['do'] = 3, ['else'] = 4, ['elseif'] = 5, ['end'] = 6, ['false'] = 7, ['for'] = 8, ['function'] = 9, ['goto'] = 10, ['if'] = 11, ['in'] = 12, ['local'] = 13, ['nil'] = 14, ['not'] = 15, ['or'] = 16, ['repeat'] = 17, ['return'] = 18, ['then'] = 19, ['true'] = 20, ['until'] = 21, ['while'] = 22, ['var'] = 23 }
 
@@ -51,7 +51,7 @@ end
 
 -- return true only if a real indent is eaten
 local function lex_indent(ls, eat_nl)
-    if ls.token == 'TK_newline' then
+    if NewLine[ls.token] then
         if ls:lookahead() == 'TK_indent' then
             ls:next()  -- eat the newline
             ls:next()
@@ -69,7 +69,7 @@ end
 -- return true only if a real dedent is eaten
 local function lex_dedent(ls, eat_nl)
     if indent > 0 then
-        if ls.token == 'TK_newline' then
+        if NewLine[ls.token] then
             if ls:lookahead() == 'TK_dedent' then
                 ls:next()  -- eat the newline
                 ls:next()
@@ -752,18 +752,23 @@ end
 -- parse single or indented compound statement
 function parse_opt_block(ast, ls, line, match_token)
     local body = {}
-    if lex_indent(ls, true) then
+    if lex_indent(ls) then
         body = parse_block(ast, ls, line)
         --lex_match(ls, 'TK_dedent', match_token, line)
         if not lex_dedent(ls) then
             ls:error(ls.token, "<dedent> expected to end %s at line %d", ls.token2str(match_token), line)
         end
-    elseif not EndOfBlock[ls.token] and not EmptyFunction[ls.token] then
-        -- single statement
-        -- this is not worst than C single statement without brace
-        body[1] = parse_stmt(ast, ls)
-        body.firstline, body.lastline = line, ls.linenumber
-        lex_indent(ls, true)
+    else
+        if not EndOfBlock[ls.token] and not NewLine[ls.token] then
+          -- single statement
+          -- this is not worst than C single statement without brace
+          body[1] = parse_stmt(ast, ls)
+          body.firstline, body.lastline = line, ls.linenumber
+        end
+        -- always eat one newline
+        if NewLine[ls.token] then
+          ls:next()
+        end
     end
     return body
 end

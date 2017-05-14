@@ -1,0 +1,19 @@
+-- test comment and indentation
+	-- vvv
+		-- vvv
+
+var self = {}
+
+self.qqq = \@ ->
+
+
+	-- FIXME
+
+
+self.xxx = \@, line ->
+	var a = 1   -- comment
+	var b = 2
+	return a + b
+
+assert(self.xxx() == 3)
+
