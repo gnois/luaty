@@ -3,15 +3,14 @@ Luaty
 
 *[Lua] with less [ty]ping*
 
-Luaty is a practical but opinionated Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule). 
-It compiles to Lua and is written in Lua based on the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit).
+Luaty is a practical but opinionated Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule), based on the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit).
 
 Its primary raison d'etre is allow faster Lua coding with arguably cleaner syntax.
 
 Characteristics:
 ---
-- Removed or shortened keywords to reduce keystrokes
-  * No more `then`, `end`, `do`
+- Removed or shortened keywords
+  * No `then`, `end`, `do`
   * `local` becomes `var`, `repeat` becomes `do`, `elseif` becomes `else if`, `self` can be `@`
 
 ```
@@ -24,7 +23,7 @@ if not x
 - Simple lint capability by giving error when
   * Assigning to undeclared (a.k.a global) variable
   * Shadowing another variable in the same scope
-  * duplicated key exists in table.
+  * duplicated key exists in table
 
 ```
 a = 1              -- Error: undeclared identifier a
@@ -40,7 +39,7 @@ var tbl = {
 }
 
 ```
-- function definition is always a lambda expression with  `->` or `\arg1, arg2 ->`, instead of a statement
+- function definition is always a lambda [expression]((https://www.lua.org/manual/5.1/manual.html#2.5.9)) with  `->` or `\arg1, arg2 ->`, instead of a statement
 - function call always require parenthesis
 
 ```
@@ -73,7 +72,7 @@ var obj = {
 		return k * @.value    -- @ is equivalent to `self`
 }
 -- no more ':'
-p(obj:foo(2))         -- Error: ')' expected instead of ':'
+p(obj:foo(2))         -- Error: ')' expected instead of ':'. This is valid in Lua
 p(obj.foo(@, 2))      -- Ok, specify @ explicitly, becomes obj:foo(2)
 p(obj.foo(obj, 2))    -- Ok, achieves the same outcome
 
@@ -84,13 +83,13 @@ p(obj.foo(obj, 2))    -- Ok, achieves the same outcome
 ```
 var t = {
 	var = 7
-	, local = 6
-	, function = 5
+	, local = 6         -- Invalid in Lua
+	, function = 5      -- Invalid in Lua
 }
 
 var x = t.var
-var y = t.local
-var z = t.function
+var y = t.local        -- Invalid in Lua
+var z = t.function     -- Invalid in Lua
 
 print(x, y, z)  -- prints 7  6  5
 
@@ -159,7 +158,7 @@ print(
 
 ```
 
-Please see the [tests folder](https://github.com/gnois/luaty/tree/master/tests) for more code examples.
+See the [tests folder](https://github.com/gnois/luaty/tree/master/tests) for more code examples.
 
 
 Usage
@@ -180,20 +179,15 @@ luajit lt.lua -c source.lt dest.lua
 ```
 
 
-
-Note that Luaty strives to show meaningful error message with line number.
-Please report incorrect/confusing error message as bug.
+Luaty strives to show meaningful error message with line number.
+Incorrect/confusing error messages are considered as bugs.
 
 
 Status
 ---
-
-While Luaty is still new, it is already being actively used. However, it's definitely not battle tested.
-Unrecognized syntax should hopefully end in compilation error, but in case compilation is successful, do exercise some caution by double checking the Lua output when necessary.
-
-Bug reports are welcomed.
+Luaty is not battle tested. Check the Lua output as necessary.
 
 
 Credit
 ---
-Luaty is inspired by [Moonscript](https://github.com/leafo/moonscript), which is another offside dialect of Lua, with terser syntax and more features.
+Luaty is inspired by [Moonscript](https://github.com/leafo/moonscript).

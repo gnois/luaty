@@ -38,13 +38,17 @@ Find: `function (\w+)\((.*)\)`
 Replace: `\1 = \\\2 ->`
 
 Convert member functions
-Find: `function (\w+).(\w+)\((.*)\)`
+Find: `function (\w+)\.(\w+)\((.*)\)`
 Replace: `\1.\2 = \\\3 ->`
 
 
 Convert member functions that takes self parameter
-Find: `function (\w+):(\w+)\((.*)\)`
+Find: `function (\w+)\:(\w+)\((.*)\)`
 Replace: `\1.\2 = \\@, \3 ->`
+
+Find: self
+Replace: @
+
 Cleanup functions taking no argument
 Find: `,  ->`
 Replace: ` ->`
