@@ -108,7 +108,7 @@ var lex_match = \ls, what, who, line ->
 var in_scope = \ast, ls, v ->
 	if v.name
 		var scope = ast.current
-		while not scope.vars[v.name] do
+		while not scope.vars[v.name]
 			scope = scope.parent
 			if not scope
 				return false
@@ -121,9 +121,9 @@ var in_scope = \ast, ls, v ->
 
 var shadow_check = \ast, ls, vars ->
 	var n = #vars
-	for i = 1, n do
+	for i = 1, n
 		var v = vars[i]
-		for j = i+1, n do
+		for j = i+1, n
 			if vars[j] == v
 				err_syntax(ls, "duplicate `var " .. v .. "`")
 		
@@ -146,7 +146,7 @@ var same_ast = \a, b ->
 		if #a ~= #b
 			return false
 	
-		for i, v in ipairs(a) do
+		for i, v in ipairs(a)
 			last = i
 			if "table" == type(v)
 				if not same_ast(v, b[i])
@@ -156,7 +156,7 @@ var same_ast = \a, b ->
 				return false
 		
 	
-		for k, v in pairs(a) do
+		for k, v in pairs(a)
 			if "number" ~= type(k) or k < 1 or k > last or math.floor(k) ~= k
 				if "table" == type(v)
 					if not same_ast(v, b[k])
@@ -168,7 +168,7 @@ var same_ast = \a, b ->
 		
 	
 		-- b may have more keys than a
-		for k, v in pairs(b) do
+		for k, v in pairs(b)
 			if "number" ~= type(k) or k < 1 or k > last or math.floor(k) ~= k
 				if "table" == type(v)
 					if not same_ast(v, a[k])
@@ -227,7 +227,7 @@ expr_table = \ast, ls ->
 	var line = ls.linenumber
 	var kvs = {}
 	lex_check(ls, '{')
-	while ls.token ~= '}' do
+	while ls.token ~= '}'
 		lex_indent(ls, true)
 		lex_dedent(ls)
 		-- in case the table ends immediately
@@ -258,7 +258,7 @@ expr_table = \ast, ls ->
 		lex_indent(ls, true)
 		lex_dedent(ls)
 		if key
-			for i = 1, #kvs do
+			for i = 1, #kvs
 				var arr = kvs[i]
 				if same_ast(arr[2], key)
 					err_syntax(ls, "duplicate key at position " .. i .. " and " .. (#kvs + 1) .. " in table")
@@ -329,7 +329,7 @@ expr_list = \ast, ls, indentable ->
 	if indentable
 		lex_indent(ls, true)
 
-	while lex_opt(ls, ',') do
+	while lex_opt(ls, ',')
 		if indentable
 			lex_indent(ls, true)
 			lex_dedent(ls)
@@ -363,7 +363,7 @@ expr_unop = \ast, ls ->
 expr_binop = \ast, ls, limit ->
 	var v = expr_unop(ast, ls)
 	var op = ls.token2str(ls.token)
-	while operator.is_binop(op) and operator.left_priority(op) > limit do
+	while operator.is_binop(op) and operator.left_priority(op) > limit
 		var line = ls.linenumber
 		ls.next(@)
 		var v2, nextop = expr_binop(ast, ls, operator.right_priority(op))
@@ -392,7 +392,7 @@ expr_primary = \ast, ls ->
 		err_symbol(ls)
 
 	var key
-	while true do -- Parse multiple expression suffixes.
+	while true -- Parse multiple expression suffixes.
 		var line = ls.linenumber
 		if ls.token == '.'
 			vk, v = 'indexed', expr_field(ast, ls, v)
@@ -458,7 +458,7 @@ var parse_for_iter = \ast, ls, indexname ->
 	ast.fscope_begin(@)
 	var vars = { ast.identifier(@, indexname) }
 	ast.var_declare(@, indexname)
-	while lex_opt(ls, ',') do
+	while lex_opt(ls, ',')
 		indexname = lex_str(ls)
 		vars[#vars + 1] = ast.identifier(@, indexname)
 		ast.var_declare(@, indexname)
@@ -593,7 +593,7 @@ var parse_if = \ast, ls, line ->
 	blocks[1] = parse_opt_block(ast, ls, line, 'TK_if')
 	ast.fscope_end(@)
 	var else_branch
-	while ls.token == 'TK_else' do
+	while ls.token == 'TK_else'
 		ls.next(@)
 		if ls.token == 'TK_if'
 			ls.next(@)
@@ -632,7 +632,7 @@ var parse_label = \ast, ls ->
 	var name = lex_str(ls)
 	lex_check(ls, 'TK_label')
 	-- Recursively parse trailing statements: labels and ';' (Lua 5.2 only).
-	while true do
+	while true
 		if ls.token == 'TK_label'
 			parse_label(ast, ls)
 		--else if LJ_52 and ls.token == ';'
@@ -736,7 +736,7 @@ var parse_block_stmts = \ast, ls ->
 	var firstline = ls.linenumber
 	var stmt, islast = nil, false
 	var body = { }
-	while not islast and not EndOfBlock[ls.token] do
+	while not islast and not EndOfBlock[ls.token]
 		stmt, islast = parse_stmt(ast, ls)
 		body[#body + 1] = stmt
 		lex_opt(ls, 'TK_newline')

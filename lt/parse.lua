@@ -94,11 +94,9 @@ local in_scope = function(ast, ls, v)
     if v.name then
         local scope = ast.current
         while not scope.vars[v.name] do
-            do
-                scope = scope.parent
-                if not scope then
-                    return false
-                end
+            scope = scope.parent
+            if not scope then
+                return false
             end
         end
         return true
@@ -108,23 +106,19 @@ end
 local shadow_check = function(ast, ls, vars)
     local n = #vars
     for i = 1, n do
-        do
-            local v = vars[i]
-            for j = i + 1, n do
-                do
-                    if vars[j] == v then
-                        err_syntax(ls, "duplicate `var " .. v .. "`")
-                    end
-                end
+        local v = vars[i]
+        for j = i + 1, n do
+            if vars[j] == v then
+                err_syntax(ls, "duplicate `var " .. v .. "`")
             end
-            local scope = ast.current
-            repeat
-                if scope.vars[v] then
-                    err_syntax(ls, "shadowing previous `var " .. v .. "`")
-                end
-                scope = scope.parent
-            until not scope
         end
+        local scope = ast.current
+        repeat
+            if scope.vars[v] then
+                err_syntax(ls, "shadowing previous `var " .. v .. "`")
+            end
+            scope = scope.parent
+        until not scope
     end
 end
 local same_ast = function(a, b)
@@ -134,40 +128,34 @@ local same_ast = function(a, b)
             return false
         end
         for i, v in ipairs(a) do
-            do
-                last = i
+            last = i
+            if "table" == type(v) then
+                if not same_ast(v, b[i]) then
+                    return false
+                end
+            elseif b[i] ~= v then
+                return false
+            end
+        end
+        for k, v in pairs(a) do
+            if "number" ~= type(k) or k < 1 or k > last or math.floor(k) ~= k then
                 if "table" == type(v) then
-                    if not same_ast(v, b[i]) then
+                    if not same_ast(v, b[k]) then
                         return false
                     end
-                elseif b[i] ~= v then
+                elseif b[k] ~= v then
                     return false
                 end
             end
         end
-        for k, v in pairs(a) do
-            do
-                if "number" ~= type(k) or k < 1 or k > last or math.floor(k) ~= k then
-                    if "table" == type(v) then
-                        if not same_ast(v, b[k]) then
-                            return false
-                        end
-                    elseif b[k] ~= v then
-                        return false
-                    end
-                end
-            end
-        end
         for k, v in pairs(b) do
-            do
-                if "number" ~= type(k) or k < 1 or k > last or math.floor(k) ~= k then
-                    if "table" == type(v) then
-                        if not same_ast(v, a[k]) then
-                            return false
-                        end
-                    elseif a[k] ~= v then
+            if "number" ~= type(k) or k < 1 or k > last or math.floor(k) ~= k then
+                if "table" == type(v) then
+                    if not same_ast(v, a[k]) then
                         return false
                     end
+                elseif a[k] ~= v then
+                    return false
                 end
             end
         end
@@ -214,49 +202,45 @@ expr_table = function(ast, ls)
     local kvs = {}
     lex_check(ls, "{")
     while ls.token ~= "}" do
-        do
-            lex_indent(ls, true)
-            lex_dedent(ls)
-            if ls.token == "}" then
-                break
-            end
-            local key
-            if ls.token == "[" then
-                key = expr_bracket(ast, ls)
-                lex_check(ls, "=")
-            elseif ls:lookahead() == "=" then
-                if ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
-                    local name = lex_str(ls)
+        lex_indent(ls, true)
+        lex_dedent(ls)
+        if ls.token == "}" then
+            break
+        end
+        local key
+        if ls.token == "[" then
+            key = expr_bracket(ast, ls)
+            lex_check(ls, "=")
+        elseif ls:lookahead() == "=" then
+            if ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
+                local name = lex_str(ls)
+                key = ast:literal(name)
+            elseif ls.token == "TK_string" then
+                key = ast:literal(ls.tokenval)
+                ls:next()
+            else
+                local name = is_keyword(ls)
+                if name then
                     key = ast:literal(name)
-                elseif ls.token == "TK_string" then
-                    key = ast:literal(ls.tokenval)
                     ls:next()
-                else
-                    local name = is_keyword(ls)
-                    if name then
-                        key = ast:literal(name)
-                        ls:next()
-                    end
-                end
-                lex_check(ls, "=")
-            end
-            local val = expr(ast, ls)
-            lex_indent(ls, true)
-            lex_dedent(ls)
-            if key then
-                for i = 1, #kvs do
-                    do
-                        local arr = kvs[i]
-                        if same_ast(arr[2], key) then
-                            err_syntax(ls, "duplicate key at position " .. i .. " and " .. #kvs + 1 .. " in table")
-                        end
-                    end
                 end
             end
-            kvs[#kvs + 1] = {val, key}
-            if not lex_opt(ls, ",") then
-                break
+            lex_check(ls, "=")
+        end
+        local val = expr(ast, ls)
+        lex_indent(ls, true)
+        lex_dedent(ls)
+        if key then
+            for i = 1, #kvs do
+                local arr = kvs[i]
+                if same_ast(arr[2], key) then
+                    err_syntax(ls, "duplicate key at position " .. i .. " and " .. #kvs + 1 .. " in table")
+                end
             end
+        end
+        kvs[#kvs + 1] = {val, key}
+        if not lex_opt(ls, ",") then
+            break
         end
     end
     lex_dedent(ls, true)
@@ -315,16 +299,14 @@ expr_list = function(ast, ls, indentable)
         lex_indent(ls, true)
     end
     while lex_opt(ls, ",") do
-        do
-            if indentable then
-                lex_indent(ls, true)
-                lex_dedent(ls)
-            end
-            exps[#exps + 1] = expr(ast, ls)
-            if indentable then
-                lex_indent(ls, true)
-                lex_dedent(ls)
-            end
+        if indentable then
+            lex_indent(ls, true)
+            lex_dedent(ls)
+        end
+        exps[#exps + 1] = expr(ast, ls)
+        if indentable then
+            lex_indent(ls, true)
+            lex_dedent(ls)
         end
     end
     local n = #exps
@@ -348,13 +330,11 @@ expr_binop = function(ast, ls, limit)
     local v = expr_unop(ast, ls)
     local op = ls.token2str(ls.token)
     while operator.is_binop(op) and operator.left_priority(op) > limit do
-        do
-            local line = ls.linenumber
-            ls:next()
-            local v2, nextop = expr_binop(ast, ls, operator.right_priority(op))
-            v = ast:expr_binop(op, v, v2, line)
-            op = nextop
-        end
+        local line = ls.linenumber
+        ls:next()
+        local v2, nextop = expr_binop(ast, ls, operator.right_priority(op))
+        v = ast:expr_binop(op, v, v2, line)
+        op = nextop
     end
     return v, op
 end
@@ -375,26 +355,24 @@ expr_primary = function(ast, ls)
     end
     local key
     while true do
-        do
-            local line = ls.linenumber
-            if ls.token == "." then
-                vk, v = "indexed", expr_field(ast, ls, v)
-            elseif ls.token == "[" then
-                key = expr_bracket(ast, ls)
-                vk, v = "indexed", ast:expr_index(v, key)
-            elseif ls.token == ":" then
-                err_syntax(ls, "use of `:` is not supported")
-            elseif ls.token == "(" then
-                local args = parse_args(ast, ls)
-                if vk == "indexed" and args[1] and args[1].kind == "Identifier" and args[1].name == "self" then
-                    table.remove(args, 1)
-                    vk, v = "call", ast:expr_method_call(v, args, line)
-                else
-                    vk, v = "call", ast:expr_function_call(v, args, line)
-                end
+        local line = ls.linenumber
+        if ls.token == "." then
+            vk, v = "indexed", expr_field(ast, ls, v)
+        elseif ls.token == "[" then
+            key = expr_bracket(ast, ls)
+            vk, v = "indexed", ast:expr_index(v, key)
+        elseif ls.token == ":" then
+            err_syntax(ls, "use of `:` is not supported")
+        elseif ls.token == "(" then
+            local args = parse_args(ast, ls)
+            if vk == "indexed" and args[1] and args[1].kind == "Identifier" and args[1].name == "self" then
+                table.remove(args, 1)
+                vk, v = "call", ast:expr_method_call(v, args, line)
             else
-                break
+                vk, v = "call", ast:expr_function_call(v, args, line)
             end
+        else
+            break
         end
     end
     return v, vk
@@ -434,11 +412,9 @@ local parse_for_iter = function(ast, ls, indexname)
     local vars = {ast:identifier(indexname)}
     ast:var_declare(indexname)
     while lex_opt(ls, ",") do
-        do
-            indexname = lex_str(ls)
-            vars[#vars + 1] = ast:identifier(indexname)
-            ast:var_declare(indexname)
-        end
+        indexname = lex_str(ls)
+        vars[#vars + 1] = ast:identifier(indexname)
+        ast:var_declare(indexname)
     end
     lex_check(ls, "TK_in")
     local line = ls.linenumber
@@ -535,20 +511,18 @@ local parse_if = function(ast, ls, line)
     ast:fscope_end()
     local else_branch
     while ls.token == "TK_else" do
-        do
+        ls:next()
+        if ls.token == "TK_if" then
             ls:next()
-            if ls.token == "TK_if" then
-                ls:next()
-                tests[#tests + 1] = expr(ast, ls)
-                ast:fscope_begin()
-                blocks[#blocks + 1] = parse_opt_block(ast, ls, ls.linenumber, "TK_if")
-                ast:fscope_end()
-            else
-                ast:fscope_begin()
-                else_branch = parse_opt_block(ast, ls, ls.linenumber, "TK_else")
-                ast:fscope_end()
-                break
-            end
+            tests[#tests + 1] = expr(ast, ls)
+            ast:fscope_begin()
+            blocks[#blocks + 1] = parse_opt_block(ast, ls, ls.linenumber, "TK_if")
+            ast:fscope_end()
+        else
+            ast:fscope_begin()
+            else_branch = parse_opt_block(ast, ls, ls.linenumber, "TK_else")
+            ast:fscope_end()
+            break
         end
     end
     return ast:if_stmt(tests, blocks, else_branch, line)
@@ -572,12 +546,10 @@ local parse_label = function(ast, ls)
     local name = lex_str(ls)
     lex_check(ls, "TK_label")
     while true do
-        do
-            if ls.token == "TK_label" then
-                parse_label(ast, ls)
-            else
-                break
-            end
+        if ls.token == "TK_label" then
+            parse_label(ast, ls)
+        else
+            break
         end
     end
     return ast:label_stmt(name, ls.linenumber)
@@ -660,11 +632,9 @@ local parse_block_stmts = function(ast, ls)
     local stmt, islast = nil, false
     local body = {}
     while not islast and not EndOfBlock[ls.token] do
-        do
-            stmt, islast = parse_stmt(ast, ls)
-            body[#body + 1] = stmt
-            lex_opt(ls, "TK_newline")
-        end
+        stmt, islast = parse_stmt(ast, ls)
+        body[#body + 1] = stmt
+        lex_opt(ls, "TK_newline")
     end
     return body, firstline, ls.linenumber
 end
