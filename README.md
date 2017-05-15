@@ -39,7 +39,7 @@ var tbl = {
 }
 
 ```
-- function definition is always a lambda [expression]((https://www.lua.org/manual/5.1/manual.html#2.5.9)) with  `->` or `\arg1, arg2 ->`, instead of a statement
+- function definition is always a lambda [expression]((https://www.lua.org/manual/5.1/manual.html#2.5.9) with  `->` or `\arg1, arg2 ->`, instead of a statement
 - function call always require parenthesis
 
 ```

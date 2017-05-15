@@ -7,14 +7,17 @@ However, you can always convert from a properly indented Lua code to Luaty manua
 Using a text editor, find and replace -
 
 `local` becomes `var`
-Find: `local`
-Replace: `var`
+Find: `local `
+Replace: `var `
 
-Indent using Select, Shft-Tab then Tab
+`elseif` becomes `else if`
+Find: `elseif `
+Replace: `else if `
+
+Indent blocks using Select, Shft-Tab then Tab
 
 Remove all `then` and `end`
-
-Find: `then`
+Find: ` then`
 Replace:
 
 Find: `end`
@@ -31,6 +34,7 @@ Find: `repeat`
 Replace: `do`
 
 
+
 Turn on regular expression
 
 Convert normal functions
@@ -42,7 +46,7 @@ Find: `function (\w+)\.(\w+)\((.*)\)`
 Replace: `\1.\2 = \\\3 ->`
 
 
-Convert member functions that takes self parameter
+Convert member functions that take self parameter
 Find: `function (\w+)\:(\w+)\((.*)\)`
 Replace: `\1.\2 = \\@, \3 ->`
 
@@ -52,6 +56,15 @@ Replace: @
 Cleanup functions taking no argument
 Find: `,  ->`
 Replace: ` ->`
+
+
+Convert calls that take self and other parameters
+Find: `(\w+)\:(\w+)\((\w+)`
+Replace: `\1.\2(@, \3`
+
+Convert calls that take only self parameters
+Find: `(\w+)\:(\w+)\(\)`
+Replace: `\1.\2(@)`
 
 
 
