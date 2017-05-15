@@ -4,7 +4,8 @@ local LJ_52 = false
 
 local IsLastStatement = { TK_return = true, TK_break  = true }
 local EndOfBlock = { TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true }
-local NewLine = { TK_newline = true } --, [','] = true, ['}'] = true, [')'] = true }
+local NewLine = { TK_newline = true }
+local EmptyFunction = { [','] = true, ['}'] = true, [')'] = true }
 
 local ReservedKeyword = { ['and'] = 1, ['break'] = 2, ['do'] = 3, ['else'] = 4, ['elseif'] = 5, ['end'] = 6, ['false'] = 7, ['for'] = 8, ['function'] = 9, ['goto'] = 10, ['if'] = 11, ['in'] = 12, ['local'] = 13, ['nil'] = 14, ['not'] = 15, ['or'] = 16, ['repeat'] = 17, ['return'] = 18, ['then'] = 19, ['true'] = 20, ['until'] = 21, ['while'] = 22, ['var'] = 23 }
 
@@ -759,16 +760,14 @@ function parse_opt_block(ast, ls, line, match_token)
             ls:error(ls.token, "<dedent> expected to end %s at line %d", ls.token2str(match_token), line)
         end
     else
-        if not EndOfBlock[ls.token] and not NewLine[ls.token] then
+        if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EmptyFunction[ls.token] then
           -- single statement
           -- this is not worst than C single statement without brace
           body[1] = parse_stmt(ast, ls)
           body.firstline, body.lastline = line, ls.linenumber
         end
-        -- always eat one newline
-        if NewLine[ls.token] then
-          ls:next()
-        end
+        -- always eat a newline if any
+        lex_opt(ls, 'TK_newline')
     end
     return body
 end
