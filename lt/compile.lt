@@ -1,0 +1,38 @@
+var lex_setup = require('lang.lex')
+var parse = require('lang.parse')
+var ast = require('lang.ast').New()
+var reader = require('lang.reader')
+
+-- Take the AST tree and produce a string that can be passed to the function "loadstring".
+var generator = require('lang.generator')
+
+var lang_error = \msg ->
+	if string.sub(msg, 1, 8) == "LT-ERROR"
+		return false, "[Luaty] " .. string.sub(msg, 9)
+	else
+		error(msg)
+
+var compile = \reader, filename, options ->
+	var ls = lex_setup(reader, filename)
+	
+	var parse_success, tree = pcall(parse, ast, ls)
+	if not parse_success
+		return lang_error(tree)
+	
+	var success, luacode = pcall(generator, tree, filename)
+	if not success
+		return lang_error(luacode)
+	
+	return true, luacode
+
+var lang_loadstring = \src, filename, options ->
+	return compile(reader.string(src), filename or "stdin", options)
+
+
+var lang_loadfile = \filename, options ->
+	return compile(reader.file(filename), filename or "stdin", options)
+
+return {
+	string = lang_loadstring
+	, file = lang_loadfile
+}

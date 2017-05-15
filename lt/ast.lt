@@ -1,0 +1,223 @@
+var build = \kind, node ->
+	node.kind = kind
+	return node
+
+
+var ident = \name, line ->
+	return build("Identifier", { name = name, line = line })
+
+
+var does_multi_return = \expr ->
+	var k = expr.kind
+	return k == "CallExpression" or k == "SendExpression" or k == "Vararg"
+
+
+var AST = {}
+
+var func_decl = \id, body, params, vararg, locald, firstline, lastline ->
+	return build("FunctionDeclaration", {
+		id         = id,
+		body       = body,
+		params     = params,
+		vararg     = vararg,
+		locald     = locald,
+		firstline  = firstline,
+		lastline   = lastline,
+		line       = firstline,
+	})
+
+
+var func_expr = \body, params, vararg, firstline, lastline ->
+	return build("FunctionExpression", { body = body, params = params, vararg = vararg, firstline = firstline, lastline = lastline })
+
+
+AST.expr_function = \ast, args, body, proto ->
+	return func_expr(body, args, proto.varargs, proto.firstline, proto.lastline)
+
+
+--[[
+AST.local_function_decl = \ast, name, args, body, proto ->
+	var id = ast:var_declare(name)
+	return func_decl(id, body, args, proto.varargs, true, proto.firstline, proto.lastline)
+--]]
+
+AST.function_decl = \ast, path, args, body, proto ->
+	return func_decl(path, body, args, proto.varargs, false, proto.firstline, proto.lastline)
+
+
+AST.chunk = \ast, body, chunkname, firstline, lastline ->
+	return build("Chunk", { body = body, chunkname = chunkname, firstline = firstline, lastline = lastline })
+
+
+AST.local_decl = \ast, vlist, exps, line ->
+	var ids = {}
+	for k = 1, #vlist do
+		ids[k] = ast.var_declare(@, vlist[k])
+	
+	return build("LocalDeclaration", { names = ids, expressions = exps, line = line })
+
+
+AST.assignment_expr = \ast, vars, exps, line ->
+	return build("AssignmentExpression", { left = vars, right = exps, line = line })
+
+
+AST.expr_index = \ast, v, index, line ->
+	return build("MemberExpression", { object = v, property = index, computed = true, line = line })
+
+
+AST.expr_property = \ast, v, prop, line ->
+	var index = ident(prop, line)
+	return build("MemberExpression", { object = v, property = index, computed = false, line = line })
+
+
+AST.literal = \ast, val ->
+	return build("Literal", { value = val })
+
+
+AST.longstrliteral = \ast, txt ->
+	return build("LongStringLiteral", { text = txt })
+
+
+AST.expr_vararg = \ast ->
+	return build("Vararg", { })
+
+
+AST.expr_brackets = \ast, expr ->
+	expr.bracketed = true
+	return expr
+
+
+AST.set_expr_last = \ast, expr ->
+	if expr.bracketed and does_multi_return(expr)
+		expr.bracketed = nil
+		return build("ExpressionValue", { value = expr })
+	else
+		return expr
+	
+
+
+AST.expr_table = \ast, keyvals, line ->
+	return build("Table", { keyvals = keyvals, line = line })
+
+
+AST.expr_unop = \ast, op, v, line ->
+	return build("UnaryExpression", { operator = op, argument = v, line = line })
+
+
+var concat_append = \ts, node ->
+	var n = #ts
+	if node.kind == "ConcatenateExpression"
+		for k = 1, #node.terms do ts[n + k] = node.terms[k] 
+	else
+		ts[n + 1] = node
+	
+
+
+AST.expr_binop = \ast, op, expa, expb, line ->
+	var binop_body = (op ~= '..' and { operator = op, left = expa, right = expb, line = line })
+	if binop_body
+		if op == 'and' or op == 'or'
+			return build("LogicalExpression", binop_body)
+		else
+			return build("BinaryExpression", binop_body)
+		
+	else
+		var terms = { }
+		concat_append(terms, expa)
+		concat_append(terms, expb)
+		return build("ConcatenateExpression", { terms = terms, line = expa.line })
+	
+
+
+AST.identifier = \ast, name ->
+	return ident(name)
+
+
+--[[
+AST.expr_method_call = \ast, v, key, args, line ->
+	var m = ident(key)
+	return build("SendExpression", { receiver = v, method = m, arguments = args, line = line })
+]]
+
+AST.expr_method_call = \ast, v, args, line ->
+	return build("SendExpression", { callee = v, arguments = args, line = line })
+
+
+AST.expr_function_call = \ast, v, args, line ->
+	return build("CallExpression", { callee = v, arguments = args, line = line })
+
+
+AST.return_stmt = \ast, exps, line ->
+	return build("ReturnStatement", { arguments = exps, line = line })
+
+
+AST.break_stmt = \ast, line ->
+	return build("BreakStatement", { line = line })
+
+
+AST.label_stmt = \ast, name, line ->
+	return build("LabelStatement", { label = name, line = line })
+
+
+AST.new_statement_expr = \ast, expr, line ->
+	return build("ExpressionStatement", { expression = expr, line = line })
+
+
+AST.if_stmt = \ast, tests, cons, else_branch, line ->
+	return build("IfStatement", { tests = tests, cons = cons, alternate = else_branch, line = line })
+
+
+AST.do_stmt = \ast, body, line, lastline ->
+	return build("DoStatement", { body = body, line = line, lastline = lastline})
+
+
+AST.while_stmt = \ast, test, body, line, lastline ->
+	return build("WhileStatement", { test = test, body = body, line = line, lastline = lastline })
+
+
+AST.repeat_stmt = \ast, test, body, line, lastline ->
+	return build("RepeatStatement", { test = test, body = body, line = line, lastline = lastline })
+
+
+AST.for_stmt = \ast, var, init, last, step, body, line, lastline ->
+	var for_init = build("ForInit", { id = var, value = init, line = line })
+	return build("ForStatement", { init = for_init, last = last, step = step, body = body, line = line, lastline = lastline })
+
+
+AST.for_iter_stmt = \ast, vars, exps, body, line, lastline ->
+	var names = build("ForNames", { names = vars, line = line })
+	return build("ForInStatement", { namelist = names, explist = exps, body = body, line = line, lastline = lastline })
+
+
+AST.goto_stmt = \ast, name, line ->
+	return build("GotoStatement", { label = name, line = line })
+
+
+var new_scope = \parent_scope ->
+	return {
+		vars = { },
+		parent = parent_scope,
+	}
+
+
+AST.var_declare = \ast, name ->
+	var id = ident(name)
+	ast.current.vars[name] = true
+	return id
+
+
+AST.fscope_begin = \ast ->
+	ast.current = new_scope(ast.current)
+
+
+AST.fscope_end = \ast ->
+	ast.current = ast.current.parent
+
+
+var ASTClass = { __index = AST }
+
+var new_ast = \ ->
+	return setmetatable({ }, ASTClass)
+
+
+return { New = new_ast }

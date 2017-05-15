@@ -1,0 +1,662 @@
+var ffi = require('ffi')
+var int64 = ffi.typeof('int64_t')
+var uint64 = ffi.typeof('uint64_t')
+var complex = ffi.typeof('complex')
+var stack = require("lang.stack")
+
+var band = bit.band
+var strsub, strbyte, strchar = string.sub, string.byte, string.char
+
+var ASCII_0, ASCII_9 = 48, 57
+var ASCII_a, ASCII_f, ASCII_z = 97, 102, 122
+var ASCII_A, ASCII_Z = 65, 90
+
+var END_OF_STREAM = -1
+
+var ReservedKeyword = { ['and'] = 1, ['break'] = 2, ['do'] = 3, ['else'] = 4, ['elseif'] = 5, ['end'] = 6, ['false'] = 7, ['for'] = 8, ['function'] = 9, ['goto'] = 10, ['if'] = 11, ['in'] = 12, ['local'] = 13, ['nil'] = 14, ['not'] = 15, ['or'] = 16, ['repeat'] = 17, ['return'] = 18, ['then'] = 19, ['true'] = 20, ['until'] = 21, ['while'] = 22, ['var'] = 23 }
+
+var TokenSymbol = { TK_lambda = '->', TK_curry = '~>', TK_ge = '>=', TK_le = '<=' , TK_concat = '..', TK_eq = '==', TK_ne = '~=', TK_indent = '<indent>', TK_dedent = '<dedent>', TK_newline = '<newline>', TK_eof = '<eof>' }
+
+var IsNewLine = { ['\n'] = true, ['\r'] = true }
+
+var IsEscape = { a = true, b = true, f = true, n = true, r = true, t = true, v = true }
+ 
+var token2str = \tok ->
+	if string.match(tok, "^TK_")
+		return TokenSymbol[tok] or string.sub(tok, 4)
+	else
+		return tok
+
+
+
+var throw = \chunkname, line, em, ... ->
+	var emfmt = string.format(em, ...)
+	var msg = string.format("%s:%d   %s", chunkname, line, emfmt)
+	error("LT-ERROR" .. msg, 0)
+
+
+var fmt_token = \ls, token ->
+	if token
+		var tok
+		if token == 'TK_name' or token == 'TK_string' or token == 'TK_number'
+			tok = ls.save_buf
+		else
+			tok = string.format("'%s'", token2str(token))
+	
+		-- replace % with %%, so as not to confuse string.format() later
+		return (string.gsub(tok, "%%.", \p -> return '%' .. p ))
+
+
+
+var lex_error = \ls, token, em, ... ->
+	var tok = fmt_token(ls, token)
+	if tok
+		em = string.format("%s near %s", em, tok)
+
+	throw(ls.chunkname, ls.linenumber, em, ...)
+
+
+
+var parse_error = \ls, token, em, ... ->
+	var tok = fmt_token(ls, token)
+	if tok
+		em = string.format("%s instead of %s", em, tok) 
+
+	throw(ls.chunkname, ls.linenumber, em, ...)
+
+
+var char_isalnum = \c ->
+	if type(c) == 'string'
+		var b = strbyte(c)
+		if b >= ASCII_0 and b <= ASCII_9
+			return true
+		else if b >= ASCII_a and b <= ASCII_z
+			return true
+		else if b >= ASCII_A and b <= ASCII_Z
+			return true
+		else
+			return (c == '_')
+	
+
+	return false
+
+
+var char_isdigit = \c ->
+	if type(c) == 'string'
+		var b = strbyte(c)
+		return b >= ASCII_0 and b <= ASCII_9
+
+	return false
+
+
+var char_isspace = \c ->
+	var b = strbyte(c)
+	return b >= 9 and b <= 13 or b == 32
+
+
+var byte = \ls, n ->
+	var k = ls.p + n
+	return strsub(ls.data, k, k)
+
+
+var skip = \ls, n ->
+	ls.n = ls.n - n
+	ls.p = ls.p + n
+
+
+var popchar = \ls ->
+	var k = ls.p
+	var c = strsub(ls.data, k, k)
+	ls.p = k + 1
+	ls.n = ls.n - 1
+	return c
+
+
+var fill = \ls ->
+	var data = ls.read_func(@)
+	if not data
+		return END_OF_STREAM
+
+	ls.data, ls.n, ls.p = data, #data, 1
+	return popchar(ls)
+
+
+var nextchar = \ls ->
+	var c = ls.n > 0 and popchar(ls) or fill(ls)
+	ls.current = c
+	return c
+
+
+var savebuf = \ls, c ->
+	ls.save_buf = ls.save_buf .. c
+
+
+var get_string = \ls, init_skip, end_skip ->
+	return strsub(ls.save_buf, init_skip + 1, - (end_skip + 1))
+
+
+var add_comment = \ls, str ->
+	if not ls.comment_buf
+		ls.comment_buf = ''
+
+	ls.comment_buf = ls.comment_buf .. str
+
+
+var get_comment = \ls ->
+	var s = ls.comment_buf
+	ls.comment_buf = ''
+	return s
+
+
+var inclinenumber = \ls ->
+	var old = ls.current
+	-- skip `\n' or `\r'
+	nextchar(ls)
+	if IsNewLine[ls.current] and ls.current ~= old
+		-- skip `\n\r' or `\r\n'
+		nextchar(ls)
+
+	ls.linenumber = ls.linenumber + 1
+
+
+var skip_sep = \ls ->
+	var count = 0
+	var s = ls.current
+	assert(s == '[' or s == ']')
+	savebuf(ls, s)
+	nextchar(ls)
+	while ls.current == '='
+		savebuf(ls, ls.current)
+		nextchar(ls)
+		count = count + 1
+
+	return ls.current == s and count or (-count - 1)
+
+
+var build_64int = \str ->
+	var u = str[#str - 2]
+	var x = (u == 117 and uint64(0) or int64(0))
+	var i = 1
+	while str[i] >= ASCII_0 and str[i] <= ASCII_9
+		x = 10 * x + (str[i] - ASCII_0)
+		i = i + 1
+
+	return x
+
+
+-- Only lower case letters are accepted.
+var byte_to_hexdigit = \b ->
+	if b >= ASCII_0 and b <= ASCII_9
+		return b - ASCII_0
+	else if b >= ASCII_a and b <= ASCII_f
+		return 10 + (b - ASCII_a)
+	else
+		return -1
+
+
+
+var build_64hex = \str ->
+	var u = str[#str - 2]
+	var x = (u == 117 and uint64(0) or int64(0))
+	var i = 3
+	while str[i]
+		var n = byte_to_hexdigit(str[i])
+		if n < 0 break 
+		x = 16 * x + n
+		i = i + 1
+
+	return x
+
+
+var strnumdump = \str ->
+	var t = {}
+	for i = 1, #str
+		var c = strsub(str, i, i)
+		if char_isalnum(c)
+			t[i] = strbyte(c)
+		else
+			return nil
+	
+
+	return t
+
+
+var lex_number = \ls ->
+	var lower = string.lower
+	var xp = 'e'
+	var c = ls.current
+	if c == '0'
+		savebuf(ls, ls.current)
+		nextchar(ls)
+		var xc = ls.current
+		if xc == 'x' or xc == 'X' xp = 'p' 
+
+	while char_isalnum(ls.current) or ls.current == '.' or ((ls.current == '-' or ls.current == '+') and lower(c) == xp)
+		c = lower(ls.current)
+		savebuf(ls, c)
+		nextchar(ls)
+
+	var str = ls.save_buf
+	var x
+	if strsub(str, -1, -1) == 'i'
+		var img = tonumber(strsub(str, 1, -2))
+		if img x = complex(0, img) 
+	else if strsub(str, -2, -1) == 'll'
+		var t = strnumdump(str)
+		if t
+			x = xp == 'e' and build_64int(t) or build_64hex(t)
+	
+	else
+		x = tonumber(str)
+
+	if x
+		return x
+	else
+		lex_error(ls, 'TK_number', "malformed number")
+
+
+
+var read_long_string = \ls, sep, comment ->
+	-- skip 2nd `['
+	savebuf(ls, ls.current)
+	nextchar(ls)
+	--if IsNewLine[ls.current] -- string starts with a newline?
+	--    inclinenumber(ls) -- skip it
+	--
+	while true
+		var c = ls.current
+		if c == END_OF_STREAM
+			lex_error(ls, 'TK_eof', comment and "unfinished long comment" or "unfinished long string")
+		else if c == ']'
+			if skip_sep(ls) == sep
+				-- skip 2nd `]'
+				savebuf(ls, ls.current)
+				nextchar(ls)
+				break
+		
+		else
+			savebuf(ls, c)
+			if IsNewLine[c]
+				inclinenumber(ls)
+			else
+				nextchar(ls)
+		
+	
+
+	--return get_string(ls, 2 + sep, 2 + sep)
+	return get_string(ls, 0, 0)
+
+
+var hex_char = \c ->
+	if string.match(c, '^%x')
+		var b = band(strbyte(c), 15)
+		if not char_isdigit(c) b = b + 9 
+		return b
+
+
+
+-- this function works tightly with luacode-generator ExpressionRule:Literal
+var read_escape_char = \ls ->
+	var c = nextchar(ls) -- Skip the '\\'.
+	var esc = IsEscape[c]
+	if esc
+		-- eg: convert '\n' to '\\n', which is no longer newline
+		savebuf(ls, '\\')
+		savebuf(ls, c)
+		nextchar(ls)
+	else if c == 'x' -- Hexadecimal escape '\xXX'.
+		savebuf(ls, '\\')
+		savebuf(ls, c)
+		var ch1 = hex_char(nextchar(ls))
+		var hc
+		if ch1
+			savebuf(ls, ls.current)
+			var ch2 = hex_char(nextchar(ls))
+			if ch2
+				savebuf(ls, ls.current)
+				hc = strchar(ch1 * 16 + ch2)
+		
+	
+		if not hc
+			lex_error(ls, 'TK_string', "invalid escape sequence")
+	
+		--savebuf(ls, hc)
+		nextchar(ls)
+	else if c == 'z' -- Skip whitespace.
+		nextchar(ls)
+		while char_isspace(ls.current)
+			if IsNewLine[ls.current] 
+				inclinenumber(ls) 
+			else 
+				nextchar(ls)
+		
+	
+	else if IsNewLine[c]
+		savebuf(ls, '\n')
+		inclinenumber(ls)
+	else if c == '\\'
+		savebuf(ls, '\\')
+		savebuf(ls, c)
+		nextchar(ls)
+	else if c == '"' or c == "'"
+		savebuf(ls, c)
+		nextchar(ls)
+	else if c == END_OF_STREAM
+	else
+		if not char_isdigit(c)
+			lex_error(ls, 'TK_string', "invalid escape sequence")
+	
+		savebuf(ls, '\\')
+		savebuf(ls, c)
+		var bc = band(strbyte(c), 15) -- Decimal escape '\ddd'.
+		if char_isdigit(nextchar(ls))
+			savebuf(ls, ls.current)
+			bc = bc * 10 + band(strbyte(ls.current), 15)
+			if char_isdigit(nextchar(ls))
+				savebuf(ls, ls.current)
+				bc = bc * 10 + band(strbyte(ls.current), 15)
+				nextchar(ls)
+		
+	
+		-- cannot save in the end, "\04922" should be "122" but becomes "\4922" which is invalid
+		--savebuf(ls, strchar(bc))
+		if bc > 255
+			lex_error(ls, 'TK_string', "invalid escape sequence")
+	
+
+
+
+var read_string = \ls, delim ->
+	savebuf(ls, ls.current)
+	nextchar(ls)
+	while ls.current ~= delim
+		var c = ls.current
+		if c == END_OF_STREAM
+			lex_error(ls, 'TK_eof', "unfinished string")
+		else if IsNewLine[c]
+			lex_error(ls, 'TK_string', "unfinished string")
+		else if c == '\\'
+			read_escape_char(ls)
+		else
+			savebuf(ls, ls.current)
+			nextchar(ls)
+	
+
+	savebuf(ls, ls.current) -- skip delimiter
+	nextchar(ls)
+	return get_string(ls, 1, 1)
+
+
+var skip_line = \ls ->
+	while not IsNewLine[ls.current] and ls.current ~= END_OF_STREAM
+		add_comment(ls, ls.current)
+		nextchar(ls)
+
+
+
+var llex = \ls ->
+	ls.save_buf = ''
+	if ls.newline
+		var ind = ls.newline
+		ls.newline = nil
+		if ind ~= stack.top(@)
+			if ind > stack.top(@)
+				stack.push(@, ind)
+				return 'TK_indent'
+		
+			stack.pop(@)
+			if stack.top(@) ~= ind
+				ls.indent = ind
+		
+			return 'TK_dedent'
+	
+	else if ls.indent
+		if ls.indent > 0 and stack.top(@) == 0
+			lex_error(ls, nil, "unaligned or dangling <indent>")
+	
+		stack.pop(@)
+		if ls.indent == stack.top(@)
+			ls.indent = nil
+	
+		return 'TK_dedent'
+	else if ls.minus
+		ls.minus = nil
+		return '-'
+
+
+	var tabs = nil
+	while true
+		var current = ls.current
+		
+		if IsNewLine[current]
+			tabs = nil  -- if come back here, is an empty line, reset tab space tracker
+			inclinenumber(ls)
+			var ind = 0
+			while ls.current == ' ' or ls.current == '\t'
+				if not tabs
+					tabs = ls.current
+				else if tabs ~= ls.current
+					lex_error(ls, nil, "indentation cannot mix tab and space")
+			
+				ind = ind + 1
+				nextchar(ls)
+		
+			if ls.current ~= END_OF_STREAM
+				ls.newline = ind    -- prepare to handle newline
+			else
+				ls.newline = nil    -- reached EOF, ignore previous newline(s)
+		
+		else if current == END_OF_STREAM
+			if stack.top(@) > 0
+				stack.pop(@)
+				return 'TK_dedent'
+		
+			return 'TK_eof'
+		else if current == ' ' or current == '\t' or current == '\b' or current == '\f'
+			-- skip space in between characters
+			nextchar(ls)
+		else if current == '-'
+			nextchar(ls)
+			if ls.current == '-'
+				-- is a comment
+				ls.newline = nil  -- do not treat newline
+				tabs = nil  -- or check tab space
+				nextchar(ls)
+				add_comment(ls, '--')
+				if ls.current == '['
+					var sep = skip_sep(ls)
+					add_comment(ls, ls.save_buf)  -- `skip_sep' may have changed save_buf
+					ls.save_buf = ''
+					if sep >= 0
+						read_long_string(ls, sep, true) -- long comment
+						add_comment(ls, ls.save_buf)  -- `read_long_string' may have change save_buf
+						ls.save_buf = '' 
+					else
+						skip_line(ls)
+				
+				else
+					skip_line(ls)
+			
+				return 'TK_comment', get_comment(ls)
+			else if ls.current == '>'
+				nextchar(ls)
+				return 'TK_lambda'
+			else if ls.newline
+				ls.minus = true
+			else
+				return '-'
+		
+		else if ls.newline
+			if tabs
+				if not ls.tabs 
+					ls.tabs = tabs
+				else if tabs ~= ls.tabs
+					lex_error(ls, nil, "cannot mix tab and space as indentation")
+			
+		
+			return 'TK_newline'
+		else
+			if char_isalnum(current)
+				if char_isdigit(current) -- Numeric literal.
+					return 'TK_number', lex_number(ls)
+			
+				do
+					savebuf(ls, ls.current)
+					nextchar(ls)
+				until not char_isalnum(ls.current)
+				var s = get_string(ls, 0, 0)
+				var reserved = ReservedKeyword[s]
+				if reserved
+					return 'TK_' .. s
+			
+				return 'TK_name', s
+			else if current == '@'
+				nextchar(ls)
+				return 'TK_name', 'self'
+			else if current == '['
+				var sep = skip_sep(ls)
+				if sep >= 0
+					var str = read_long_string(ls, sep)
+					return 'TK_longstring', str
+				else if sep == -1
+					return '['
+				else
+					lex_error(ls, 'TK_longstring', "delimiter error")
+			
+			else if current == '='
+				nextchar(ls)
+				if ls.current ~= '=' return '='
+				else
+					nextchar(ls)
+					return 'TK_eq' 
+			else if current == '<'
+				nextchar(ls)
+				if ls.current ~= '=' return '<'
+				else
+					nextchar(ls)
+					return 'TK_le' 
+			else if current == '>'
+				nextchar(ls)
+				if ls.current ~= '=' return '>'
+				else
+					nextchar(ls)
+					return 'TK_ge' 
+			else if current == '~'
+				nextchar(ls)
+				if ls.current == '=' 
+					nextchar(ls)
+					return 'TK_ne'
+				else if ls.current == '>' 
+					nextchar(ls)
+					return 'TK_curry'
+				return '~'
+			else if current == ':'
+				nextchar(ls)
+				if ls.current ~= ':' return ':'
+				else
+					nextchar(ls)
+					return 'TK_label' 
+			else if current == '"' or current == "'"
+				var str = read_string(ls, current)
+				return 'TK_string', str
+			else if current == '.'
+				savebuf(ls, ls.current)
+				nextchar(ls)
+				if ls.current == '.'
+					nextchar(ls)
+					if ls.current == '.'
+						nextchar(ls)
+						return 'TK_dots' -- ...
+				
+					return 'TK_concat' -- ..
+				else if not char_isdigit(ls.current)
+					return '.'
+				else
+					return 'TK_number', lex_number(ls)
+			
+			else
+				nextchar(ls)
+				return current -- Single-char tokens (+ - / ...).
+		
+	
+
+
+
+var do_lex = \ls ->
+	var token, value
+	while true
+		token, value = llex(ls)
+		--if token == 'TK_newline'
+		--    if ls.want_nl break 
+		--else
+		if token ~= 'TK_comment' 
+			break
+	
+
+	return token, value 
+
+
+
+var Lexer = {
+	token2str = token2str
+	, error = parse_error
+}
+
+--[[
+Lexer.nl = \ls, bool ->
+    ls.want_nl = bool
+
+]]
+
+Lexer.next = \ls ->
+	ls.lastline = ls.linenumber
+	if ls.tklookahead == 'TK_eof' -- No lookahead token?
+		ls.token, ls.tokenval = do_lex(ls)
+	else
+		ls.token, ls.tokenval = ls.tklookahead, ls.tklookaheadval
+		ls.tklookahead = 'TK_eof'
+
+
+
+Lexer.lookahead = \ls ->
+	if ls.tklookahead == 'TK_eof'
+		ls.tklookahead, ls.tklookaheadval = do_lex(ls)
+
+	return ls.tklookahead, ls.tklookaheadval
+
+
+
+var LexerClass = { __index = Lexer }
+
+var lex_setup = \read_func, chunkname ->
+	var header = false
+	var ls = {
+		n = 0,
+		tklookahead = 'TK_eof', -- No look-ahead token.
+		linenumber = 1,
+		lastline = 1,
+		read_func = read_func,
+		chunkname = chunkname,
+		tabs = nil
+		--want_nl = true
+	}
+	stack.push(@, 0)
+	nextchar(ls)
+	if ls.current == '\xef' and ls.n >= 2 and byte(ls, 0) == '\xbb' and byte(ls, 1) == '\xbf' -- Skip UTF-8 BOM (if buffered).
+		ls.n = ls.n - 2
+		ls.p = ls.p + 2
+		nextchar(ls)
+		header = true
+
+	if ls.current == '#'
+		do
+			nextchar(ls)
+			if ls.current == END_OF_STREAM return ls 
+		until IsNewLine[ls.current]
+		inclinenumber(ls)
+		header = true
+
+	return setmetatable(ls, LexerClass)
+
+
+return lex_setup

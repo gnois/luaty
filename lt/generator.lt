@@ -1,0 +1,440 @@
+--
+-- luacode-generator.lua
+--
+-- This file is part of the LuaJIT Language Toolkit.
+--
+-- Module to generate the Lua code that corresponds to a given Lua AST Tree.
+-- Can be used as an alternative to the bytecode generator.
+
+var operator = require("lang.operator")
+
+var strbyte, strsub = string.byte, string.sub
+
+var LuaReservedKeyword = {['and'] = 1, ['break'] = 2, ['do'] = 3, ['else'] = 4, ['elseif'] = 5, ['end'] = 6, ['false'] = 7, ['for'] = 8, ['function'] = 9, ['goto'] = 10, ['if'] = 11, ['in'] = 12, ['local'] = 13, ['nil'] = 14, ['not'] = 15, ['or'] = 16, ['repeat'] = 17, ['return'] = 18, ['then'] = 19, ['true'] = 20, ['until'] = 21, ['while'] = 22 }
+
+var ASCII_0, ASCII_9 = 48, 57
+var ASCII_a, ASCII_z = 97, 122
+var ASCII_A, ASCII_Z = 65, 90
+
+var char_isletter = \c ->
+	var b = strbyte(c)
+	if b >= ASCII_a and b <= ASCII_z
+		return true
+	else if b >= ASCII_A and b <= ASCII_Z
+		return true
+	else
+		return (c == '_')
+
+
+
+var char_isdigit = \c ->
+	var b = strbyte(c)
+	return b >= ASCII_0 and b <= ASCII_9
+
+
+var StatementRule = { }
+var ExpressionRule = { }
+
+var concat = table.concat
+var format = string.format
+
+var is_string = \node ->
+	return node.kind == "Literal" and type(node.value) == "string"
+
+
+var is_const = \node, val ->
+	return node.kind == "Literal" and node.value == val
+
+
+var is_literal = \node ->
+	var k = node.kind
+	return (k == "Literal" or k == "Table")
+
+
+var string_is_ident = \str ->
+	var c = strsub(str, 1, 1)
+	if c == '' or not char_isletter(c)
+		return false
+
+	for k = 2, #str
+		c = strsub(str, k, k)
+		if not char_isletter(c) and not char_isdigit(c)
+			return false
+
+	return not LuaReservedKeyword[str]
+
+
+var comma_sep_list = \ls, f ->
+	var strls
+	if f
+		strls = { }
+		for k = 1, #ls strls[k] = f(ls[k]) 
+	else
+		strls = ls
+
+	return concat(strls, ", ")
+
+
+var as_parameter = \node ->
+	return node.kind == "Vararg" and "..." or node.name
+
+
+ExpressionRule.Identifier = \@, node ->
+	return node.name, operator.ident_priority
+
+
+var escape = \s ->
+	var replace = {
+		['"'] = [[\"]], ['\a'] = [[\a]], ['\b'] = [[\b]], ['\f'] = [[\f]], ['\n'] = [[\n]], ['\r'] = [[\r]], ['\t'] = [[\t]], ['\v'] = [[\v]]
+	}
+	-- \' is not needed since we quote with \"
+	return string.gsub(s, '["\a\b\f\n\r\t\v]', replace)
+
+
+ExpressionRule.Literal = \@, node ->
+	var val = node.value
+	var str = type(val) == "string" and format('"%s"', escape(val)) or tostring(val)
+	return str, operator.ident_priority
+
+
+ExpressionRule.LongStringLiteral = \@, node ->
+	return node.text, operator.ident_priority
+
+
+ExpressionRule.MemberExpression = \@, node ->
+	var object, prio = @.expr_emit(@, node.object)
+	if prio < operator.ident_priority or is_literal(node.object)
+		object = "(" .. object .. ")"
+
+	var exp
+	if node.computed
+		var prop = @.expr_emit(@, node.property)
+		exp = format("%s[%s]", object, prop)
+	else
+		exp = format("%s.%s", object, node.property.name)
+
+	return exp, operator.ident_priority
+
+
+ExpressionRule.Vararg = \@ ->
+	return "...", operator.ident_priority
+
+
+ExpressionRule.ExpressionValue = \@, node ->
+	return "(" .. @.expr_emit(@, node.value) .. ")"
+
+
+ExpressionRule.BinaryExpression = \@, node ->
+	var oper = node.operator
+	var lprio = operator.left_priority(oper)
+	var rprio = operator.right_priority(oper)
+	var a, alprio, arprio = @.expr_emit(@, node.left)
+	var b, blprio, brprio = @.expr_emit(@, node.right)
+	if not arprio arprio = alprio 
+	if not brprio brprio = blprio 
+	var ap = arprio <  lprio and format("(%s)", a) or a
+	var bp = blprio <= rprio and format("(%s)", b) or b
+	return format("%s %s %s", ap, oper, bp), lprio, rprio
+
+
+ExpressionRule.UnaryExpression = \@, node ->
+	var arg, arg_prio = @.expr_emit(@, node.argument)
+	var op_prio = operator.unary_priority
+	if arg_prio < op_prio arg = format("(%s)", arg) 
+	var op = node.operator
+	if op == 'not' op = 'not ' 
+	return format("%s%s", op, arg), operator.unary_priority
+
+
+ExpressionRule.LogicalExpression = ExpressionRule.BinaryExpression
+
+ExpressionRule.ConcatenateExpression = \@, node ->
+	var ls = {}
+	var cat_prio = operator.left_priority("..")
+	for k = 1, #node.terms
+		var kprio
+		ls[k], kprio = @.expr_emit(@, node.terms[k])
+		if kprio < cat_prio ls[k] = format("(%s)", ls[k]) 
+
+	return concat(ls, " .. "), cat_prio
+
+
+ExpressionRule.Table = \@, node ->
+	var hash = { }
+	for i = 1, #node.keyvals
+		var kv = node.keyvals[i]
+		var val = @.expr_emit(@, kv[1])
+		var key = kv[2]
+		if key
+			if is_string(key) and string_is_ident(key.value)
+				hash[i] = format("%s = %s", key.value, val)
+			else
+				hash[i] = format("[%s] = %s", @.expr_emit(@, key), val)
+		
+		else
+			hash[i] = format("%s", val)
+	
+
+	var content = ""
+	if #hash > 0
+		content = comma_sep_list(hash)
+
+	return "{" .. content .. "}", operator.ident_priority
+
+
+ExpressionRule.CallExpression = \@, node ->
+	var callee, prio = @.expr_emit(@, node.callee)
+	if prio < operator.ident_priority
+		callee = "(" .. callee .. ")"
+
+	var exp = format("%s(%s)", callee, @.expr_list(@, node.arguments))
+	return exp, operator.ident_priority
+
+
+ExpressionRule.SendExpression = \@, node ->
+	var callee, prio = @.expr_emit(@, node.callee)
+	-- replace the last . with :
+	var dot = string.match(callee, ".*%.()")
+	var method = callee.sub(@, 1, dot-2) .. ':' .. callee.sub(@, dot)
+	if prio < operator.ident_priority or is_literal(node.callee)
+		method = "(" .. method .. ")"
+
+	var exp = format("%s(%s)", method, @.expr_list(@, node.arguments))
+	return exp, operator.ident_priority
+
+
+StatementRule.FunctionDeclaration = \@, node ->
+	@.proto_enter(@, 0)
+	var name = ''
+	if node.id
+		name = @.expr_emit(@, node.id)
+
+	var header = format("function %s(%s)", name, comma_sep_list(node.params, as_parameter))
+	if node.locald
+		header = "local " .. header
+
+	@.add_section(@, header, node.body)
+	var child_proto = @.proto_leave(@)
+	self.proto.merge(@, child_proto)
+
+
+ExpressionRule.FunctionExpression = \@, node ->
+	@.proto_enter(@)
+	var header = format("function(%s)", comma_sep_list(node.params, as_parameter))
+	@.add_section(@, header, node.body)
+	var child_proto = @.proto_leave(@)
+	return child_proto.inline(@), 0
+
+
+StatementRule.CallExpression = \@, node ->
+	var line = @.expr_emit(@, node)
+	@.add_line(@, line)
+
+
+StatementRule.ForStatement = \@, node ->
+	var init = node.init
+	var istart = @.expr_emit(@, init.value)
+	var iend = @.expr_emit(@, node.last)
+	var header
+	if node.step and not is_const(node.step, 1)
+		var step = @.expr_emit(@, node.step)
+		header = format("for %s = %s, %s, %s do", init.id.name, istart, iend, step)
+	else
+		header = format("for %s = %s, %s do", init.id.name, istart, iend)
+
+	@.add_section(@, header, node.body)
+
+
+StatementRule.ForInStatement = \@, node ->
+	var vars = comma_sep_list(node.namelist.names, as_parameter)
+	var explist = @.expr_list(@, node.explist)
+	var header = format("for %s in %s do", vars, explist)
+	@.add_section(@, header, node.body)
+
+
+StatementRule.DoStatement = \@, node ->
+	@.add_section(@, "do", node.body)
+
+
+StatementRule.WhileStatement = \@, node ->
+	var test = @.expr_emit(@, node.test)
+	var header = format("while %s do", test)
+	@.add_section(@, header, node.body)
+
+
+StatementRule.RepeatStatement = \@, node ->
+	@.add_section(@, "repeat", node.body, true)
+	var test = @.expr_emit(@, node.test)
+	var until_line = format("until %s", test)
+	@.add_line(@, until_line)
+
+
+StatementRule.BreakStatement = \@ ->
+	@.add_line(@, "break")
+
+
+StatementRule.IfStatement = \@, node ->
+	var ncons = #node.tests
+	for i = 1, ncons
+		var header_tag = i == 1 and "if" or "elseif"
+		var test = @.expr_emit(@, node.tests[i])
+		var header = format("%s %s then", header_tag, test)
+		@.add_section(@, header, node.cons[i], true)
+
+	if node.alternate
+		@.add_section(@, "else", node.alternate, true)
+
+	@.add_line(@, "end")
+
+
+StatementRule.LocalDeclaration = \@, node ->
+	var line
+	var names = comma_sep_list(node.names, as_parameter)
+	if #node.expressions > 0
+		line = format("local %s = %s", names, @.expr_list(@, node.expressions))
+	else
+		line = format("local %s", names)
+
+	@.add_line(@, line)
+
+
+StatementRule.AssignmentExpression = \@, node ->
+	var line = format("%s = %s", @.expr_list(@, node.left), @.expr_list(@, node.right))
+	@.add_line(@, line)
+
+
+StatementRule.Chunk = \@, node ->
+	@.list_emit(@, node.body)
+
+
+StatementRule.ExpressionStatement = \@, node ->
+	var line = @.expr_emit(@, node.expression)
+	@.add_line(@, line)
+
+
+StatementRule.ReturnStatement = \@, node ->
+	var line = format("return %s", @.expr_list(@, node.arguments))
+	@.add_line(@, line)
+
+
+StatementRule.LabelStatement = \@, node ->
+	@.add_line(@, "::" .. node.label .. "::")
+
+
+StatementRule.GotoStatement = \@, node ->
+	@.add_line(@, "goto " .. node.label)
+
+
+var proto_inline = \proto ->
+	-- remove leading whitespaces from first line
+	if #proto.code > 0
+		proto.code[1] = string.gsub(proto.code[1], "^%s*", "")
+
+	return concat(proto.code, "\n")
+
+
+
+var proto_merge = \proto, child ->
+	for k = 1, #child.code
+		var line = child.code[k]
+		var indent_str = string.rep("    ", proto.indent)
+		proto.code[#proto.code + 1] = indent_str .. line
+
+
+
+var proto_new = \parent, indent ->
+	var ind = 0
+	if indent
+		ind = indent
+	else if parent
+		ind = parent.indent
+
+	var proto = { code = { }, indent = ind, parent = parent }
+	proto.inline = proto_inline
+	proto.merge = proto_merge
+	return proto
+
+
+var generate = \tree, name ->
+
+	var self = { line = 0 }
+	self.proto = proto_new()
+	self.chunkname = tree.chunkname
+
+	self.proto_enter = \@, indent ->
+		self.proto = proto_new(self.proto, indent)
+
+
+	self.proto_leave = \@ ->
+		var proto = self.proto
+		self.proto = proto.parent
+		return proto
+
+
+	var to_expr = \node ->
+		return @.expr_emit(@, node)
+
+
+	self.compile_code = \@ ->
+		return concat(self.code, "\n")
+
+
+	self.indent_more = \@ ->
+		var proto = self.proto
+		proto.indent = proto.indent + 1
+
+
+	self.indent_less = \@ ->
+		var proto = self.proto
+		proto.indent = proto.indent - 1
+
+
+	self.line = \@, line ->
+	-- FIXME: ignored for the moment
+
+
+	self.add_line = \@, line ->
+		var proto = self.proto
+		var indent = string.rep("    ", proto.indent)
+		proto.code[#proto.code + 1] = indent .. line
+
+
+	self.add_section = \@, header, body, omit_end ->
+		@.add_line(@, header)
+		@.indent_more(@)
+		@.list_emit(@, body)
+		@.indent_less(@)
+		if not omit_end
+			@.add_line(@, "end")
+	
+
+
+	self.expr_emit = \@, node ->
+		var rule = ExpressionRule[node.kind]
+		if not rule error("cannot find an expression rule for " .. node.kind) 
+		return rule(self, node)
+
+
+	self.expr_list = \@, exps ->
+		return comma_sep_list(exps, to_expr)
+
+
+	self.emit = \@, node ->
+		var rule = StatementRule[node.kind]
+		if not rule error("cannot find a statement rule for " .. node.kind) 
+		rule(self, node)
+		if node.line @.line(@, node.line) 
+
+
+	self.list_emit = \@, node_list ->
+		for i = 1, #node_list
+			@.emit(@, node_list[i])
+	
+
+
+	@.emit(@, tree)
+
+	return @.proto_leave(@).inline(@)
+
+
+return generate
