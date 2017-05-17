@@ -2,6 +2,18 @@
 	-- vvv
 		-- vvv
 
+var split = \str, pattern, plain ->
+	var arr = {}
+	if pattern and #pattern > 0
+		var pos = 1
+		for st, sp in -> return string.find(str, pattern, pos, plain)
+			table.insert(arr, string.sub(str, pos, st-1))
+			pos = sp + 1
+		table.insert(arr, string.sub(str, pos))
+	return arr
+
+
+
 var self = {}
 
 self.qqq = \@ ->
@@ -16,4 +28,5 @@ self.xxx = \@, line ->
 	return a + b
 
 assert(self.xxx() == 3)
+
 

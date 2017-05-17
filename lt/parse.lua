@@ -121,7 +121,8 @@ local shadow_check = function(ast, ls, vars)
         until not scope
     end
 end
-local same_ast = function(a, b)
+local same_ast
+same_ast = function(a, b)
     if a and b and a.kind == b.kind then
         local last = 1
         if #a ~= #b then
@@ -654,7 +655,9 @@ parse_opt_block = function(ast, ls, line, match_token)
             body[1] = parse_stmt(ast, ls)
             body.firstline, body.lastline = line, ls.linenumber
         end
-        lex_opt(ls, "TK_newline")
+        if NewLine[ls.token] and ls:lookahead() ~= "TK_indent" then
+            ls:next()
+        end
     end
     return body
 end

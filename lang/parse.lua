@@ -766,8 +766,10 @@ function parse_opt_block(ast, ls, line, match_token)
           body[1] = parse_stmt(ast, ls)
           body.firstline, body.lastline = line, ls.linenumber
         end
-        -- always eat a newline if any
-        lex_opt(ls, 'TK_newline')
+        -- if lookahead is indent, it belongs to parent block
+        if NewLine[ls.token] and ls:lookahead() ~= 'TK_indent' then
+          ls:next()
+        end
     end
     return body
 end

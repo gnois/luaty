@@ -139,7 +139,8 @@ var shadow_check = \ast, ls, vars ->
 
 
 
-var same_ast = \a, b ->
+var same_ast
+same_ast = \a, b ->
 	if a and b and a.kind == b.kind
 		-- http://stackoverflow.com/questions/27674367/lua-check-if-a-table-can-be-looped-through-via-ipairs-ipairs-starting-at-0
 		var last = 1
@@ -764,9 +765,9 @@ parse_opt_block = \ast, ls, line, match_token ->
 			-- this is not worst than C single statement without brace
 			body[1] = parse_stmt(ast, ls)
 			body.firstline, body.lastline = line, ls.linenumber
-		-- always eat a newline if any
-		lex_opt(ls, 'TK_newline')
-
+		-- if lookahead is indent, it belongs to parent block
+		if NewLine[ls.token] and ls.lookahead(@) ~= 'TK_indent'
+			ls.next(@)
 	return body
 
 
