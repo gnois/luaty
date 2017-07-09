@@ -179,8 +179,8 @@ AST.repeat_stmt = \ast, test, body, line, lastline ->
 	return build("RepeatStatement", { test = test, body = body, line = line, lastline = lastline })
 
 
-AST.for_stmt = \ast, var, init, last, step, body, line, lastline ->
-	var for_init = build("ForInit", { id = var, value = init, line = line })
+AST.for_stmt = \ast, variable, init, last, step, body, line, lastline ->
+	var for_init = build("ForInit", { id = variable, value = init, line = line })
 	return build("ForStatement", { init = for_init, last = last, step = step, body = body, line = line, lastline = lastline })
 
 

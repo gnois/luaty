@@ -131,8 +131,8 @@ end
 AST.repeat_stmt = function(ast, test, body, line, lastline)
     return build("RepeatStatement", {test = test, body = body, line = line, lastline = lastline})
 end
-AST.for_stmt = function(ast, var, init, last, step, body, line, lastline)
-    local for_init = build("ForInit", {id = var, value = init, line = line})
+AST.for_stmt = function(ast, variable, init, last, step, body, line, lastline)
+    local for_init = build("ForInit", {id = variable, value = init, line = line})
     return build("ForStatement", {init = for_init, last = last, step = step, body = body, line = line, lastline = lastline})
 end
 AST.for_iter_stmt = function(ast, vars, exps, body, line, lastline)
