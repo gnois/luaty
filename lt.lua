@@ -41,7 +41,7 @@ if #filenames < 1 or #filenames > 2 then
 end
 
 local source = filenames[1]
-local compile = require("lang.compile")
+local compile = require("lt.compile")
 local luacode = check(compile.file(source))
 
 if run then
@@ -57,6 +57,7 @@ else
     if not f then
         error(err)
     else
+        f:write("--\n-- Generated from " .. source .. "\n--\n\n")
         f:write(luacode)
     end
 end

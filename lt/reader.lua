@@ -1,3 +1,7 @@
+--
+-- Generated from reader.lt
+--
+
 local strsub = string.sub
 local new_string_reader = function(src)
     local pos = 1

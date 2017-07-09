@@ -2,7 +2,7 @@ var ffi = require('ffi')
 var int64 = ffi.typeof('int64_t')
 var uint64 = ffi.typeof('uint64_t')
 var complex = ffi.typeof('complex')
-var stack = require("lang.stack")
+var stack = require("lt.stack")
 
 var band = bit.band
 var strsub, strbyte, strchar = string.sub, string.byte, string.char

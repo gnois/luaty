@@ -1,4 +1,8 @@
-local operator = require("lang.operator")
+--
+-- Generated from generator.lt
+--
+
+local operator = require("lt.operator")
 local strbyte, strsub = string.byte, string.sub
 local LuaReservedKeyword = {["and"] = 1, ["break"] = 2, ["do"] = 3, ["else"] = 4, ["elseif"] = 5, ["end"] = 6, ["false"] = 7, ["for"] = 8, ["function"] = 9, ["goto"] = 10, ["if"] = 11, ["in"] = 12, ["local"] = 13, ["nil"] = 14, ["not"] = 15, ["or"] = 16, ["repeat"] = 17, ["return"] = 18, ["then"] = 19, ["true"] = 20, ["until"] = 21, ["while"] = 22}
 local ASCII_0, ASCII_9 = 48, 57

@@ -1,8 +1,12 @@
-local lex_setup = require("lang.lex")
-local parse = require("lang.parse")
-local ast = require("lang.ast").New()
-local reader = require("lang.reader")
-local generator = require("lang.generator")
+--
+-- Generated from compile.lt
+--
+
+local lex_setup = require("lt.lex")
+local parse = require("lt.parse")
+local ast = require("lt.ast").New()
+local reader = require("lt.reader")
+local generator = require("lt.generator")
 local lang_error = function(msg)
     if string.sub(msg, 1, 8) == "LT-ERROR" then
         return false, "[Luaty] " .. string.sub(msg, 9)

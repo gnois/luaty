@@ -34,7 +34,7 @@ while args[k] do
 end
 
 
-local compile = require("lang.compile")
+local compile = require("lt.compile")
 
 function split(str)
     local t = {}

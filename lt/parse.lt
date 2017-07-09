@@ -1,4 +1,4 @@
-var operator = require("lang.operator")
+var operator = require("lt.operator")
 
 var LJ_52 = false
 

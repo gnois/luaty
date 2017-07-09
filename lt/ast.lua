@@ -1,3 +1,7 @@
+--
+-- Generated from ast.lt
+--
+
 local build = function(kind, node)
     node.kind = kind
     return node

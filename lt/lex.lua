@@ -1,8 +1,12 @@
+--
+-- Generated from lex.lt
+--
+
 local ffi = require("ffi")
 local int64 = ffi.typeof("int64_t")
 local uint64 = ffi.typeof("uint64_t")
 local complex = ffi.typeof("complex")
-local stack = require("lang.stack")
+local stack = require("lt.stack")
 local band = bit.band
 local strsub, strbyte, strchar = string.sub, string.byte, string.char
 local ASCII_0, ASCII_9 = 48, 57

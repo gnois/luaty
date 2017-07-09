@@ -1,5 +1,5 @@
-local lex_setup = require("lang.lex")
-local reader = require("lang.reader")
+local lex_setup = require("lt.lex")
+local reader = require("lt.reader")
 local filename = assert(..., "usage: luajit run-lexer.lua <filename>")
 
 local ls = lex_setup(reader.file(filename), filename)

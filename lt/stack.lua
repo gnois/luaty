@@ -1,3 +1,7 @@
+--
+-- Generated from stack.lt
+--
+
 local Stack = {}
 Stack.__index = Stack
 Stack.new = function()

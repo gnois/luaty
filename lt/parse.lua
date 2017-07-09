@@ -1,4 +1,8 @@
-local operator = require("lang.operator")
+--
+-- Generated from parse.lt
+--
+
+local operator = require("lt.operator")
 local LJ_52 = false
 local IsLastStatement = {TK_return = true, TK_break = true}
 local EndOfBlock = {TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true}
