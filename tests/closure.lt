@@ -1,0 +1,57 @@
+var foo = \x, y->
+	var a, b, c
+	var boo = \z->
+		a, b = z*z + 1, z - 1
+
+	boo(x * y - x + y)
+	c = x + y
+	return a * b * c
+
+assert(150240 == foo(3, 7))
+
+
+---
+var make = \p->
+	if p > 10
+		var n = p + 1
+		return {
+			incr = \i->
+				n = n + i
+			, mult = \i-> 
+				n = n * i
+			, get = -> 
+				return n
+		}
+	else
+		var n = 2*p
+		return {
+			incr = \i-> 
+				n = n + i
+			, mult = \i-> 
+				n = n * i
+			,get = ->
+				return n
+		}
+
+		
+var obj = make(7)
+obj.mult(3)
+obj.incr(1)
+obj.mult(2)
+obj.incr(5)
+assert(91 == obj.get())
+
+-----
+var bar = \n->
+	var f
+	for k = n, n + 10
+		if k % 7 == 0
+			f = \x->
+				return k + x
+			break
+	return f
+
+var b = bar(1)
+assert(10 == b(3))
+
+

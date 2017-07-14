@@ -1,0 +1,38 @@
+
+-- indexed assign in for loop
+
+var x = {}
+for k = 1, 10
+	k, x[k] = k + 1, k*k + 1
+
+assert(x[1] == 2)
+assert(x[2] == 5)
+assert(x[3] == 10)
+
+
+-- assign via multiple return value 
+
+var foo = \k-> return k*k, 2*k + 1
+
+var s = 3
+var a, b, c = 13, foo(s)
+
+assert(a == 13)
+assert(b == 9)
+assert(c == 7)
+
+
+
+-- assignment in sub table
+
+var bar = \v, i->
+	v.f[i+1], v.x, v.s[i] = i*i, i+5, 7*i
+
+
+var v = { }
+v.f, v.s = v, v
+
+bar(v, 1)
+assert(#v == 2)
+assert(v[1] == 7)
+assert(v[2] == 1)

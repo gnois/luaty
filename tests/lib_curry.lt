@@ -1,0 +1,27 @@
+var curry = require('lib.curry')
+
+-- sugar syntax for curry
+
+var tt = \w, x, y, z~>
+	return w + x + y + z
+
+
+assert(tt(4)(7)(8)(9) == tt(4)(7, 8)(9))
+assert(tt(4, 7)(8, 9) == tt(4, 7, 8, 9))
+
+
+-- specify arguments to curry
+
+var sum = curry(5, \...->
+	var args = {...}
+	var total = 0
+	for k, v in ipairs(args)
+		total = total + v
+	return total
+)
+
+var f = sum(1, 2)
+var g = f(3)
+var h = g(4)
+
+assert(17 == h(7))

@@ -1,3 +1,5 @@
+-- class emulation
+
 var BaseClass = \base->
 	var private = base
 
@@ -23,4 +25,4 @@ var DerivedClass = \base, derived->
 
 
 var i = DerivedClass(1, 2)
-print(i.foo()) --> 5
+assert(i.foo() == 5)

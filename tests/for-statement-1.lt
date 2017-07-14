@@ -1,9 +1,0 @@
-var foo = \n->
-	var sum = 0
-	for i = 1, n
-		sum = sum + i*i
-	
-	return sum
-
-
-print(foo(10))

@@ -1,9 +1,0 @@
-var foo = \a->
-    var x = 1/0
-    var y = 0/1
-    var w = a/0
-    var z = 0/a
-    print(x, y, w, z)
-
-foo(7)
-

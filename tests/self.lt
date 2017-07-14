@@ -1,0 +1,44 @@
+-- self is not keyword
+
+var self = {}
+
+self.q = \@ ->
+
+
+assert(self.q() == nil)
+
+self.x = \@, line ->
+	var a = 1
+	var b = 2
+	return a + b
+
+assert(self.x() == 3)
+
+
+-- string method
+print(("hi").rep(@, 3))
+print(("hi").rep("Hello! ", 3))
+
+
+-- objects
+var met = \@, k-> return k * self.value
+
+var obj = { value = 3.141592, met = met }
+print(obj.met(@, 2))
+
+
+var foo = \@, k-> return k * @.value
+
+var create = \x-> return { value = x, foo = foo }
+
+print(create(3.141592).foo(@, 2))
+
+
+var inline = { value = 3.141592, foo = \@, i-> return i*@.value }
+print(inline.foo(@, 2))
+
+
+-- self and @ is interchangeable
+
+var boo = { value = 7, compute= \self, i-> return self.value*i+1 }
+print(boo.compute(@, 3) + boo.compute(@, 7))

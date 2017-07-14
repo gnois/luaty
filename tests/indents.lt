@@ -1,5 +1,8 @@
 (\a, b-> print(a .. b))('a', 'b')
+
 var func = ->
+	-- comment after empty block
+-- dedented comment after empty block
 
 print(" · "
 , 100, 7, 8, 9)

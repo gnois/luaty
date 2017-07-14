@@ -1,8 +1,0 @@
-var foo = ->
-    return 4
-
-for i = 1, foo() 
-    print("A", i)
-
-for i = 1, 4 
-    print("B", i)

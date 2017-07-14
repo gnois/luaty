@@ -1,6 +1,0 @@
-var foo =  \n->
-    return 1ULL * n
-
-
-print(foo(8))
-

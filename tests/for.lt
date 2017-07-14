@@ -1,0 +1,30 @@
+-- for Name = expr, expr [, epxr]
+
+-- take a number
+for i = 1, 4 
+	print("A", i)
+
+
+-- take a function
+var four = -> return 4
+for i = 1, four() 
+	print("B", i)
+
+
+-- just test
+var foo = \n->
+	var sum = 0
+	var fs = {}
+	for i = 1, n 
+		sum = sum + i*i
+		fs[i] = \x->
+			return i + x 
+	return sum, fs
+
+
+var s, fs = foo(10)
+print(s)
+print(fs[1](7), fs[2](7), fs[3](7))
+
+
+

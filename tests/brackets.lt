@@ -1,0 +1,94 @@
+
+var eq = require('tests.inc').eq
+
+var foo = \x->
+	return x, x + 1, 2*x
+
+var prova = \...->
+	return ...
+
+var one = \...->
+	return (...)
+
+var first = \x->
+	return (foo(x))
+
+var alls = \x->
+	return foo(x)
+
+
+var triple, single = {2,3,4}, {2,nil,nil}
+
+eq(3, {foo(2)}, triple)
+
+eq(3, {alls(foo(2))}, triple)
+
+eq(3, {first(foo(2))}, single)
+
+--eq(3, {(foo(2))}, single)
+
+eq(3, {one(foo(2))}, single)
+
+eq(3, {prova(foo(2))}, triple)
+
+
+assert(({2,3})[1] == 2)
+assert(({2,3})[2] == 3)
+
+
+print(({(-> return 2,3,4,5)})[3])
+
+print(({(-> return 2,3,4,5)})[1])
+
+print(({(->return 2,3,4,5)})[2])
+
+print(({(-> return 2,3,4,5)})[1])
+
+print(({(-> return 2,3,4,5)()})[1])
+
+print(({(-> return 2,3,4,5)()})[3])
+print(({(-> return 2,3,4,5)()})[4])
+
+print(({((-> return 2,3,4,5)())})[4])
+
+print(({((-> return 2,3,4,5)())})[3])
+print(({((-> return 2,3,4,5)())})[1])
+print(({((-> return 2,3,4,5)())})[1])
+
+
+-- 
+
+var boo = \a, b-> if b return a else return a + 1
+
+var fn = \x, y->
+	var z = x + y
+	return boo(z, x < y and x or y)
+
+assert(fn(3, 7) == 10)
+
+
+---
+var raa = \x, y->  return (x < y and x*x or y*y) + 2*x*y + 7
+
+assert(raa(3, 7) == 58)
+assert(raa(7, 3) == 58)
+
+
+-- priority
+
+var x, y = 2, 3
+
+var a = (2 + x) * y
+var b = x + 2 * y
+var c = 2 ^ x ^ y
+var d = (2 ^ x) ^ y
+var e = 2 * x / y
+var f = 2 * (x / y)
+var g = 2 + x + y
+var h = 2 + (x + y)
+var i = -x * y
+var l = -x^2 + (-x)^2
+
+eq(8, {a, b, c, d, g, h, i, l}, {12, 8, 256, 64, 7, 7, -6, 0})
+assert(1.33333333333333 < e and e < 1.3333333333334)
+assert(1.33333333333332 < f and f < 1.3333333333334)

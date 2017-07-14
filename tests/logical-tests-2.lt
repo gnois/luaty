@@ -1,7 +1,0 @@
-var foo = \a, b->
-    if 2 * a + b 
-        print('boom') 
-
-
-var x, y = 7, 3
-foo(x, y)

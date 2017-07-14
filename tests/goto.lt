@@ -1,0 +1,132 @@
+var eq = require('tests.inc').eq
+
+-- goto tail
+var fact = \n, ans->
+  ::call::
+  if n == 0 
+    return ans
+  else
+    n, ans = n - 1, ans * n
+    goto call
+  
+assert(720 == fact(6, 1))
+
+
+-- goto nested
+var trip = { }
+
+for z=1,10 
+    for y=1,10 
+        for x=1,10 
+            if x^2 + y^2 == z^2 
+                trip[#trip+1] = -> 
+                    return x, y, z 
+                goto zcontinue
+
+    ::zcontinue::
+
+for i = 1, #trip
+    print('found a Pythagorean triple', trip[i]())
+eq(3, {trip[1]()}, {4,3,5})
+eq(3, {trip[2]()}, {8,6,10})
+assert(not trip[3])
+
+
+-- redo
+var l = { }
+
+for x=1, 5 
+    ::redo::
+    var y = x^2 + 1
+    if x < 30
+        l[#l+1] = ->
+            return y
+        x = y
+        goto redo
+
+for k = 1, #l
+    print(l[k]())
+
+
+
+-- goto outside function
+var hasfn = \t->
+    for _, x in ipairs(t) 
+        if x % 2 == 0 
+            print('list has even number')
+            goto has
+        
+    error('list lacks even number')
+    ::has::
+
+hasfn( { 1, 3, 7, 9, 4, 11, 13} )
+
+
+-- goto  markov
+
+-- Use a very weak pseudo-number generator just for testing purpose.
+var my_random = \s->
+    s.x = (16807 * s.x) % 2147483647
+    return s.x % 50
+
+
+var foo = \a->
+    var s = { x = 13 }
+    var ls = { }
+    ::a::
+    var x = 2*a + 1
+    ls[#ls+1] = -> 
+        return x 
+    if my_random(s) < 10 
+        goto a 
+    ::b::
+    ls[#ls+1] = -> 
+        return x 
+    if my_random(s) < 20 
+        goto b 
+    ::c::
+    var y = x^2 + 1
+    ls[#ls+1] = -> 
+        return y 
+    if my_random(s) < 40 
+        goto a 
+
+    return ls
+
+
+var seven = foo(7)
+for i = 1, #seven
+    --print(seven[i]())
+
+
+-- goto cleanup
+
+var undo_h = ->
+  print("undo_h")
+var undo_g = -> 
+ print("undo_g")
+
+var f = \x, y, z->
+    if x > y 
+     goto fail 
+    if x > z 
+       goto cleanup_g 
+    if x > y - z 
+      goto cleanup_h 
+    do
+        print("got it!")
+        return true
+        -- need do/?
+
+    ::cleanup_h::
+    undo_h()
+    ::cleanup_g::
+    undo_g()
+    ::fail::
+    return false
+
+
+print(f(3, 10, 20))
+print(f(3, 0, 20))
+print(f(3, 10, 0))
+print(f(3, 10, 10))

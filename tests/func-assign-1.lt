@@ -1,7 +1,0 @@
-var a, b = 3, 7
-
-var foo = \k->
-    return 2*k + 1
-
-
-print(foo(a))

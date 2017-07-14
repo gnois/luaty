@@ -1,4 +1,0 @@
-var foo = \a, b->
-    return 2*a + b
-print(foo(3,4))
-

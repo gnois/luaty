@@ -1,0 +1,44 @@
+var inc = require('tests.inc')
+
+-- lexer supports ULL
+
+print(4ULL)
+
+var foo =  \n->
+    return 1ULL * n
+
+assert(foo(8) == 8ULL)
+
+var n = 0/0
+var o = 2.35
+var xe = 2.35e-6
+var ie = 35e-6
+var kk = 23455ULL
+--  FIX ME!!
+--var z = 4i
+var h = 0x456354
+var hf = 0x456354p-06
+print(o, xe, ie, kk, z, h, hf)
+
+
+
+print(499234445333ll)
+print(499234445333ull)
+print(0xa34cd34ff09ll)
+print(0xa34cd34ff09ull)
+print(0xa34cd34ff09ULL)
+print(0xA34CD34FF09ull)
+
+
+var bar = \a->
+    var x = 1/0
+    var y = 0/1
+    var w = a/0
+    var z = 0/a
+    return x, y, w, z
+
+assert(inc.fmt(4, bar(7)) == "inf 0 inf 0")
+
+print(0x31, 0x9e, 0x31ef, 0x9ea1, 0x31ef3c, 0x9ea13c, 0x31ef3cea, 0x9eef3cea, 0x31ef3cea09, 0x9eef3cea09)
+print(-0x31, -0x9e, -0x31ef, -0x9ea1, -0x31ef3c, -0x9ea13c, -0x31ef3cea, -0x9eef3cea, -0x31ef3cea09, -0x9eef3cea09)
+

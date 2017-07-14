@@ -1,3 +1,0 @@
-var foo = \k ->
-	return k*k+1 
-print(foo(3))

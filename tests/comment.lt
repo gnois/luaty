@@ -1,17 +1,44 @@
-	-- a
+-- comments lines shd be ignored regardless of tab or space indented
+
+
+--[[ This is 
+a very long comment
+]]
+
+	-- dangling comment
 print(0)
-   --b
+   -- space indented dangling comment
   
-	-- o
-var f = \a, b->  -- r
-   -- b
+	-- dangling again
+var f = \a, b->  -- comment after code
+         --   space indented comment in block
 	print (a)
-        -- c
---[[ d 
-	]]
+        -- 
+    --[[ long string comment
+	 another line tab indented
+      another line space indented ]]
   
 	print(b)
-	-- e
---
+	-- at end of block
+  --                        another one space indented
+	
+-- empty comment below
+--         
 print(1)
-print(f(22, 33))
+
+var   --[==[ embed ]] ]==]  foo, bar = 3, 7
+print("foo bar"--[[ embedded ] --[[ ]], foo, bar)
+
+
+  
+   
+   --[====[
+	This is un elaborate Lua-style, long comment.
+  space indented
+	    		 space mix with tab   	
+  
+]==]
+
+	    --]====]
+		
+--	   -- at end of file

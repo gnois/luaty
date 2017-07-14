@@ -1,6 +1,0 @@
-var foo = \x, y->
-	var a = (x < y) and (x*x < y*y)
-	return a
-
-
-print(foo(3, 7), foo(7, 3))

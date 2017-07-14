@@ -1,4 +1,35 @@
+-- escape string and quotes
+
+print("\97")
+print("\"\'\\")
+print("\x65")
+
 print("\97lo\10\04923")
 print("\\\n\r\"'\'\0")
 print('\3\v\x44\t\"\'')
 print('\254\v\\\\\"\\\'\f')
+
+print("foo\z bar")
+print("foo\z
+bar")
+print("foo\
+bar")
+
+
+
+-- escape long string
+
+var html = [[
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta content="IE=edge,chrome=1" http-equiv="X-UA-Compatible"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Title</title>
+<link rel="shortcut icon" href="/favicon.ico"/>
+</head>
+<body>
+</body></html>
+]]
+

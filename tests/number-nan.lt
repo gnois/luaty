@@ -1,6 +1,0 @@
-var foo = ->
-    var x = 0/0
-    print(x)
-
-foo()
-

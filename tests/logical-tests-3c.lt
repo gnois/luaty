@@ -1,8 +1,0 @@
-var foo = \x, y->
-	if (x < y) or (x*x < y*y) 
-		print('boom')
-	
-
-
-var x, y = 3, 7
-foo(x, y)

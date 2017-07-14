@@ -1,0 +1,56 @@
+var u = {
+}
+print(u)
+
+var name = 'secret'
+var t = { pi = 3.14, ciao = 'Hello!', [name] = 'sshhhh....', ['ciao'] = 'Oh' }   -- duplicate key 'ciao'
+print(t.pi, t.ciao, t.secret)
+
+
+
+var t = { pi = 3.14, ciao = 'hello', 3, 7, 'boo', 21 }
+print(t.pi, t[1], t[2], t[3], t[4])
+
+
+var x, y = 3, 4
+var t = {[y-x] = 1, [2*x-y] = 4, [x] = 9, [y] = 16, [2*y-x] = 25, [2*x-y] = 36}  -- duplicate key at pos 2 and 6
+print(t[1], t[2], t[3], t[4], t[5])
+
+
+var s = '0'
+var x = {
+	['a' .. s] = 1
+	, ['a' .. s .. '0'] = 2
+}
+
+var y = {
+	['b' .. s] = 7
+	, ['b' .. s] = 8   -- duplicate at pos 1 and 2
+}  
+
+
+var t = { pi = 3.14, ciao = 'hello', 1, list = {3, 7, 'boum'}, 4, 9}
+print(t.pi, t[1], t[2], t[3], #t.list)
+
+
+var t = {[0] = 7, 9, 14, 17}
+for k = 0, 3 
+    print(t[k]) 
+
+
+print(({"Go away!", "Hello", "Bof!"})[2])
+
+
+
+
+var html = {
+	"<" = "&lt;",
+	">" = "&gt;",
+	["&"] = "&amp;"
+}
+	
+var f = ->
+	for k, v in pairs(html)
+		print(k .. ': ' .. v)
+		
+f()

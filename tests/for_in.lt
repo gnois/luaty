@@ -1,0 +1,51 @@
+-- inline function
+var split = \str, pattern, plain ->
+	var arr = {}
+	if pattern and #pattern > 0
+		var pos = 1
+		for st, sp in -> return string.find(str, pattern, pos, plain)
+			table.insert(arr, string.sub(str, pos, st-1))
+			pos = sp + 1
+		table.insert(arr, string.sub(str, pos))
+	return arr
+
+
+-- immeidately invoked inline function with multi return value
+var squares_iter= \ ls, i ->
+	if i + 1 <= #ls 
+		var v = ls[i + 1]
+		return i + 1, v, v*v
+
+var foo= \ ls -> 
+	var s, ssq = 0, 0
+	for i, v, vsq in (\ ls ->return squares_iter, ls, 0)(ls)
+		s = s + v
+		ssq = ssq + vsq
+	
+	return s, ssq
+
+var a, b = foo({3, 7, -2, 5})
+assert(13 == a)
+assert(87 == b)
+
+
+
+-- multiple expr after in ...
+var rand = \s->
+	-- Use a very weak pseudo-number generator just for testing purpose
+	s.x = (16807 * s.x) % 2147483647
+	return s.x
+
+
+var iter= \s, i->
+	if i < 20 
+		return i + 1, rand(s) 
+
+var bar = ->
+	var s = { x = 13 }
+	for i, val in iter, s, 0 
+		print(i, val)
+	
+bar()
+
+

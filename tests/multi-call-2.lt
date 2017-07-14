@@ -1,7 +1,0 @@
-var format = string.format
-
-var printf = \...->
-    print(format(...))
-
-
-printf("%s %d", 'ciccio', 124)

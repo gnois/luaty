@@ -1,3 +1,61 @@
+-- empty if
+if false
+
+
+-- empty if else
+if false
+else
+
+-- empty if else
+if false
+else if false
+else if false
+	if false
+		if true
+	else
+else
+
+
+-- one lined ternery
+var x = false
+var y
+if x y = 1 else y = 2
+assert(y == 2)
+
+var odd = \n -> return n % 2 == 1
+if odd(8) y = 1 else y = 2
+assert(y == 2)
+
+
+-- dedent after single lined else
+var fact
+fact = \n->
+	if n <= 1 return 1
+	else return n * fact(n-1)
+	return 10
+
+assert(120 == fact(5))
+
+
+-- nested
+var foo = \x, y->
+	if x < y 
+		if x*x < y*y 
+			if x + y < x - y 
+				return x
+			else return y
+		else
+			return y*y
+	else
+		if x + y > x - y 
+			return x - y
+		return x + y
+
+assert(foo(3, 4) == 4)
+assert(foo(4, 3) == 1)
+
+
+-- empty else if
 var none = \ ->
 	var c = '='
 	var esc = false
@@ -5,16 +63,15 @@ var none = \ ->
 		return '!'
 	else if c == '~'
 		esc = true
-		if c ~= '=' return '='
+		if c ~= '=' return '#'
 		else
 			c = '-'
 			return c 
 	else if c == '"' or c == "'"
-		return '+'
 	else if c == '!'
 	else
 		if not c
 			error("invalid c")
 		return c
 
-print(none())
+assert(none() == '=')

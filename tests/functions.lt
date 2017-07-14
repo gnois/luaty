@@ -1,11 +1,60 @@
-var pn = \a->
-print(a)
-print(b)
+-- immediately invoked empty function
+(->)()
 
-var x = {a, b, c,
-    d, 
-    g, h, (\a, b-> print(a .. b))('a', 'b'), 
-    c, d, 3
-}
+var eq = require('tests.inc').eq
+
+var t = {}
+t.bar = \x ->
+    return x + 1
+
+assert(t.bar(4) == 5)
+
+-- empty function
+var arg
+var fn = \arg->
+arg = 6
+fn()
+assert(arg == 6)
+
+
+-- immediately invoked function in table
+var tbl = {8, 4
+,   7, 
+    g, h, (\a, b-> return a, b)('a', 'b'), 
+3}
+eq(7, tbl, {8, 4, 7, nil, nil, 'a', 3})
+
+--[[
+var fact
+(\n, accu->
+	if n <= 1 
+		return accu
+	else
+		return fact(n - 1, n * accu)
+		
+)(5, 1)
+]]
+
+-- immediately invoked one lined function
+var foo
+(\x -> if x == 1 foo = \x-> return x, x*x else foo = \x-> return x)(1)
+
+eq(2, {3, 9}, {foo(3)})
+
+
+-- immediately invoked multiline function
+eq(3, {(\...->
+  return false, ...
+)(1, 'a')}, {false, 1, 'a'})
+
+
+
+-- multiple return value stops at new line
+eq(3, {pcall(\x-> return x, 10)}, {true, nil, 10})
+
+eq(2, {pcall(\x ->
+    return x
+, 10)}, {true, 10, nil})
+
 
 return ->

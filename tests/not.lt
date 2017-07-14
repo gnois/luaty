@@ -1,0 +1,10 @@
+var eq = require('tests.inc').eq
+
+assert(((not true) and 10) == false)
+
+eq(4, {(not true) and 10, (not false) and 10, (not true) or 10, (not false) or 10}, {false, 10, 10, true})
+
+var a = (7 % 2 == 1)
+var b = (8 % 2 == 1)
+print(not a, (not a) and 10, (not a) or 10)
+print(not b, (not b) and 10, (not b) or 10)

@@ -1,5 +1,0 @@
-var foo = \k->
-    return k, k*k, 2*k + 1
-
-
-print(foo(3))

@@ -1,9 +1,0 @@
-var foo=\ls->
-	var sum = 0
-	for i, v in ipairs(ls) 
-		sum = sum + v*v
-	
-	return sum
-
-
-print(foo({1, 3, 7, 12}))

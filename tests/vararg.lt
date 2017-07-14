@@ -1,0 +1,33 @@
+var eq = require('tests.inc').eq
+
+var multi = \...->
+    return ...
+
+var onearg1 = \x, ...->
+    return x, ...
+
+var a, b = 3, 7
+eq(2, {multi(a, b)}, {onearg1(a, b)})
+
+
+var foo = \...->
+    var arg = {...}
+    var t, i = {}, 1
+    for k = 1, #arg 
+        t[i] = arg[k]
+        i = i + 1
+    return t
+
+eq(2, foo("hello", "boy"), {'hello', 'boy'})
+
+
+
+var x = {"hello", nil, nil, "boy", 3, 4}
+var bar = \...->
+   -- arg.n is the real size
+   var arg = {n=select('#',...), ...}
+   for i = 1, arg.n 
+     assert(arg[i] == x[i])
+
+bar(unpack(x))
+

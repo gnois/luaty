@@ -1,0 +1,94 @@
+var foo1 = \x, y->
+    return x < y and x + y
+
+var foo1bis = \x, y, somef->
+    return x < y and somef(x, y)
+
+var foo2 = \x, y->
+    return x < y and x == y
+
+var foo3 = \x, y->
+    return x < y or x - y
+
+var foo4 = \x, y->
+    return x < y or x == y
+
+var diff = \a, b->
+    return a - b 
+
+var x, y = 3, 7
+print(foo1(x, y), foo1(y, x))
+print(foo1bis(x, y, diff), foo1bis(y, x, diff))
+print(foo2(x, y), foo2(y, x))
+print(foo3(x, y), foo3(y, x))
+print(foo4(x, y), foo4(y, x))
+
+---
+
+var foo = \x, y ->
+    if x < y and x == y 
+        return x
+    else
+        return y
+    
+var boo = \x, y->
+    if x < y or x == y 
+        return x
+    else
+        return y
+    
+var p, q = 3, 7
+print(foo(p, q), foo(q, p))
+print(boo(p, q), boo(q, p))
+
+---
+var bar = \a, b->
+    var k
+    if a < b  
+        k = 0 
+    if a > b
+        k = 1 
+    if a <= b  
+        k = 2 
+    if a >= b  
+        k = 3 
+    if a == b  
+        k = 4 
+    if a ~= b  
+        k = 5 
+    if not (a < b)  
+        k = 6 
+    return k
+
+var h, j = 7, 3
+print(bar(h, j), bar(j, h), bar(h, h))
+
+---
+var baz = \a, b->
+    if 2 * a + b 
+        print('boom') 
+
+baz(7, 3)
+
+
+---
+var las = \a, b->
+    return not (a + b)
+
+var c, d = 7, 3
+print(las(c, d), las(d, c))
+
+---
+var nim = \x, y->
+    var a = (x < y) and (x*x < y*y)
+    return a
+
+print(nim(3, 7), nim(7, 3))
+
+---
+var pi = 3.14
+
+if jit and jit.status 
+    print("JIT!")
+
+print(pi)

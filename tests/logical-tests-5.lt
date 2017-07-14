@@ -1,7 +1,0 @@
-var pi = 3.14
-
-if jit and jit.status 
-	print("JIT!")
-
-
-print(pi)
