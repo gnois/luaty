@@ -424,7 +424,7 @@ var llex = \ls ->
 		return '-'
 
 
-	var tabs = nil
+	var tabs, mixed = nil, false
 	while true
 		var current = ls.current
 		
@@ -436,7 +436,7 @@ var llex = \ls ->
 				if not tabs
 					tabs = ls.current
 				else if tabs ~= ls.current
-					lex_error(ls, nil, "indentation cannot mix tab and space")
+					mixed = true    -- mix tabs and space on same line
 			
 				ind = ind + 1
 				nextchar(ls)
@@ -461,6 +461,7 @@ var llex = \ls ->
 				-- is a comment
 				ls.newline = nil  -- do not treat newline
 				tabs = nil  -- or check tab space
+				mixed = false
 				nextchar(ls)
 				add_comment(ls, '--')
 				if ls.current == '['
@@ -487,13 +488,14 @@ var llex = \ls ->
 				return '-'
 		
 		else if ls.newline
-			if tabs
+			if not mixed and tabs
 				if not ls.tabs 
 					ls.tabs = tabs
 				else if tabs ~= ls.tabs
-					lex_error(ls, nil, "cannot mix tab and space as indentation")
-			
-		
+					mixed = true  -- using tabs and space in different lines
+
+			if mixed
+				lex_error(ls, nil, "cannot mix tab and space as indentation")
 			return 'TK_newline'
 		else
 			if char_isalnum(current)

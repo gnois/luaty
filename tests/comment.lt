@@ -1,5 +1,5 @@
--- comments lines shd be ignored regardless of tab or space indented
-
+    		
+	  -- comments lines shd be ignored regardless of tab or space indented
 
 --[[ This is 
 a very long comment
@@ -41,4 +41,6 @@ print("foo bar"--[[ embedded ] --[[ ]], foo, bar)
 
 	    --]====]
 		
---	   -- at end of file
+	   -- at end of file
+	   
+	      

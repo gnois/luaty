@@ -384,7 +384,7 @@ local llex = function(ls)
         ls.minus = nil
         return "-"
     end
-    local tabs = nil
+    local tabs, mixed = nil, false
     while true do
         local current = ls.current
         if IsNewLine[current] then
@@ -395,7 +395,7 @@ local llex = function(ls)
                 if not tabs then
                     tabs = ls.current
                 elseif tabs ~= ls.current then
-                    lex_error(ls, nil, "indentation cannot mix tab and space")
+                    mixed = true
                 end
                 ind = ind + 1
                 nextchar(ls)
@@ -418,6 +418,7 @@ local llex = function(ls)
             if ls.current == "-" then
                 ls.newline = nil
                 tabs = nil
+                mixed = false
                 nextchar(ls)
                 add_comment(ls, "--")
                 if ls.current == "[" then
@@ -444,12 +445,15 @@ local llex = function(ls)
                 return "-"
             end
         elseif ls.newline then
-            if tabs then
+            if not mixed and tabs then
                 if not ls.tabs then
                     ls.tabs = tabs
                 elseif tabs ~= ls.tabs then
-                    lex_error(ls, nil, "cannot mix tab and space as indentation")
+                    mixed = true
                 end
+            end
+            if mixed then
+                lex_error(ls, nil, "cannot mix tab and space as indentation")
             end
             return "TK_newline"
         else
