@@ -1,5 +1,5 @@
 --
--- Generated from parse.lt
+-- Generated from lt\parse.lt
 --
 
 local operator = require("lt.operator")
@@ -107,7 +107,7 @@ local in_scope = function(ast, ls, v)
     end
     return false
 end
-local shadow_check = function(ast, ls, vars)
+local dupl_check = function(ast, ls, vars)
     local n = #vars
     for i = 1, n do
         local v = vars[i]
@@ -117,12 +117,9 @@ local shadow_check = function(ast, ls, vars)
             end
         end
         local scope = ast.current
-        repeat
-            if scope.vars[v] then
-                err_syntax(ls, "shadowing previous `var " .. v .. "`")
-            end
-            scope = scope.parent
-        until not scope
+        if scope.vars[v] then
+            err_syntax(ls, "duplicate `var " .. v .. "`")
+        end
     end
 end
 local same_ast
@@ -489,7 +486,7 @@ local parse_var = function(ast, ls)
     repeat
         vl[#vl + 1] = lex_str(ls)
     until not lex_opt(ls, ",")
-    shadow_check(ast, ls, vl)
+    dupl_check(ast, ls, vl)
     local exps
     if lex_opt(ls, "=") then
         exps = expr_list(ast, ls)

@@ -3,7 +3,7 @@ Luaty
 ====
 
 Luaty is a Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule) that resembles Lua and compiles to Lua.
-It allows you to code faster using editors without auto completion, and performs simple lint checks during compilation.
+It allows you to code faster using editors without auto completion, and performs basic lint checks during compilation.
 If you know Lua, you already know most of Luaty.
 
 
@@ -21,18 +21,18 @@ if not x
 
 ```
 
-- Simple lint capability by giving error when
+- Basic lint checking
   * Assigning to undeclared (a.k.a global) variable
-  * Shadowing another variable in the same scope
+  * duplicated variable in the same scope
   * duplicated key exists in table
 
 ```
 a = 1              -- Error: undeclared identifier a
 var p = print
-var p = 'p'        -- Error: shadowing previous var p
+var p = 'p'        -- Error: duplicate var p
 
 var f = \z->
-	var z = 10      -- Error: shadowing previous var z
+	var z = 10      -- Error: duplicate var z
 
 var tbl = {
 	x = 1

@@ -57,4 +57,10 @@ eq(2, {pcall(\x ->
 , 10)}, {true, 10, nil})
 
 
+-- function returning function returning function
+var rr = \b -> return -> return -> return not b, -> return b
+assert(rr(true)()() == false)
+var _, r = rr(false)()()
+assert(r() == false)
+
 return ->
