@@ -12,6 +12,6 @@ local left_priority = function(op)
     return bit.rshift(binop[op], 8)
 end
 local right_priority = function(op)
-    return bit.band(binop[op], 255)
+    return bit.band(binop[op], 0xff)
 end
 return {is_binop = is_binop, left_priority = left_priority, right_priority = right_priority, unary_priority = unary_priority, ident_priority = ident_priority}

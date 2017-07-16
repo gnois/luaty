@@ -97,6 +97,10 @@ ExpressionRule.Literal = \@, node ->
 	return str, operator.ident_priority
 
 
+ExpressionRule.NumberLiteral = \@, node ->
+	return node.value, operator.ident_priority
+
+
 ExpressionRule.LongStringLiteral = \@, node ->
 	return node.text, operator.ident_priority
 

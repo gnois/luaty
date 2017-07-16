@@ -51,6 +51,9 @@ end
 AST.literal = function(ast, val)
     return build("Literal", {value = val})
 end
+AST.numberliteral = function(ast, val)
+    return build("NumberLiteral", {value = val})
+end
 AST.longstrliteral = function(ast, txt)
     return build("LongStringLiteral", {text = txt})
 end

@@ -74,6 +74,10 @@ AST.literal = \ast, val ->
 	return build("Literal", { value = val })
 
 
+AST.numberliteral = \ast, val ->
+	return build("NumberLiteral", { value = val })
+
+
 AST.longstrliteral = \ast, txt ->
 	return build("LongStringLiteral", { text = txt })
 

@@ -1,5 +1,5 @@
 --
--- Generated from lt\parse.lt
+-- Generated from parse.lt
 --
 
 local operator = require("lt.operator")
@@ -253,7 +253,7 @@ expr_simple = function(ast, ls)
     local tk, val = ls.token, ls.tokenval
     local e
     if tk == "TK_number" then
-        e = ast:literal(val)
+        e = ast:numberliteral(val)
     elseif tk == "TK_string" then
         e = ast:literal(val)
     elseif tk == "TK_longstring" then

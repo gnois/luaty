@@ -1,5 +1,6 @@
 var inc = require('tests.inc')
 
+
 -- lexer supports ULL
 
 print(4ULL)
@@ -19,7 +20,6 @@ var kk = 23455ULL
 var h = 0x456354
 var hf = 0x456354p-06
 print(o, xe, ie, kk, z, h, hf)
-
 
 
 print(499234445333ll)

@@ -226,7 +226,7 @@ local lex_number = function(ls)
         x = tonumber(str)
     end
     if x then
-        return x
+        return str
     else
         lex_error(ls, "TK_number", "malformed number")
     end

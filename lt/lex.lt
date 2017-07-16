@@ -250,7 +250,7 @@ var lex_number = \ls ->
 		x = tonumber(str)
 
 	if x
-		return x
+		return str
 	else
 		lex_error(ls, 'TK_number', "malformed number")
 

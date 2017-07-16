@@ -276,7 +276,7 @@ expr_simple = \ast, ls ->
 	var tk, val = ls.token, ls.tokenval
 	var e
 	if tk == 'TK_number'
-		e = ast.literal(@, val)
+		e = ast.numberliteral(@, val)
 	else if tk == 'TK_string'
 		e = ast.literal(@, val)
 	else if tk == 'TK_longstring'

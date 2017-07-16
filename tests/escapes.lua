@@ -1,36 +1,26 @@
--- escape string and quotes
+--
+-- Generated from tests\escapes.lt
+--
 
-var x, y, z = "\97", "\"\'\\", "\x65"
+local x, y, z = "\97", "\"'\\", "\x65"
 print(x)
 print(y)
 print(z)
-
-var a = "\97lo\10\04923"
-var b = "\\\n\r\"'\'\0"
-var c = '\3\v\x44\t\"\''
-var d = '\254\v\\\\\"\\\'\f'
-
+local a = "\97lo\10\04923"
+local b = "\\\n\r\"''\0"
+local c = "\3\v\x44\t\"'"
+local d = "\254\v\\\\\"\\'\f"
 print(a)
 print(b)
 print(c)
 print(d)
-
-
-
-var f = "foo\z bar"
-var g = "foo\z
-bar"
-var h = "foo\
-bar"
+local f = "foobar"
+local g = "foobar"
+local h = "foo\nbar"
 print(f)
 print(g)
 print(h)
-
-
-
--- escape long string
-
-var html = [[
+local html = [[
 <!DOCTYPE HTML>
 <html lang="en">
 <head>
@@ -43,4 +33,3 @@ var html = [[
 <body>
 </body></html>
 ]]
-

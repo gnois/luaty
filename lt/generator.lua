@@ -76,6 +76,9 @@ ExpressionRule.Literal = function(self, node)
     local str = type(val) == "string" and format("\"%s\"", escape(val)) or tostring(val)
     return str, operator.ident_priority
 end
+ExpressionRule.NumberLiteral = function(self, node)
+    return node.value, operator.ident_priority
+end
 ExpressionRule.LongStringLiteral = function(self, node)
     return node.text, operator.ident_priority
 end
