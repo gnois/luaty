@@ -2,10 +2,10 @@
 Luaty
 ====
 
-Luaty is a Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule) that resembles Lua and compiles to Lua.
-It allows you to code faster using editors without auto completion, and performs basic lint checks during compilation.
-If you know Lua, you already know most of Luaty.
+Luaty is a Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule) that compiles to Lua.
+It allows you to code faster using editors without auto completion, and helps with basic lint checks during compilation.
 
+Its syntax resembles Lua. If you know Lua, you already know most of Luaty.
 
 Characteristics:
 ---
@@ -15,7 +15,7 @@ Characteristics:
   * `local` becomes `var`, `repeat` becomes `do`, `elseif` becomes `else if`, `self` can be `@`
 
 ```
-var x = false          -- `var` compiles to `local`
+var x = false           -- `var` compiles to `local`
 if not x
 	print('nay')        -- `then` and `end` not needed
 
@@ -23,8 +23,8 @@ if not x
 
 - Basic lint checking
   * Assigning to undeclared (a.k.a global) variable
-  * duplicated variable in the same scope
-  * duplicated key exists in table
+  * duplicate variables in the same scope
+  * duplicate keys in a table
 
 ```
 a = 1              -- Error: undeclared identifier a
@@ -32,7 +32,7 @@ var p = print
 var p = 'p'        -- Error: duplicate var p
 
 var f = \z->
-	var z = 10      -- Error: duplicate var z
+	var z = 10     -- Error: duplicate var z
 
 var tbl = {
 	x = 1
@@ -54,31 +54,31 @@ function f()          -- Error: use '->' instead of 'function'
 
 
 var obj = {
-	value = 3.142
+	value = 3
 	, foo = \@, k ->
-		return k * @.value    -- @ is equivalent to `self`
+		return k * @.value      -- @ is equivalent to `self`
 }
--- no more ':'
-p(obj:foo(2))         -- Error: ')' expected instead of ':'. This is valid in Lua
-p(obj.foo(@, 2))      -- Ok, specify @ explicitly. Compiles to obj:foo(2)
-p(obj.foo(obj, 2))    -- Ok, achieves the same outcome
+
+p(obj:foo(2))                   -- Error: ')' expected instead of ':'. This is valid in Lua
+
+assert(obj.foo(@, 2) == 6)      -- Ok, specify @ explicitly. Compiles to obj:foo(2)
 
 ```
 
 - table keys and indexers can be keywords
 
 ```
-var t = {
+var e = {
 	var = 7
-	, local = 6         -- Invalid in Lua
-	, function = 5      -- Invalid in Lua
+	, local = 6
+	, function = 5
+	, if = \...-> return ...
+	, else = {true, false}
 }
 
-var x = t.var
-var y = t.local        -- Invalid in Lua
-var z = t.function     -- Invalid in Lua
-
-print(x, y, z)  -- prints 7  6  5
+assert(e.var == 7)
+assert(11 == e.function + e.local)
+assert(e.if(e.else)[2] == false)
 
 ```
 
@@ -87,31 +87,26 @@ print(x, y, z)  -- prints 7  6  5
 
 The offside (indentation) rule
 ---
-- In general
-  * one space equals one tab
-  * either tab(s) or space(s) can be used as indent, but not both in one file
+- Either tab or space can be used, but not both together in a single file.
 
-- compound statements should start an indented newline
-  * analoguous to statements within C curly braces
+- compound statements within a block should start an indented newline
 
 ```
 if true
 	p(1)
 	p(2)
 
-if true p(1) p(2)         -- beware, becomes:  if true then p(1) end p(2)
--- same outcome as above
-if true
-  p(1)
+```
+
+- only one statement may stay at the same line of a beginning block
+
+```
+if true p(1) p(2)         -- error, only one statement may stay on the same line with `if`
+
+if true	p(1)              -- ok
 p(2)
 
-```
-
-- single statement may stay on the same line
-  * analoguous to one statement in C without curly brace
-
-```
-if x ~= nil if type(x) == "table" p('table') else p('value') else p('nil')
+if x ~= nil if type(x) == "table" p('table') else p('value') else p('nil')             -- ok, if-else is a single statement
 print((-> return 'a', 1)())      -- prints a  1
 
 ```
@@ -126,7 +121,7 @@ print(pcall(\x-> return x, 10))       -- prints true, nil, 10
 
 ```
 
-- indentation is allowed within table definition, but the line having its closing brace should realign back to the starting indentation
+- an indent is allowed within table constructor/function call, but the line having its closing brace/parenthesis should realign back to its starting indentation
 
 ```
 var y = { 1
@@ -170,8 +165,10 @@ luajit lt.lua -c source.lt dest.lua
 * Luaty is not battle tested. Check the Lua output as necessary.
 
 
+
 Todo
 ---
+* solve ambiguous syntax (function call x new statement) since we are line sensitive
 * assignment operators += -= /= *= %= ..=
 
 
@@ -179,4 +176,5 @@ Todo
 Acknowledgment
 ---
 Luaty is modified from the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit).
-It inspired by [Moonscript](https://github.com/leafo/moonscript).
+
+It is inspired by [Moonscript](https://github.com/leafo/moonscript).

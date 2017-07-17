@@ -17,14 +17,18 @@ else
 
 
 -- one lined ternery
-var x = false
-var y
+var x = true
+var y, z
 if x y = 1 else y = 2
-assert(y == 2)
+assert(y == 1)
 
 var odd = \n -> return n % 2 == 1
 if odd(8) y = 1 else y = 2
 assert(y == 2)
+
+-- one lines if else if else
+if x == nil for y = 1, 10 do until true else if x == 0 assert(x) else if x assert(x) else assert(not x)
+--assert(y == 1)
 
 
 -- dedent after single lined else

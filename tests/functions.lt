@@ -1,6 +1,14 @@
 -- immediately invoked empty function
 (->)()
 
+-- expression list is eager
+var a,b,c = -> return 1,2,3, ->, ->
+assert(type(({a()})[4]) == "function")
+assert(b == nil)
+assert(c == nil)
+
+assert(({(-> return 1,2,3, ->, ->)()})[3] == 3)
+
 var eq = require('tests.inc').eq
 
 var t = {}

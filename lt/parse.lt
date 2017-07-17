@@ -4,8 +4,8 @@ var LJ_52 = false
 
 var IsLastStatement = { TK_return = true, TK_break  = true }
 var EndOfBlock = { TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true }
+var EndOfFunction = { ['}'] = true, [')'] = true, [','] = true} --   `,` is to end function within a table
 var NewLine = { TK_newline = true }
-var EmptyFunction = { [','] = true, ['}'] = true, [')'] = true }
 
 var ReservedKeyword = { ['and'] = 1, ['break'] = 2, ['do'] = 3, ['else'] = 4, ['elseif'] = 5, ['end'] = 6, ['false'] = 7, ['for'] = 8, ['function'] = 9, ['goto'] = 10, ['if'] = 11, ['in'] = 12, ['local'] = 13, ['nil'] = 14, ['not'] = 15, ['or'] = 16, ['repeat'] = 17, ['return'] = 18, ['then'] = 19, ['true'] = 20, ['until'] = 21, ['while'] = 22, ['var'] = 23 }
 
@@ -14,9 +14,6 @@ var is_keyword = \ls ->
 	if ReservedKeyword[str]
 		return str
 
-
--- indentation stack within a multi line expr/stmt
-var indent
 
 var err_syntax = \ls, em ->
 	--ls.error(@, ls.token, em)
@@ -50,43 +47,29 @@ var lex_opt = \ls, tok ->
 
 
 -- return true only if a real indent is eaten
-var lex_indent = \ls, eat_nl ->
-	if NewLine[ls.token]
-		if ls.lookahead(@) == 'TK_indent'
-			ls.next(@)  -- eat the newline
-			ls.next(@)
-			indent = indent + 1
-			return true
-		else
-			if eat_nl
-				ls.next(@)
-		
-	
-
+var lex_indent = \ls ->
+	if NewLine[ls.token] and ls.lookahead(@) == 'TK_indent'
+		lex_opt(ls, 'TK_newline')
+		ls.next(@)
+		return true
 	return false
 
 
 -- return true only if a real dedent is eaten
-var lex_dedent = \ls, eat_nl ->
-	if indent > 0
-		if NewLine[ls.token]
-			if ls.lookahead(@) == 'TK_dedent'
-				ls.next(@)  -- eat the newline
-				ls.next(@)
-				indent = indent - 1
-				return true
-			else
-				if eat_nl
-					ls.next(@)  -- eat the newline
-			
-		
-		else if ls.token == 'TK_dedent'
-			ls.next(@)
-			indent = indent - 1
-			return true
-	
-
+var lex_dedent = \ls ->
+	if ls.token == 'TK_dedent' or NewLine[ls.token] and ls.lookahead(@) == 'TK_dedent'
+		lex_opt(ls, 'TK_newline')
+		ls.next(@)
+		return true
 	return false
+
+var lex_opt_dent = \ls, dented ->
+	if not dented
+		dented = lex_indent(ls)
+	else
+		dented = not lex_dedent(ls)
+	lex_opt(ls, 'TK_newline')
+	return dented
 
 
 var lex_check = \ls, tok ->
@@ -221,10 +204,10 @@ var expr_bracket = \ast, ls ->
 expr_table = \ast, ls ->
 	var line = ls.linenumber
 	var kvs = {}
+	var dented
 	lex_check(ls, '{')
 	while ls.token ~= '}'
-		lex_indent(ls, true)
-		lex_dedent(ls)
+		dented = lex_opt_dent(ls, dented)
 		-- in case the table ends immediately
 		if ls.token == '}'
 			break
@@ -245,30 +228,24 @@ expr_table = \ast, ls ->
 				if name
 					key = ast.literal(@, name)
 					ls.next(@)
-			
-		
 			lex_check(ls, '=')
 	
 		var val = expr(ast, ls)
-		lex_indent(ls, true)
-		lex_dedent(ls)
 		if key
 			for i = 1, #kvs
 				var arr = kvs[i]
 				if same_ast(arr[2], key)
 					err_syntax(ls, "duplicate key at position " .. i .. " and " .. (#kvs + 1) .. " in table")
-			
-		
 	
 		kvs[#kvs + 1] = { val, key }  -- key can be nil
+
+		dented = lex_opt_dent(ls, dented)
 		if not lex_opt(ls, ',')
 			break
-	
 
-	lex_dedent(ls, true)
+	if dented and not lex_dedent(ls)
+		err_syntax(ls, "<dedent> expected to match <indent> at line " .. line)
 	lex_match(ls, '}', '{', line)
-	-- leave the last dedent for caller
-	--lex_dedent(ls)
 	return ast.expr_table(@, kvs, line)
 
 
@@ -318,22 +295,11 @@ expr_simple = \ast, ls ->
 	return e
 
 
-expr_list = \ast, ls, indentable ->
+expr_list = \ast, ls ->
 	var exps = { }
 	exps[1] = expr(ast, ls)
-	if indentable
-		lex_indent(ls, true)
-
 	while lex_opt(ls, ',')
-		if indentable
-			lex_indent(ls, true)
-			lex_dedent(ls)
-	
 		exps[#exps + 1] = expr(ast, ls)
-		if indentable
-			lex_indent(ls, true)
-			lex_dedent(ls)
-	
 
 	var n = #exps
 	if n > 0
@@ -485,17 +451,24 @@ var parse_for = \ast, ls, line ->
 parse_args = \ast, ls ->
 	var line = ls.linenumber
 	lex_check(ls, '(')
-	--if not LJ_52 and line ~= ls.lastline
-	--    err_syntax(ls, "ambiguous syntax (function call x new statement)")
-	
-	lex_indent(ls, true)
-	var args
-	if ls.token ~= ')'
-		args = expr_list(ast, ls, true)
-	else
-		args = { }
+	if not LJ_52 and line ~= ls.lastline
+		err_syntax(ls, "ambiguous syntax (function call x new statement)")
 
-	lex_dedent(ls, true)
+	var dented
+	var args = { }
+	while ls.token ~= ')'
+		dented = lex_opt_dent(ls, dented)
+		if ls.token == ')'
+			break
+
+		args[#args + 1] = expr(ast, ls)
+		
+		dented = lex_opt_dent(ls, dented)
+		if not lex_opt(ls, ',')
+			break
+		
+	if dented and not lex_dedent(ls)
+		err_syntax(ls, "<dedent> expected to match <indent> at line " .. line)
 	lex_match(ls, ')', '(', line)
 	-- leave the last dedent for caller
 	--lex_dedent(ls)
@@ -518,6 +491,9 @@ parse_args = \ast, ls ->
 		err_syntax(ls, "function arguments expected")
 
 	--]]
+	var n = #args
+	if n > 0
+		args[n] = ast.set_expr_last(@, args[n])
 	return args
 
 
@@ -588,7 +564,8 @@ var parse_if = \ast, ls, line ->
 	blocks[1] = parse_opt_block(ast, ls, line, 'TK_if')
 	ast.fscope_end(@)
 	var else_branch
-	while ls.token == 'TK_else'
+	while ls.token == 'TK_else' or NewLine[ls.token] and ls.lookahead(@) == 'TK_else'
+		lex_opt(ls, 'TK_newline')
 		ls.next(@)
 		if ls.token == 'TK_if'
 			ls.next(@)
@@ -634,7 +611,6 @@ var parse_label = \ast, ls ->
 		--    ls.next(@)
 		else
 			break
-	
 
 	return ast.label_stmt(@, name, ls.linenumber)
 
@@ -683,7 +659,6 @@ var parse_stmt = \ast, ls ->
 		if LJ_52 or ls.lookahead(@) == 'TK_name'
 			ls.next(@)
 			stmt = parse_goto(ast, ls)
-	
 
 	-- If here 'stmt' is "nil" then ls.token didn't match any of the previous rules.
 	-- Fall back to call/assign rule.
@@ -754,14 +729,16 @@ parse_opt_block = \ast, ls, line, match_token ->
 			ls.error(@, ls.token, "<dedent> expected to end %s at line %d", ls.token2str(match_token), line)
 	
 	else
-		if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EmptyFunction[ls.token]
+		if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
 			-- single statement
-			-- this is not worst than C single statement without brace
 			body[1] = parse_stmt(ast, ls)
 			body.firstline, body.lastline = line, ls.linenumber
 		-- if lookahead is indent, it belongs to parent block
-		if NewLine[ls.token] and ls.lookahead(@) ~= 'TK_indent'
-			ls.next(@)
+		--if NewLine[ls.token] and ls.lookahead(@) ~= 'TK_indent'
+		--	ls.next(@)
+		--else
+		if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
+			ls.error(@, ls.token, "only one statement may stay near `" .. ls.token2str(match_token) .. "`. <newline> expected")
 	return body
 
 
@@ -790,7 +767,6 @@ parse_block = \ast, ls, firstline ->
 
 
 var parse = \ast, ls ->
-	indent = 0
 	ls.next(@)
 	lex_opt(ls, 'TK_newline')
 	ls.fs = { varargs = false }
@@ -798,12 +774,8 @@ var parse = \ast, ls ->
 	var args = { ast.expr_vararg(@, ast) }
 	var chunk = parse_chunk(ast, ls)
 	ast.fscope_end(@)
-	if ls.token == 'TK_dedent'
-		err_syntax(ls, "<dedent> expected near the previous statement/expression")
-	else if ls.token ~= 'TK_eof'
-		err_syntax(ls, "unexpected extra '" .. ls.token2str(ls.token) .. "'")
-
-	assert(indent == 0)
+	if ls.token ~= 'TK_eof'
+		err_syntax(ls, "unexpected extra `" .. ls.token2str(ls.token) .. "`")
 	return chunk
 
 

@@ -6,8 +6,8 @@ local operator = require("lt.operator")
 local LJ_52 = false
 local IsLastStatement = {TK_return = true, TK_break = true}
 local EndOfBlock = {TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true}
+local EndOfFunction = {["}"] = true, [")"] = true, [","] = true}
 local NewLine = {TK_newline = true}
-local EmptyFunction = {[","] = true, ["}"] = true, [")"] = true}
 local ReservedKeyword = {["and"] = 1, ["break"] = 2, ["do"] = 3, ["else"] = 4, ["elseif"] = 5, ["end"] = 6, ["false"] = 7, ["for"] = 8, ["function"] = 9, ["goto"] = 10, ["if"] = 11, ["in"] = 12, ["local"] = 13, ["nil"] = 14, ["not"] = 15, ["or"] = 16, ["repeat"] = 17, ["return"] = 18, ["then"] = 19, ["true"] = 20, ["until"] = 21, ["while"] = 22, var = 23}
 local is_keyword = function(ls)
     local str = ls.token2str(ls.token)
@@ -15,7 +15,6 @@ local is_keyword = function(ls)
         return str
     end
 end
-local indent
 local err_syntax = function(ls, em)
     local msg = string.format("%s:%d   %s", ls.chunkname, ls.linenumber, em)
     error("LT-ERROR" .. msg, 0)
@@ -42,41 +41,30 @@ local lex_opt = function(ls, tok)
     end
     return false
 end
-local lex_indent = function(ls, eat_nl)
-    if NewLine[ls.token] then
-        if ls:lookahead() == "TK_indent" then
-            ls:next()
-            ls:next()
-            indent = indent + 1
-            return true
-        else
-            if eat_nl then
-                ls:next()
-            end
-        end
+local lex_indent = function(ls)
+    if NewLine[ls.token] and ls:lookahead() == "TK_indent" then
+        lex_opt(ls, "TK_newline")
+        ls:next()
+        return true
     end
     return false
 end
-local lex_dedent = function(ls, eat_nl)
-    if indent > 0 then
-        if NewLine[ls.token] then
-            if ls:lookahead() == "TK_dedent" then
-                ls:next()
-                ls:next()
-                indent = indent - 1
-                return true
-            else
-                if eat_nl then
-                    ls:next()
-                end
-            end
-        elseif ls.token == "TK_dedent" then
-            ls:next()
-            indent = indent - 1
-            return true
-        end
+local lex_dedent = function(ls)
+    if ls.token == "TK_dedent" or NewLine[ls.token] and ls:lookahead() == "TK_dedent" then
+        lex_opt(ls, "TK_newline")
+        ls:next()
+        return true
     end
     return false
+end
+local lex_opt_dent = function(ls, dented)
+    if not dented then
+        dented = lex_indent(ls)
+    else
+        dented = not lex_dedent(ls)
+    end
+    lex_opt(ls, "TK_newline")
+    return dented
 end
 local lex_check = function(ls, tok)
     if ls.token ~= tok then
@@ -202,10 +190,10 @@ end
 expr_table = function(ast, ls)
     local line = ls.linenumber
     local kvs = {}
+    local dented
     lex_check(ls, "{")
     while ls.token ~= "}" do
-        lex_indent(ls, true)
-        lex_dedent(ls)
+        dented = lex_opt_dent(ls, dented)
         if ls.token == "}" then
             break
         end
@@ -230,8 +218,6 @@ expr_table = function(ast, ls)
             lex_check(ls, "=")
         end
         local val = expr(ast, ls)
-        lex_indent(ls, true)
-        lex_dedent(ls)
         if key then
             for i = 1, #kvs do
                 local arr = kvs[i]
@@ -241,11 +227,14 @@ expr_table = function(ast, ls)
             end
         end
         kvs[#kvs + 1] = {val, key}
+        dented = lex_opt_dent(ls, dented)
         if not lex_opt(ls, ",") then
             break
         end
     end
-    lex_dedent(ls, true)
+    if dented and not lex_dedent(ls) then
+        err_syntax(ls, "<dedent> expected to match <indent> at line " .. line)
+    end
     lex_match(ls, "}", "{", line)
     return ast:expr_table(kvs, line)
 end
@@ -294,22 +283,11 @@ expr_simple = function(ast, ls)
     ls:next()
     return e
 end
-expr_list = function(ast, ls, indentable)
+expr_list = function(ast, ls)
     local exps = {}
     exps[1] = expr(ast, ls)
-    if indentable then
-        lex_indent(ls, true)
-    end
     while lex_opt(ls, ",") do
-        if indentable then
-            lex_indent(ls, true)
-            lex_dedent(ls)
-        end
         exps[#exps + 1] = expr(ast, ls)
-        if indentable then
-            lex_indent(ls, true)
-            lex_dedent(ls)
-        end
     end
     local n = #exps
     if n > 0 then
@@ -441,15 +419,30 @@ end
 parse_args = function(ast, ls)
     local line = ls.linenumber
     lex_check(ls, "(")
-    lex_indent(ls, true)
-    local args
-    if ls.token ~= ")" then
-        args = expr_list(ast, ls, true)
-    else
-        args = {}
+    if not LJ_52 and line ~= ls.lastline then
+        err_syntax(ls, "ambiguous syntax (function call x new statement)")
     end
-    lex_dedent(ls, true)
+    local dented
+    local args = {}
+    while ls.token ~= ")" do
+        dented = lex_opt_dent(ls, dented)
+        if ls.token == ")" then
+            break
+        end
+        args[#args + 1] = expr(ast, ls)
+        dented = lex_opt_dent(ls, dented)
+        if not lex_opt(ls, ",") then
+            break
+        end
+    end
+    if dented and not lex_dedent(ls) then
+        err_syntax(ls, "<dedent> expected to match <indent> at line " .. line)
+    end
     lex_match(ls, ")", "(", line)
+    local n = #args
+    if n > 0 then
+        args[n] = ast:set_expr_last(args[n])
+    end
     return args
 end
 local parse_assignment
@@ -512,7 +505,8 @@ local parse_if = function(ast, ls, line)
     blocks[1] = parse_opt_block(ast, ls, line, "TK_if")
     ast:fscope_end()
     local else_branch
-    while ls.token == "TK_else" do
+    while ls.token == "TK_else" or NewLine[ls.token] and ls:lookahead() == "TK_else" do
+        lex_opt(ls, "TK_newline")
         ls:next()
         if ls.token == "TK_if" then
             ls:next()
@@ -652,12 +646,12 @@ parse_opt_block = function(ast, ls, line, match_token)
             ls:error(ls.token, "<dedent> expected to end %s at line %d", ls.token2str(match_token), line)
         end
     else
-        if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EmptyFunction[ls.token] then
+        if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token] then
             body[1] = parse_stmt(ast, ls)
             body.firstline, body.lastline = line, ls.linenumber
         end
-        if NewLine[ls.token] and ls:lookahead() ~= "TK_indent" then
-            ls:next()
+        if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token] then
+            ls:error(ls.token, "only one statement may stay near `" .. ls.token2str(match_token) .. "`. <newline> expected")
         end
     end
     return body
@@ -681,7 +675,6 @@ parse_block = function(ast, ls, firstline)
     return body
 end
 local parse = function(ast, ls)
-    indent = 0
     ls:next()
     lex_opt(ls, "TK_newline")
     ls.fs = {varargs = false}
@@ -689,12 +682,9 @@ local parse = function(ast, ls)
     local args = {ast:expr_vararg(ast)}
     local chunk = parse_chunk(ast, ls)
     ast:fscope_end()
-    if ls.token == "TK_dedent" then
-        err_syntax(ls, "<dedent> expected near the previous statement/expression")
-    elseif ls.token ~= "TK_eof" then
-        err_syntax(ls, "unexpected extra '" .. ls.token2str(ls.token) .. "'")
+    if ls.token ~= "TK_eof" then
+        err_syntax(ls, "unexpected extra `" .. ls.token2str(ls.token) .. "`")
     end
-    assert(indent == 0)
     return chunk
 end
 return parse
