@@ -84,82 +84,6 @@ var lex_match = \ls, what, who, line ->
 		else
 			var token2str = ls.token2str
 			ls.error(@, ls.token, "'%s' expected to match '%s' at line %d", token2str(what), token2str(who), line)
-	
-
-
-
-var in_scope = \ast, ls, v ->
-	if v.name
-		var scope = ast.current
-		while not scope.vars[v.name]
-			scope = scope.parent
-			if not scope
-				return false
-		return true
-	return false
-
-
-var dupl_check = \ast, ls, vars ->
-	var n = #vars
-	for i = 1, n
-		var v = vars[i]
-		for j = i+1, n
-			if vars[j] == v
-				err_syntax(ls, "duplicate `var " .. v .. "`")
-
-		var scope = ast.current
-		-- shadowing var at parent scope is normal
-		--do
-		if scope.vars[v]
-			err_syntax(ls, "duplicate `var " .. v .. "`")
-		--scope = scope.parent
-		--until not scope
-
-
-var same_ast
-same_ast = \a, b ->
-	if a and b and a.kind == b.kind
-		-- http://stackoverflow.com/questions/27674367/lua-check-if-a-table-can-be-looped-through-via-ipairs-ipairs-starting-at-0
-		var last = 1
-		if #a ~= #b
-			return false
-	
-		for i, v in ipairs(a)
-			last = i
-			if "table" == type(v)
-				if not same_ast(v, b[i])
-					return false
-			
-			else if b[i] ~= v
-				return false
-		
-	
-		for k, v in pairs(a)
-			if "number" ~= type(k) or k < 1 or k > last or math.floor(k) ~= k
-				if "table" == type(v)
-					if not same_ast(v, b[k])
-						return false
-				
-				else if b[k] ~= v
-					return false
-			
-		
-	
-		-- b may have more keys than a
-		for k, v in pairs(b)
-			if "number" ~= type(k) or k < 1 or k > last or math.floor(k) ~= k
-				if "table" == type(v)
-					if not same_ast(v, a[k])
-						return false
-				
-				else if a[k] ~= v
-					return false
-			
-		
-	
-		return true
-  
-	return false
 
 
 var lex_str = \ls ->
@@ -234,7 +158,7 @@ expr_table = \ast, ls ->
 		if key
 			for i = 1, #kvs
 				var arr = kvs[i]
-				if same_ast(arr[2], key)
+				if ast.same(arr[2], key)
 					err_syntax(ls, "duplicate key at position " .. i .. " and " .. (#kvs + 1) .. " in table")
 	
 		kvs[#kvs + 1] = { val, key }  -- key can be nil
@@ -279,7 +203,7 @@ expr_simple = \ast, ls ->
 		var lambda = ast.expr_function(@, args, body, proto)
 		if curry
 			curry = ast.identifier(@, 'curry')
-			if not in_scope(ast, ls, curry)
+			if not ast.in_scope(@, curry)
 				err_syntax(ls, curry.name .. "() is required for ~>")
 		
 			var cargs = { ast.literal(@, #args), lambda }
@@ -370,10 +294,8 @@ expr_primary = \ast, ls ->
 				vk, v = 'call', ast.expr_method_call(@, v, args, line)
 			else
 				vk, v = 'call', ast.expr_function_call(@, v, args, line)
-		
 		else
 			break
-	
 
 	return v, vk
 
@@ -470,8 +392,6 @@ parse_args = \ast, ls ->
 	if dented and not lex_dedent(ls)
 		err_syntax(ls, "<dedent> expected to match <indent> at line " .. line)
 	lex_match(ls, ')', '(', line)
-	-- leave the last dedent for caller
-	--lex_dedent(ls)
 
 	--[[  function call must have parens `()`, in which we allow newlines
 	if ls.token == '('
@@ -489,7 +409,6 @@ parse_args = \ast, ls ->
 		args = { ast.longstrliteral(@, a) }
 	else
 		err_syntax(ls, "function arguments expected")
-
 	--]]
 	var n = #args
 	if n > 0
@@ -510,7 +429,7 @@ parse_assignment = \ast, ls, vlist, v, vk ->
 		return parse_assignment(ast, ls, vlist, n_var, n_vk)
 	else -- Parse RHS.
 		lex_check(ls, '=')
-		if vk == 'var' and not in_scope(ast, ls, v)
+		if vk == 'var' and not ast.in_scope(@, v)
 			err_syntax(ls, "undeclared identifier " .. v.name)
 	
 		var exps = expr_list(ast, ls)
@@ -527,7 +446,6 @@ var parse_call_assign = \ast, ls ->
 		return parse_assignment(ast, ls, vlist, v, vk)
 
 
-
 -- Parse 'var' statement.
 var parse_var = \ast, ls ->
 	var line = ls.linenumber
@@ -535,7 +453,8 @@ var parse_var = \ast, ls ->
 	do -- Collect LHS.
 		vl[#vl+1] = lex_str(ls)
 	until not lex_opt(ls, ',')
-	dupl_check(ast, ls, vl)
+	if ast.overwritten(@, vl)
+		err_syntax(ls, "duplicate `var " .. v .. "`")
 
 	var exps
 	if lex_opt(ls, '=') -- Optional RHS.

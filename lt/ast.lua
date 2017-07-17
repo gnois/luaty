@@ -32,9 +32,7 @@ end
 AST.local_decl = function(ast, vlist, exps, line)
     local ids = {}
     for k = 1, #vlist do
-        do
-            ids[k] = ast:var_declare(vlist[k])
-        end
+        ids[k] = ast:var_declare(vlist[k])
     end
     return build("LocalDeclaration", {names = ids, expressions = exps, line = line})
 end
@@ -163,6 +161,79 @@ end
 AST.fscope_end = function(ast)
     ast.current = ast.current.parent
 end
+AST.in_scope = function(ast, v)
+    if v.name then
+        local scope = ast.current
+        while not scope.vars[v.name] do
+            scope = scope.parent
+            if not scope then
+                return false
+            end
+        end
+        return true
+    end
+    return false
+end
+AST.overwritten = function(ast, vars)
+    local n = #vars
+    for i = 1, n do
+        local v = vars[i]
+        for j = i + 1, n do
+            if vars[j] == v then
+                return true
+            end
+        end
+        local scope = ast.current
+        if scope.vars[v] then
+            return true
+        end
+    end
+    return false
+end
+local same
+same = function(a, b)
+    if a and b and a.kind == b.kind then
+        local last = 1
+        if #a ~= #b then
+            return false
+        end
+        for i, v in ipairs(a) do
+            last = i
+            if "table" == type(v) then
+                if not same(v, b[i]) then
+                    return false
+                end
+            elseif b[i] ~= v then
+                return false
+            end
+        end
+        for k, v in pairs(a) do
+            if "number" ~= type(k) or k < 1 or k > last or math.floor(k) ~= k then
+                if "table" == type(v) then
+                    if not same(v, b[k]) then
+                        return false
+                    end
+                elseif b[k] ~= v then
+                    return false
+                end
+            end
+        end
+        for k, v in pairs(b) do
+            if "number" ~= type(k) or k < 1 or k > last or math.floor(k) ~= k then
+                if "table" == type(v) then
+                    if not same(v, a[k]) then
+                        return false
+                    end
+                elseif a[k] ~= v then
+                    return false
+                end
+            end
+        end
+        return true
+    end
+    return false
+end
+AST.same = same
 local ASTClass = {__index = AST}
 local new_ast = function()
     return setmetatable({}, ASTClass)

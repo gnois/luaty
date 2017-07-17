@@ -82,77 +82,6 @@ local lex_match = function(ls, what, who, line)
         end
     end
 end
-local in_scope = function(ast, ls, v)
-    if v.name then
-        local scope = ast.current
-        while not scope.vars[v.name] do
-            scope = scope.parent
-            if not scope then
-                return false
-            end
-        end
-        return true
-    end
-    return false
-end
-local dupl_check = function(ast, ls, vars)
-    local n = #vars
-    for i = 1, n do
-        local v = vars[i]
-        for j = i + 1, n do
-            if vars[j] == v then
-                err_syntax(ls, "duplicate `var " .. v .. "`")
-            end
-        end
-        local scope = ast.current
-        if scope.vars[v] then
-            err_syntax(ls, "duplicate `var " .. v .. "`")
-        end
-    end
-end
-local same_ast
-same_ast = function(a, b)
-    if a and b and a.kind == b.kind then
-        local last = 1
-        if #a ~= #b then
-            return false
-        end
-        for i, v in ipairs(a) do
-            last = i
-            if "table" == type(v) then
-                if not same_ast(v, b[i]) then
-                    return false
-                end
-            elseif b[i] ~= v then
-                return false
-            end
-        end
-        for k, v in pairs(a) do
-            if "number" ~= type(k) or k < 1 or k > last or math.floor(k) ~= k then
-                if "table" == type(v) then
-                    if not same_ast(v, b[k]) then
-                        return false
-                    end
-                elseif b[k] ~= v then
-                    return false
-                end
-            end
-        end
-        for k, v in pairs(b) do
-            if "number" ~= type(k) or k < 1 or k > last or math.floor(k) ~= k then
-                if "table" == type(v) then
-                    if not same_ast(v, a[k]) then
-                        return false
-                    end
-                elseif a[k] ~= v then
-                    return false
-                end
-            end
-        end
-        return true
-    end
-    return false
-end
 local lex_str = function(ls)
     if ls.token ~= "TK_name" and (LJ_52 or ls.token ~= "TK_goto") then
         err_token(ls, "TK_name")
@@ -221,7 +150,7 @@ expr_table = function(ast, ls)
         if key then
             for i = 1, #kvs do
                 local arr = kvs[i]
-                if same_ast(arr[2], key) then
+                if ast.same(arr[2], key) then
                     err_syntax(ls, "duplicate key at position " .. i .. " and " .. #kvs + 1 .. " in table")
                 end
             end
@@ -268,7 +197,7 @@ expr_simple = function(ast, ls)
         local lambda = ast:expr_function(args, body, proto)
         if curry then
             curry = ast:identifier("curry")
-            if not in_scope(ast, ls, curry) then
+            if not ast:in_scope(curry) then
                 err_syntax(ls, curry.name .. "() is required for ~>")
             end
             local cargs = {ast:literal(#args), lambda}
@@ -457,7 +386,7 @@ parse_assignment = function(ast, ls, vlist, v, vk)
         return parse_assignment(ast, ls, vlist, n_var, n_vk)
     else
         lex_check(ls, "=")
-        if vk == "var" and not in_scope(ast, ls, v) then
+        if vk == "var" and not ast:in_scope(v) then
             err_syntax(ls, "undeclared identifier " .. v.name)
         end
         local exps = expr_list(ast, ls)
@@ -479,7 +408,9 @@ local parse_var = function(ast, ls)
     repeat
         vl[#vl + 1] = lex_str(ls)
     until not lex_opt(ls, ",")
-    dupl_check(ast, ls, vl)
+    if ast:overwritten(vl) then
+        err_syntax(ls, "duplicate `var " .. v .. "`")
+    end
     local exps
     if lex_opt(ls, "=") then
         exps = expr_list(ast, ls)
