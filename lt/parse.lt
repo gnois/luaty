@@ -635,8 +635,9 @@ var parse_block_stmts = \ast, ls ->
 		body[#body + 1] = stmt
 		lex_opt(ls, 'TK_newline')
 		-- deliberately disallow multiple statement in one line
-		if stmted == ls.linenumber and ls.token ~= 'TK_eof'
-			ls.error(ls, ls.token, "only one statement allowed per line. <newline> expected")
+		if stmted == ls.linenumber
+			if ls.token ~= 'TK_eof' and ls.token ~= 'TK_dedent' and ls.lookahead(@) ~= 'TK_eof'
+				ls.error(ls, ls.token, "only one statement allowed per line. <newline> expected")
 
 	return body, firstline, ls.linenumber
 

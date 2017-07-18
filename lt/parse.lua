@@ -564,8 +564,10 @@ local parse_block_stmts = function(ast, ls)
         stmt, islast = parse_stmt(ast, ls)
         body[#body + 1] = stmt
         lex_opt(ls, "TK_newline")
-        if stmted == ls.linenumber and ls.token ~= "TK_eof" then
-            ls.error(ls, ls.token, "only one statement allowed per line. <newline> expected")
+        if stmted == ls.linenumber then
+            if ls.token ~= "TK_eof" and ls.token ~= "TK_dedent" and ls:lookahead() ~= "TK_eof" then
+                ls.error(ls, ls.token, "only one statement allowed per line. <newline> expected")
+            end
         end
     end
     return body, firstline, ls.linenumber
