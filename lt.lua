@@ -58,7 +58,7 @@ else
         error(err)
     else
         -- get the filename without path
-        local basename = string.gsub(source, "(.*/)(.*)", "%2")
+        local basename = string.gsub(source, "(.*[/\\])(.*)", "%2")
         f:write("--\n-- Generated from " .. basename .. "\n--\n\n")
         f:write(luacode)
     end
