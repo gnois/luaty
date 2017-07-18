@@ -8,7 +8,7 @@ It compiles with basic lint checks to clean Lua.
 Its syntax resembles Lua, albeit shorter.
 If you know Lua, you already knew most of Luaty.
 
-After all, it's just a play of ***Lua*** with less ***ty***ping. 
+After all, it's just a play of **Lua** with less **ty**ping.
 
 
 Quick start
@@ -53,7 +53,7 @@ if not x
 print 'a'                          -- Error: '=' expected instead of 'a'. This is valid in Lua
 
 function f()                       -- Error: use '->' instead of 'function'
--> print('x')                      -- Error: lambda expression by itself not allowed
+-> print('x')                      -- Error: lambda expression by itself not allowed. It should either be immediately invoked or assigned
 (-> print('x'))()                  -- Ok, immediately invoked lambda
 var f = -> print('x')              -- Ok, lambda with assignment statement
 
