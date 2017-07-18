@@ -9,6 +9,7 @@ local EndOfBlock = {TK_dedent = true, TK_else = true, TK_until = true, TK_eof = 
 local EndOfFunction = {["}"] = true, [")"] = true, [","] = true}
 local NewLine = {TK_newline = true}
 local ReservedKeyword = {["and"] = 1, ["break"] = 2, ["do"] = 3, ["else"] = 4, ["elseif"] = 5, ["end"] = 6, ["false"] = 7, ["for"] = 8, ["function"] = 9, ["goto"] = 10, ["if"] = 11, ["in"] = 12, ["local"] = 13, ["nil"] = 14, ["not"] = 15, ["or"] = 16, ["repeat"] = 17, ["return"] = 18, ["then"] = 19, ["true"] = 20, ["until"] = 21, ["while"] = 22, var = 23}
+local stmted
 local is_keyword = function(ls)
     local str = ls.token2str(ls.token)
     if ReservedKeyword[str] then
@@ -559,9 +560,13 @@ local parse_block_stmts = function(ast, ls)
     local stmt, islast = nil, false
     local body = {}
     while not islast and not EndOfBlock[ls.token] do
+        stmted = ls.linenumber
         stmt, islast = parse_stmt(ast, ls)
         body[#body + 1] = stmt
         lex_opt(ls, "TK_newline")
+        if stmted == ls.linenumber and ls.token ~= "TK_eof" then
+            ls.error(ls, ls.token, "only one statement allowed per line. <newline> expected")
+        end
     end
     return body, firstline, ls.linenumber
 end

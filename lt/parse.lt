@@ -9,6 +9,10 @@ var NewLine = { TK_newline = true }
 
 var ReservedKeyword = { ['and'] = 1, ['break'] = 2, ['do'] = 3, ['else'] = 4, ['elseif'] = 5, ['end'] = 6, ['false'] = 7, ['for'] = 8, ['function'] = 9, ['goto'] = 10, ['if'] = 11, ['in'] = 12, ['local'] = 13, ['nil'] = 14, ['not'] = 15, ['or'] = 16, ['repeat'] = 17, ['return'] = 18, ['then'] = 19, ['true'] = 20, ['until'] = 21, ['while'] = 22, ['var'] = 23 }
 
+
+-- disallow multiple statement on one line
+var stmted  -- statement already found on that line number
+
 var is_keyword = \ls ->
 	var str = ls.token2str(ls.token)
 	if ReservedKeyword[str]
@@ -626,9 +630,13 @@ var parse_block_stmts = \ast, ls ->
 	var stmt, islast = nil, false
 	var body = { }
 	while not islast and not EndOfBlock[ls.token]
+		stmted = ls.linenumber
 		stmt, islast = parse_stmt(ast, ls)
 		body[#body + 1] = stmt
 		lex_opt(ls, 'TK_newline')
+		-- deliberately disallow multiple statement in one line
+		if stmted == ls.linenumber and ls.token ~= 'TK_eof'
+			ls.error(ls, ls.token, "only one statement allowed per line. <newline> expected")
 
 	return body, firstline, ls.linenumber
 
@@ -693,6 +701,8 @@ var parse = \ast, ls ->
 	var args = { ast.expr_vararg(@, ast) }
 	var chunk = parse_chunk(ast, ls)
 	ast.fscope_end(@)
+	--lex_check(ls, 'TK_eof')
+	-- give better message
 	if ls.token ~= 'TK_eof'
 		err_syntax(ls, "unexpected extra `" .. ls.token2str(ls.token) .. "`")
 	return chunk
