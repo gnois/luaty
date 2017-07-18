@@ -4,9 +4,6 @@ var uint64 = ffi.typeof('uint64_t')
 var complex = ffi.typeof('complex')
 var stack = require("lt.stack")
 
-var band = bit.band
-var strsub, strbyte, strchar = string.sub, string.byte, string.char
-
 var ASCII_0, ASCII_9 = 48, 57
 var ASCII_a, ASCII_f, ASCII_z = 97, 102, 122
 var ASCII_A, ASCII_Z = 65, 90
@@ -67,7 +64,7 @@ var parse_error = \ls, token, em, ... ->
 
 var char_isalnum = \c ->
 	if type(c) == 'string'
-		var b = strbyte(c)
+		var b = string.byte(c)
 		if b >= ASCII_0 and b <= ASCII_9
 			return true
 		else if b >= ASCII_a and b <= ASCII_z
@@ -83,20 +80,20 @@ var char_isalnum = \c ->
 
 var char_isdigit = \c ->
 	if type(c) == 'string'
-		var b = strbyte(c)
+		var b = string.byte(c)
 		return b >= ASCII_0 and b <= ASCII_9
 
 	return false
 
 
 var char_isspace = \c ->
-	var b = strbyte(c)
+	var b = string.byte(c)
 	return b >= 9 and b <= 13 or b == 32
 
 
 var byte = \ls, n ->
 	var k = ls.p + n
-	return strsub(ls.data, k, k)
+	return string.sub(ls.data, k, k)
 
 
 var skip = \ls, n ->
@@ -106,7 +103,7 @@ var skip = \ls, n ->
 
 var popchar = \ls ->
 	var k = ls.p
-	var c = strsub(ls.data, k, k)
+	var c = string.sub(ls.data, k, k)
 	ls.p = k + 1
 	ls.n = ls.n - 1
 	return c
@@ -132,7 +129,7 @@ var savebuf = \ls, c ->
 
 
 var get_string = \ls, init_skip, end_skip ->
-	return strsub(ls.save_buf, init_skip + 1, - (end_skip + 1))
+	return string.sub(ls.save_buf, init_skip + 1, - (end_skip + 1))
 
 
 var add_comment = \ls, str ->
@@ -211,9 +208,9 @@ var build_64hex = \str ->
 var strnumdump = \str ->
 	var t = {}
 	for i = 1, #str
-		var c = strsub(str, i, i)
+		var c = string.sub(str, i, i)
 		if char_isalnum(c)
-			t[i] = strbyte(c)
+			t[i] = string.byte(c)
 		else
 			return nil
 	
@@ -238,10 +235,10 @@ var lex_number = \ls ->
 
 	var str = ls.save_buf
 	var x
-	if strsub(str, -1, -1) == 'i'
-		var img = tonumber(strsub(str, 1, -2))
+	if string.sub(str, -1, -1) == 'i'
+		var img = tonumber(string.sub(str, 1, -2))
 		if img x = complex(0, img) 
-	else if strsub(str, -2, -1) == 'll'
+	else if string.sub(str, -2, -1) == 'll'
 		var t = strnumdump(str)
 		if t
 			x = xp == 'e' and build_64int(t) or build_64hex(t)
@@ -289,7 +286,7 @@ var read_long_string = \ls, sep, comment ->
 
 var hex_char = \c ->
 	if string.match(c, '^%x')
-		var b = band(strbyte(c), 15)
+		var b = bit.band(string.byte(c), 15)
 		if not char_isdigit(c) b = b + 9 
 		return b
 
@@ -314,7 +311,7 @@ var read_escape_char = \ls ->
 			var ch2 = hex_char(nextchar(ls))
 			if ch2
 				savebuf(ls, ls.current)
-				hc = strchar(ch1 * 16 + ch2)
+				hc = string.char(ch1 * 16 + ch2)
 		
 	
 		if not hc
@@ -348,13 +345,13 @@ var read_escape_char = \ls ->
 	
 		savebuf(ls, '\\')
 		savebuf(ls, c)
-		var bc = band(strbyte(c), 15) -- Decimal escape '\ddd'.
+		var bc = bit.band(string.byte(c), 15) -- Decimal escape '\ddd'.
 		if char_isdigit(nextchar(ls))
 			savebuf(ls, ls.current)
-			bc = bc * 10 + band(strbyte(ls.current), 15)
+			bc = bc * 10 + bit.band(string.byte(ls.current), 15)
 			if char_isdigit(nextchar(ls))
 				savebuf(ls, ls.current)
-				bc = bc * 10 + band(strbyte(ls.current), 15)
+				bc = bc * 10 + bit.band(string.byte(ls.current), 15)
 				nextchar(ls)
 		
 	

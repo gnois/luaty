@@ -4,7 +4,7 @@ var LJ_52 = false
 
 var IsLastStatement = { TK_return = true, TK_break  = true }
 var EndOfBlock = { TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true }
-var EndOfFunction = { ['}'] = true, [')'] = true, [','] = true} --   `,` is to end function within a table
+var EndOfFunction = { ['}'] = true, [')'] = true, [','] = true} -- `,` is to end function within a table
 var NewLine = { TK_newline = true }
 
 var ReservedKeyword = { ['and'] = 1, ['break'] = 2, ['do'] = 3, ['else'] = 4, ['elseif'] = 5, ['end'] = 6, ['false'] = 7, ['for'] = 8, ['function'] = 9, ['goto'] = 10, ['if'] = 11, ['in'] = 12, ['local'] = 13, ['nil'] = 14, ['not'] = 15, ['or'] = 16, ['repeat'] = 17, ['return'] = 18, ['then'] = 19, ['true'] = 20, ['until'] = 21, ['while'] = 22, ['var'] = 23 }
@@ -38,7 +38,6 @@ var err_symbol = \ls ->
 		msg = string.format("use %s instead of '%s'", rep, sym)
 	else
 		msg = string.format("unexpected %s", sym)
-
 	err_syntax(ls, msg)
 
 
@@ -46,7 +45,6 @@ var lex_opt = \ls, tok ->
 	if ls.token == tok
 		ls.next(@)
 		return true
-
 	return false
 
 
@@ -99,6 +97,7 @@ var lex_str = \ls ->
 	return s
 
 
+--- Expressions ------------------------------------------------
 var expr_primary, expr, expr_unop, expr_binop, expr_simple
 var expr_list, expr_table
 var parse_body, parse_block, parse_args, parse_opt_block
@@ -304,7 +303,7 @@ expr_primary = \ast, ls ->
 	return v, vk
 
 
--- Parse statements ----------------------------------------------------
+--- Statements ------------------------------------------------
 
 -- Parse 'return' statement.
 var parse_return = \ast, ls, line ->
@@ -457,7 +456,8 @@ var parse_var = \ast, ls ->
 	do -- Collect LHS.
 		vl[#vl+1] = lex_str(ls)
 	until not lex_opt(ls, ',')
-	if ast.overwritten(@, vl)
+	var v = ast.overwritten(@, vl)
+	if v
 		err_syntax(ls, "duplicate `var " .. v .. "`")
 
 	var exps

@@ -40,7 +40,7 @@ Philosophy:
 ```
 var x = false               -- `var` compiles to `local`
 if not x
-	print('nay')             -- `then` and `end` not needed
+   print('nay')             -- `then` and `end` not needed
 
 ```
 
@@ -58,9 +58,9 @@ function f()                       -- Error: use '->' instead of 'function'
 var f = -> print('x')              -- Ok, lambda with assignment statement
 
 var obj = {
-	value = 3
-	, foo = \@, k ->
-		return k * @.value           -- @ is equivalent to `self`
+   value = 3
+   , foo = \@, k ->
+      return k * @.value           -- @ is equivalent to `self`
 }
 
 p(obj:foo(2))                      -- Error: ')' expected instead of ':'. This is valid in Lua
@@ -69,15 +69,15 @@ assert(obj.foo(@, 2) == 6)         -- Ok, specify @ explicitly. Compiles to obj:
 
 ```
 
-- table keys can be keywords
+- table key can be keywords
 
 ```
 var e = {
-	var = 7
-	, local = 6
-	, function = 5
-	, if = \...-> return ...
-	, else = {true, false}
+   var = 7
+   , local = 6
+   , function = 5
+   , if = \...-> return ...
+   , else = {true, false}
 }
 
 assert(e.var == 7)                           -- Ok, e.var becomes e['var']
@@ -102,11 +102,11 @@ var p = print
 var p = 'p'               -- Error: duplicate var p
 
 var f = \z->
-	var z = 10             -- Error: duplicate var z
+   var z = 10             -- Error: duplicate var z
 
 var tbl = {
-	x = 1
-	, x = 3                -- Error: duplicate key 'x' in table
+   x = 1
+   , x = 3                -- Error: duplicate key 'x' in table
 }
 
 ```
@@ -139,25 +139,25 @@ if x == nil for y = 1, 10 do until true else if x == 0 assert(x) else if x asser
    - Multiple child statements should start at an indented newline
 ```
 if true
-	p(1)
-	p(2)
+   p(1)
+   p(2)
 
 ```
 4. An indent is allowed within table constructor/function call, but the line having its closing brace/parenthesis should realign back to its starting indent
 ```
 var y = { 1
-	,
-	2}                    -- Error: <dedent> expected
+   ,
+   2}                    -- Error: <dedent> expected
 
 var z = { 1
-	,
-	2
+   ,
+   2
 }                        -- Ok, last line realign back with a dedent
 
 print(
-	1,
-	2
-	, 3,
+   1,
+   2
+   , 3,
 4, 5)                    -- Ok, last line realign back to `print(`
 
 ```
@@ -166,7 +166,7 @@ print(
 * Note that proper indent/dedent makes a difference
 ```
 print(pcall(\x ->
-	return x
+   return x
 , 10))                                -- prints true, 10
 print(pcall(\x-> return x, 10))       -- prints true, nil, 10
 

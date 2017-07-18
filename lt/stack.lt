@@ -1,9 +1,7 @@
-var Stack = {}
-Stack.__index = Stack
+var Stack = { __index = Stack }
 
 Stack.new = ->
    return setmetatable({}, Stack) 
-
  
 -- put a new object onto a stack
 Stack.push = \@, input ->

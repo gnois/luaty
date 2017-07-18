@@ -7,8 +7,6 @@ local int64 = ffi.typeof("int64_t")
 local uint64 = ffi.typeof("uint64_t")
 local complex = ffi.typeof("complex")
 local stack = require("lt.stack")
-local band = bit.band
-local strsub, strbyte, strchar = string.sub, string.byte, string.char
 local ASCII_0, ASCII_9 = 48, 57
 local ASCII_a, ASCII_f, ASCII_z = 97, 102, 122
 local ASCII_A, ASCII_Z = 65, 90
@@ -58,7 +56,7 @@ local parse_error = function(ls, token, em, ...)
 end
 local char_isalnum = function(c)
     if type(c) == "string" then
-        local b = strbyte(c)
+        local b = string.byte(c)
         if b >= ASCII_0 and b <= ASCII_9 then
             return true
         elseif b >= ASCII_a and b <= ASCII_z then
@@ -73,18 +71,18 @@ local char_isalnum = function(c)
 end
 local char_isdigit = function(c)
     if type(c) == "string" then
-        local b = strbyte(c)
+        local b = string.byte(c)
         return b >= ASCII_0 and b <= ASCII_9
     end
     return false
 end
 local char_isspace = function(c)
-    local b = strbyte(c)
+    local b = string.byte(c)
     return b >= 9 and b <= 13 or b == 32
 end
 local byte = function(ls, n)
     local k = ls.p + n
-    return strsub(ls.data, k, k)
+    return string.sub(ls.data, k, k)
 end
 local skip = function(ls, n)
     ls.n = ls.n - n
@@ -92,7 +90,7 @@ local skip = function(ls, n)
 end
 local popchar = function(ls)
     local k = ls.p
-    local c = strsub(ls.data, k, k)
+    local c = string.sub(ls.data, k, k)
     ls.p = k + 1
     ls.n = ls.n - 1
     return c
@@ -114,7 +112,7 @@ local savebuf = function(ls, c)
     ls.save_buf = ls.save_buf .. c
 end
 local get_string = function(ls, init_skip, end_skip)
-    return strsub(ls.save_buf, init_skip + 1, -(end_skip + 1))
+    return string.sub(ls.save_buf, init_skip + 1, -(end_skip + 1))
 end
 local add_comment = function(ls, str)
     if not ls.comment_buf then
@@ -184,9 +182,9 @@ end
 local strnumdump = function(str)
     local t = {}
     for i = 1, #str do
-        local c = strsub(str, i, i)
+        local c = string.sub(str, i, i)
         if char_isalnum(c) then
-            t[i] = strbyte(c)
+            t[i] = string.byte(c)
         else
             return nil
         end
@@ -212,12 +210,12 @@ local lex_number = function(ls)
     end
     local str = ls.save_buf
     local x
-    if strsub(str, -1, -1) == "i" then
-        local img = tonumber(strsub(str, 1, -2))
+    if string.sub(str, -1, -1) == "i" then
+        local img = tonumber(string.sub(str, 1, -2))
         if img then
             x = complex(0, img)
         end
-    elseif strsub(str, -2, -1) == "ll" then
+    elseif string.sub(str, -2, -1) == "ll" then
         local t = strnumdump(str)
         if t then
             x = xp == "e" and build_64int(t) or build_64hex(t)
@@ -257,7 +255,7 @@ local read_long_string = function(ls, sep, comment)
 end
 local hex_char = function(c)
     if string.match(c, "^%x") then
-        local b = band(strbyte(c), 15)
+        local b = bit.band(string.byte(c), 15)
         if not char_isdigit(c) then
             b = b + 9
         end
@@ -281,7 +279,7 @@ local read_escape_char = function(ls)
             local ch2 = hex_char(nextchar(ls))
             if ch2 then
                 savebuf(ls, ls.current)
-                hc = strchar(ch1 * 16 + ch2)
+                hc = string.char(ch1 * 16 + ch2)
             end
         end
         if not hc then
@@ -314,13 +312,13 @@ local read_escape_char = function(ls)
         end
         savebuf(ls, "\\")
         savebuf(ls, c)
-        local bc = band(strbyte(c), 15)
+        local bc = bit.band(string.byte(c), 15)
         if char_isdigit(nextchar(ls)) then
             savebuf(ls, ls.current)
-            bc = bc * 10 + band(strbyte(ls.current), 15)
+            bc = bc * 10 + bit.band(string.byte(ls.current), 15)
             if char_isdigit(nextchar(ls)) then
                 savebuf(ls, ls.current)
-                bc = bc * 10 + band(strbyte(ls.current), 15)
+                bc = bc * 10 + bit.band(string.byte(ls.current), 15)
                 nextchar(ls)
             end
         end

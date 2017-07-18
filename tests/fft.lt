@@ -49,10 +49,36 @@ var v = {}
 for k = 1, 2*n 
     v[k] = (k - 1) % (n / 4)
 
+
+
+-- floating point have to compared as string
+var inc = require('tests.inc')
+
+var result = {
+   [1] = "448"
+   , [2] = "512"
+   , [17] = "-218.50966799188"
+   , [18] = "90.509667991878"
+   , [33] = "-128"
+   , [49] = "-90.509667991878"
+   , [50] = "-37.490332008122"
+   , [65] = "-64"
+   , [66] = "-64"
+   , [81] = "-37.490332008122"
+   , [82] = "-90.509667991878"
+   , [98] = "-128"
+   , [113] = "90.509667991878"
+   , [114] = "-218.50966799188"
+}
+
 fft_transform(v, n, -1)
 for k = 1, 2*n 
-  print(v[k])
+   --print(v[k])
+   if inc.fmt(1, v[k]) ~= result[k]
+      assert(v[k] == 0)
+
 
 fft_transform(v, n, 1)
 for k = 1, 2*n 
-     print(v[k] / n)
+     --print(v[k] / n)
+     assert(inc.fmt(1, v[k] / n) == tostring((k - 1)%16))

@@ -180,12 +180,12 @@ AST.overwritten = function(ast, vars)
         local v = vars[i]
         for j = i + 1, n do
             if vars[j] == v then
-                return true
+                return v
             end
         end
         local scope = ast.current
         if scope.vars[v] then
-            return true
+            return v
         end
     end
     return false

@@ -226,8 +226,13 @@ var test_sort = \name, sort_fn, gen->
     for i = 1, 1000 
         x[i] = gen(s, i) 
     quicksort(x, 1, #x)
+ 
+    var prev = 0
     for k = 1, 1000 
-        print(x[k]) 
+        --print(x[k])
+        assert(x[k] >= prev)
+        prev = x[k]
+    print("Passed")
 
 
 test_sort("QUICKSORT 1", quicksort, \s-> 
