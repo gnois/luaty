@@ -7,7 +7,8 @@ It compiles with basic lint checks to clean Lua.
 
 Its syntax resembles Lua, albeit shorter.
 If you know Lua, you already knew most of Luaty.
-After all, it's just a play of *Lua* with less *ty*ping.
+
+After all, it's just a play of **Lua** with less **ty**ping.
 
 
 Quick start
@@ -22,7 +23,7 @@ To compile a Luaty *source.lt* file to *dest.lua*, use
 ```
 luajit lt.lua -c source.lt dest.lua
 ```
-If output file is omitted, it defaults to *source.lua*
+The output file is optional, and defaults to *source.lua*
 
 
 
@@ -68,7 +69,7 @@ assert(obj.foo(@, 2) == 6)         -- Ok, specify @ explicitly. Compiles to obj:
 
 ```
 
-- table keys and indexers can be keywords
+- table keys can be keywords
 
 ```
 var e = {
@@ -117,9 +118,10 @@ var tbl = {
 The indent (offside) rule
 ---
 
-Generally
-1. Either tab or space can be used, but not both together in a single file
-2. Only one statement is allowed per line
+Luaty follows the general rules of other offside languages. Simply,
+
+1. Either tab or space can be used, but not both together in a single file, except for comments, which are ignored for the whole line.
+2. Only one statement is allowed per line.
 
 3. Block statements such as `if`, `for`, `while`, `do` and lambda expression `->` can have child statement(s).
    - A single child statement may choose to stay at the same line as its parent
@@ -132,9 +134,8 @@ if true p(1) p(2)                      -- Error, two statements at the same line
 print((-> return 'a', 1)())            -- Ok, immediately invoked one lined lambda expression
 
 if x == nil for y = 1, 10 do until true else if x == 0 assert(x) else if x assert(x) else assert(not x)
--- Ok, `do` is a child of `for`, which in turn is a child statement of `if`
+-- Ok, `do` is a child of `for`, which in turn is a child of `if`
 ```
-
    - Multiple child statements should start at an indented newline
 ```
 if true
@@ -142,17 +143,7 @@ if true
 	p(2)
 
 ```
-
-   - proper indent/dedent makes a difference
-```
-print(pcall(\x ->
-	return x
-, 10))                                -- prints true, 10
-print(pcall(\x-> return x, 10))       -- prints true, nil, 10
-
-```
-
-   - an indent is allowed within table constructor/function call, but the line having its closing brace/parenthesis should realign back to its starting indent
+4. An indent is allowed within table constructor/function call, but the line having its closing brace/parenthesis should realign back to its starting indent
 ```
 var y = { 1
 	,
@@ -170,6 +161,17 @@ print(
 4, 5)                    -- Ok, last line realign back to `print(`
 
 ```
+
+
+* Note that proper indent/dedent makes a difference
+```
+print(pcall(\x ->
+	return x
+, 10))                                -- prints true, 10
+print(pcall(\x-> return x, 10))       -- prints true, nil, 10
+
+```
+
 
 See the [tests folder](https://github.com/gnois/luaty/tree/master/tests) for more code examples.
 
