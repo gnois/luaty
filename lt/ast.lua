@@ -188,7 +188,6 @@ AST.overwritten = function(ast, vars)
             return v
         end
     end
-    return false
 end
 local same
 same = function(a, b)

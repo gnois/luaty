@@ -1,0 +1,23 @@
+
+var string_reader = \src ->
+	var pos = 1
+	return ->
+		var chunk =  string.sub(src, pos, pos + 4096 - 32)
+		pos = pos + #chunk
+		return #chunk > 0 and chunk or nil
+
+
+var file_reader = \filename ->
+	var f
+	if filename
+		f = assert(io.open(filename, 'r'), "cannot open file " .. filename)
+	else
+		f = io.stdin
+	
+	return ->
+		return f.read(@, 4096 - 32)
+
+return {
+	string = string_reader
+	, file = file_reader
+}

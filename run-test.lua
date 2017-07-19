@@ -1,9 +1,9 @@
 local function usage()
   io.stderr:write[[
-Usage: luajit runall.lua [-c] fullpath
+Usage: luajit test.lua [-c] path
 
   Where 
-  fullpath   The full path of a directory
+  fullpath   The path of a directory
   -c         Compile to lua code only
 ]]
   os.exit(1)
@@ -19,6 +19,7 @@ local function check(success, result)
 end
 
 local run = true
+local dirname
 local args = {...}
 local k = 1
 while args[k] do
@@ -32,7 +33,9 @@ while args[k] do
     end
     k = k + 1
 end
-
+if not dirname then
+    dirname = './tests'
+end
 
 local compile = require("lt.compile")
 
@@ -56,8 +59,7 @@ function scandir(directory)
     return t
 end
 
-print('Scanning ' .. dirname .. '\n\n')
-
+print('Scanning ' .. dirname .. ' folder...')
 local files = scandir(dirname)
 for k, v in pairs(files) do
     if #v > 0 and string.sub(v, -string.len('.lt'))=='.lt' then

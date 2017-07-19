@@ -245,7 +245,7 @@ AST.overwritten = \ast, vars ->
 			return v
 		--scope = scope.parent
 		--until not scope
-	return false
+
 
 var same
 same = \a, b ->

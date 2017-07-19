@@ -1,21 +1,19 @@
-var Stack = { __index = Stack }
-
-Stack.new = ->
-   return setmetatable({}, Stack) 
+var stack = {}
  
--- put a new object onto a stack
-Stack.push = \@, input ->
-   @[#@+1] = input
+var top = ->
+	return stack[#stack]
 
--- take an object off a stack
-Stack.pop = \@ ->
-   if #@ > 0
-      var output = @[#@]
-      @[#@] = nil
-      return output
-   return nil
+var push = \input ->
+	stack[#stack + 1] = input
 
-Stack.top = \@ ->
-    return @[#@]
+var pop = ->
+	if #stack > 0
+		var out = top
+		stack[#stack] = nil
+		return top
 
-return Stack
+return {
+	top = top
+	, push = push
+	, pop = pop
+}

@@ -7,10 +7,9 @@
 -- Can be used as an alternative to the bytecode generator.
 
 var operator = require("lt.operator")
+var Keyword = require("lt.reserved")
 
 var strbyte, strsub = string.byte, string.sub
-
-var LuaReservedKeyword = {['and'] = 1, ['break'] = 2, ['do'] = 3, ['else'] = 4, ['elseif'] = 5, ['end'] = 6, ['false'] = 7, ['for'] = 8, ['function'] = 9, ['goto'] = 10, ['if'] = 11, ['in'] = 12, ['local'] = 13, ['nil'] = 14, ['not'] = 15, ['or'] = 16, ['repeat'] = 17, ['return'] = 18, ['then'] = 19, ['true'] = 20, ['until'] = 21, ['while'] = 22 }
 
 var ASCII_0, ASCII_9 = 48, 57
 var ASCII_a, ASCII_z = 97, 122
@@ -61,7 +60,7 @@ var string_is_ident = \str ->
 		if not char_isletter(c) and not char_isdigit(c)
 			return false
 
-	return not LuaReservedKeyword[str]
+	return not Keyword[str]
 
 
 var comma_sep_list = \ls, f ->

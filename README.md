@@ -125,29 +125,29 @@ Luaty follows the general rules of other offside languages. Simply,
 
 3. Block statements such as `if`, `for`, `while`, `do` and lambda expression `->` can have child statement(s).
    - A single child statement may choose to stay at the same line as its parent
+   - Multiple child statements should start at an indented newline
 ```
-if true p(1)                           -- Ok, p(1) is a child statement of `if`
+if true p(1)                           -- Ok, p(1) is the only child statement of `if`
 p(2)
 
 if true p(1) p(2)                      -- Error, two statements at the same line, `if` and p(2)
 
-print((-> return 'a', 1)())            -- Ok, immediately invoked one lined lambda expression
-
-if x == nil for y = 1, 10 do until true else if x == 0 assert(x) else if x assert(x) else assert(not x)
--- Ok, `do` is a child of `for`, which in turn is a child of `if`
-```
-   - Multiple child statements should start at an indented newline
-```
-if true
+do                                     -- Ok, multiple child statements are indented
    p(1)
    p(2)
 
+print((-> return 'a', 1)())            -- Ok, immediately invoked one lined lambda expression
+
+if x == nil for y = 1, 10 do until true else if x == 0 assert(x) else if x assert(x) else assert(not x)
+                                       -- Ok, `do` is a child of `for`, which in turn is a child of `if`
+                                       
 ```
+
 4. An indent is allowed within table constructor/function call, but the line having its closing brace/parenthesis should realign back to its starting indent
 ```
 var y = { 1
    ,
-   2}                    -- Error: <dedent> expected
+   2}                        -- Error: <dedent> expected
 
 var z = { 1
    ,
@@ -175,6 +175,10 @@ print(pcall(\x-> return x, 10))       -- prints true, nil, 10
 
 See the [tests folder](https://github.com/gnois/luaty/tree/master/tests) for more code examples.
 
+To run tests in the folder, use
+```
+luajit test.lua ./tests
+```
 
 
 

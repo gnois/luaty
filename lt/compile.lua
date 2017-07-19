@@ -2,11 +2,11 @@
 -- Generated from compile.lt
 --
 
-local lex_setup = require("lt.lex")
+local lexer = require("lt.lex")
 local parse = require("lt.parse")
 local ast = require("lt.ast").New()
-local reader = require("lt.reader")
-local generator = require("lt.generator")
+local read = require("lt.read")
+local generate = require("lt.generate")
 local lang_error = function(msg)
     if string.sub(msg, 1, 8) == "LT-ERROR" then
         return false, "[Luaty] " .. string.sub(msg, 9)
@@ -15,21 +15,22 @@ local lang_error = function(msg)
     end
 end
 local compile = function(reader, filename, options)
-    local ls = lex_setup(reader, filename)
-    local parse_success, tree = pcall(parse, ast, ls)
-    if not parse_success then
+    local ls = lexer(reader, filename)
+    local ok, tree, code
+    ok, tree = pcall(parse, ast, ls)
+    if not ok then
         return lang_error(tree)
     end
-    local success, luacode = pcall(generator, tree, filename)
-    if not success then
-        return lang_error(luacode)
+    ok, code = pcall(generate, tree, filename)
+    if not ok then
+        return lang_error(code)
     end
-    return true, luacode
+    return true, code
 end
-local lang_loadstring = function(src, filename, options)
-    return compile(reader.string(src), filename or "stdin", options)
+local load_string = function(src, filename, options)
+    return compile(read.string(src), filename or "stdin", options)
 end
-local lang_loadfile = function(filename, options)
-    return compile(reader.file(filename), filename or "stdin", options)
+local load_file = function(filename, options)
+    return compile(read.file(filename), filename or "stdin", options)
 end
-return {string = lang_loadstring, file = lang_loadfile}
+return {string = load_string, file = load_file}

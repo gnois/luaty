@@ -1,4 +1,6 @@
 var operator = require("lt.operator")
+var Keyword = require("lt.reserved")
+Keyword.var = true
 
 var LJ_52 = false
 
@@ -7,30 +9,27 @@ var EndOfBlock = { TK_dedent = true, TK_else = true, TK_until = true, TK_eof = t
 var EndOfFunction = { ['}'] = true, [')'] = true, [','] = true} -- `,` is to end function within a table
 var NewLine = { TK_newline = true }
 
-var ReservedKeyword = { ['and'] = 1, ['break'] = 2, ['do'] = 3, ['else'] = 4, ['elseif'] = 5, ['end'] = 6, ['false'] = 7, ['for'] = 8, ['function'] = 9, ['goto'] = 10, ['if'] = 11, ['in'] = 12, ['local'] = 13, ['nil'] = 14, ['not'] = 15, ['or'] = 16, ['repeat'] = 17, ['return'] = 18, ['then'] = 19, ['true'] = 20, ['until'] = 21, ['while'] = 22, ['var'] = 23 }
-
-
 -- disallow multiple statement on one line
-var stmted  -- statement already found on that line number
+var stmted  -- keep the line number that we parsed
 
 var is_keyword = \ls ->
-	var str = ls.token2str(ls.token)
-	if ReservedKeyword[str]
+	var str = ls.tostr(ls.token)
+	if Keyword[str]
 		return str
 
 
 var err_syntax = \ls, em ->
-	--ls.error(@, ls.token, em)
-	var msg = string.format("%s:%d   %s", ls.chunkname, ls.linenumber, em)
+	--ls.error(ls.token, em)
+	var msg = string.format("%s:%d   %s", ls.chunkname, ls.line, em)
 	error("LT-ERROR" .. msg, 0)
 
 
 var err_token = \ls, token ->
-	ls.error(@, ls.token, "'%s' expected", ls.token2str(token))
+	ls.error(ls.token, "'%s' expected", ls.tostr(token))
 
 
 var err_symbol = \ls ->
-	var sym = ls.tokenval or ls.token2str(ls.token)
+	var sym = ls.value or ls.tostr(ls.token)
 	var replace = {['end'] = "<dedent>", ['local'] = "'var'", ['function'] = "\\...->", ['elseif'] = "'else if'", ['repeat'] = "'do'"}
 	var rep = replace[sym]
 	var msg
@@ -43,25 +42,25 @@ var err_symbol = \ls ->
 
 var lex_opt = \ls, tok ->
 	if ls.token == tok
-		ls.next(@)
+		ls.step()
 		return true
 	return false
 
 
 -- return true only if a real indent is eaten
 var lex_indent = \ls ->
-	if NewLine[ls.token] and ls.lookahead(@) == 'TK_indent'
+	if NewLine[ls.token] and ls.next() == 'TK_indent'
 		lex_opt(ls, 'TK_newline')
-		ls.next(@)
+		ls.step()
 		return true
 	return false
 
 
 -- return true only if a real dedent is eaten
 var lex_dedent = \ls ->
-	if ls.token == 'TK_dedent' or NewLine[ls.token] and ls.lookahead(@) == 'TK_dedent'
+	if ls.token == 'TK_dedent' or NewLine[ls.token] and ls.next() == 'TK_dedent'
 		lex_opt(ls, 'TK_newline')
-		ls.next(@)
+		ls.step()
 		return true
 	return false
 
@@ -76,24 +75,23 @@ var lex_opt_dent = \ls, dented ->
 
 var lex_check = \ls, tok ->
 	if ls.token ~= tok err_token(ls, tok) 
-	ls.next(@)
+	ls.step()
 
 
 var lex_match = \ls, what, who, line ->
 	if not lex_opt(ls, what)
-		if line == ls.linenumber
+		if line == ls.line
 			err_token(ls, what)
 		else
-			var token2str = ls.token2str
-			ls.error(@, ls.token, "'%s' expected to match '%s' at line %d", token2str(what), token2str(who), line)
+			ls.error(ls.token, "'%s' expected to match '%s' at line %d", ls.tostr(what), ls.tostr(who), line)
 
 
 var lex_str = \ls ->
 	if ls.token ~= 'TK_name' and (LJ_52 or ls.token ~= 'TK_goto')
 		err_token(ls, 'TK_name')
 
-	var s = ls.tokenval
-	ls.next(@)
+	var s = ls.value
+	ls.step()
 	return s
 
 
@@ -108,10 +106,10 @@ var var_name = \ast, ls ->
 
 
 var expr_field = \ast, ls, v ->
-	ls.next(@) -- Skip dot or colon.
+	ls.step() -- Skip dot or colon.
 	var key = is_keyword(ls)
 	if key
-		ls.next(@)
+		ls.step()
 		if key == "var"  -- `var` is not a Lua keyword
 			return ast.expr_property(@, v, key)
 	
@@ -122,14 +120,14 @@ var expr_field = \ast, ls, v ->
 
 
 var expr_bracket = \ast, ls ->
-	ls.next(@) -- Skip '['.
+	ls.step() -- Skip '['.
 	var v = expr(ast, ls)
 	lex_check(ls, ']')
 	return v
 
 
 expr_table = \ast, ls ->
-	var line = ls.linenumber
+	var line = ls.line
 	var kvs = {}
 	var dented
 	lex_check(ls, '{')
@@ -143,18 +141,18 @@ expr_table = \ast, ls ->
 		if ls.token == '['
 			key = expr_bracket(ast, ls)
 			lex_check(ls, '=')
-		else if ls.lookahead(@) == '='
-			if (ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto'))
+		else if ls.next() == '='
+			if ls.token == 'TK_name' -- or (not LJ_52 and ls.token == 'TK_goto')    `goto` can be table key
 				var name = lex_str(ls)
 				key = ast.literal(@, name)
 			else if ls.token == 'TK_string'
-				key = ast.literal(@, ls.tokenval)
-				ls.next(@)
+				key = ast.literal(@, ls.value)
+				ls.step()
 			else
 				var name = is_keyword(ls)
 				if name
 					key = ast.literal(@, name)
-					ls.next(@)
+					ls.step()
 			lex_check(ls, '=')
 	
 		var val = expr(ast, ls)
@@ -177,7 +175,7 @@ expr_table = \ast, ls ->
 
 
 expr_simple = \ast, ls ->
-	var tk, val = ls.token, ls.tokenval
+	var tk, val = ls.token, ls.value
 	var e
 	if tk == 'TK_number'
 		e = ast.numberliteral(@, val)
@@ -200,9 +198,9 @@ expr_simple = \ast, ls ->
 		return expr_table(ast, ls)
 	else if tk == '\\' or tk == 'TK_lambda'
 		if tk == '\\'
-			ls.next(@)
+			ls.step()
 	
-		var curry, args, body, proto = parse_body(ast, ls, ls.linenumber)
+		var curry, args, body, proto = parse_body(ast, ls, ls.line)
 		var lambda = ast.expr_function(@, args, body, proto)
 		if curry
 			curry = ast.identifier(@, 'curry')
@@ -218,7 +216,7 @@ expr_simple = \ast, ls ->
 	else
 		return expr_primary(ast, ls)
 
-	ls.next(@)
+	ls.step()
 	return e
 
 
@@ -238,10 +236,10 @@ expr_list = \ast, ls ->
 expr_unop = \ast, ls ->
 	var tk = ls.token
 	if tk == 'TK_not' or tk == '-' or tk == '#'
-		var line = ls.linenumber
-		ls.next(@)
+		var line = ls.line
+		ls.step()
 		var v = expr_binop(ast, ls, operator.unary_priority)
-		return ast.expr_unop(@, ls.token2str(tk), v, line)
+		return ast.expr_unop(@, ls.tostr(tk), v, line)
 	else
 		return expr_simple(ast, ls)
 
@@ -250,10 +248,10 @@ expr_unop = \ast, ls ->
 -- Parse binary expressions with priority higher than the limit.
 expr_binop = \ast, ls, limit ->
 	var v = expr_unop(ast, ls)
-	var op = ls.token2str(ls.token)
+	var op = ls.tostr(ls.token)
 	while operator.is_binop(op) and operator.left_priority(op) > limit
-		var line = ls.linenumber
-		ls.next(@)
+		var line = ls.line
+		ls.step()
 		var v2, nextop = expr_binop(ast, ls, operator.right_priority(op))
 		v = ast.expr_binop(@, op, v, v2, line)
 		op = nextop
@@ -270,8 +268,8 @@ expr_primary = \ast, ls ->
 	var v, vk
 	-- Parse prefix expression.
 	if ls.token == '('
-		var line = ls.linenumber
-		ls.next(@)
+		var line = ls.line
+		ls.step()
 		vk, v = 'expr', ast.expr_brackets(@, expr(ast, ls))
 		lex_match(ls, ')', '(', line)
 	else if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')
@@ -281,7 +279,7 @@ expr_primary = \ast, ls ->
 
 	var key
 	while true -- Parse multiple expression suffixes.
-		var line = ls.linenumber
+		var line = ls.line
 		if ls.token == '.'
 			vk, v = 'indexed', expr_field(ast, ls, v)
 		else if ls.token == '['
@@ -307,7 +305,7 @@ expr_primary = \ast, ls ->
 
 -- Parse 'return' statement.
 var parse_return = \ast, ls, line ->
-	ls.next(@) -- Skip 'return'.
+	ls.step() -- Skip 'return'.
 	lex_opt(ls, 'TK_newline')
 	ls.fs.has_return = true
 	var exps
@@ -336,7 +334,7 @@ var parse_for_num = \ast, ls, varname, line ->
 	ast.var_declare(@, varname)  -- add to scope
 	var body = parse_opt_block(ast, ls, line, 'TK_for')
 	ast.fscope_end(@)
-	return ast.for_stmt(@, v, init, last, step, body, line, ls.linenumber)
+	return ast.for_stmt(@, v, init, last, step, body, line, ls.line)
 
 
 -- Parse 'for' iterator.
@@ -350,16 +348,16 @@ var parse_for_iter = \ast, ls, indexname ->
 		ast.var_declare(@, indexname)
 
 	lex_check(ls, 'TK_in')
-	var line = ls.linenumber
+	var line = ls.line
 	var exps = expr_list(ast, ls)
 	var body = parse_opt_block(ast, ls, line, 'TK_for')
 	ast.fscope_end(@)
-	return ast.for_iter_stmt(@, vars, exps, body, line, ls.linenumber)
+	return ast.for_iter_stmt(@, vars, exps, body, line, ls.line)
 
 
 -- Parse 'for' statement.
 var parse_for = \ast, ls, line ->
-	ls.next(@)  -- Skip 'for'.
+	ls.step()  -- Skip 'for'.
 	var varname = lex_str(ls)  -- Get first variable name.
 	var stmt
 	if ls.token == '='
@@ -374,7 +372,7 @@ var parse_for = \ast, ls, line ->
 
 -- Parse function call argument list.
 parse_args = \ast, ls ->
-	var line = ls.linenumber
+	var line = ls.line
 	lex_check(ls, '(')
 	if not LJ_52 and line ~= ls.lastline
 		err_syntax(ls, "ambiguous syntax (function call x new statement)")
@@ -403,12 +401,12 @@ parse_args = \ast, ls ->
 		var a = expr_table(ast, ls)
 		args = { a }
 	else if ls.token == 'TK_string'
-		var a = ls.tokenval
-		ls.next(@)
+		var a = ls.value
+		ls.step()
 		args = { ast.literal(@, a) }
 	else if ls.token == 'TK_longstring'
-		var a = ls.tokenval
-		ls.next(@)
+		var a = ls.value
+		ls.step()
 		args = { ast.longstrliteral(@, a) }
 	else
 		err_syntax(ls, "function arguments expected")
@@ -422,9 +420,9 @@ parse_args = \ast, ls ->
 
 var parse_assignment
 parse_assignment = \ast, ls, vlist, v, vk ->
-	var line = ls.linenumber
+	var line = ls.line
 	if vk ~= 'var' and vk ~= 'indexed'
-		err_syntax(ls, "syntax error, unexpected " .. ls.token2str(ls.token) or ls.tokenval)
+		err_syntax(ls, "syntax error, unexpected " .. ls.tostr(ls.token) or ls.value)
 
 	vlist[#vlist+1] = v
 	if lex_opt(ls, ',')
@@ -443,7 +441,7 @@ parse_assignment = \ast, ls, vlist, v, vk ->
 var parse_call_assign = \ast, ls ->
 	var v, vk = expr_primary(ast, ls)
 	if vk == 'call'
-		return ast.new_statement_expr(@, v, ls.linenumber)
+		return ast.new_statement_expr(@, v, ls.line)
 	else
 		var vlist = { }
 		return parse_assignment(ast, ls, vlist, v, vk)
@@ -451,7 +449,7 @@ var parse_call_assign = \ast, ls ->
 
 -- Parse 'var' statement.
 var parse_var = \ast, ls ->
-	var line = ls.linenumber
+	var line = ls.line
 	var vl = { }
 	do -- Collect LHS.
 		vl[#vl+1] = lex_str(ls)
@@ -470,35 +468,35 @@ var parse_var = \ast, ls ->
 
 
 var parse_while = \ast, ls, line ->
-	ls.next(@) -- Skip 'while'.
+	ls.step() -- Skip 'while'.
 	ast.fscope_begin(@)
 	var cond = expr(ast, ls)
 	var body = parse_opt_block(ast, ls, line, 'TK_while')
-	var lastline = ls.linenumber
+	var lastline = ls.line
 	ast.fscope_end(@)
 	return ast.while_stmt(@, cond, body, line, lastline)
 
 
 var parse_if = \ast, ls, line ->
 	var tests, blocks = { }, { }
-	ls.next(@)
+	ls.step()
 	tests[#tests+1] = expr(ast, ls)
 	ast.fscope_begin(@)
 	blocks[1] = parse_opt_block(ast, ls, line, 'TK_if')
 	ast.fscope_end(@)
 	var else_branch
-	while ls.token == 'TK_else' or NewLine[ls.token] and ls.lookahead(@) == 'TK_else'
+	while ls.token == 'TK_else' or NewLine[ls.token] and ls.next() == 'TK_else'
 		lex_opt(ls, 'TK_newline')
-		ls.next(@)
+		ls.step()
 		if ls.token == 'TK_if'
-			ls.next(@)
+			ls.step()
 			tests[#tests+1] = expr(ast, ls)
 			ast.fscope_begin(@)
-			blocks[#blocks+1] = parse_opt_block(ast, ls, ls.linenumber, 'TK_if')
+			blocks[#blocks+1] = parse_opt_block(ast, ls, ls.line, 'TK_if')
 			ast.fscope_end(@)
 		else
 			ast.fscope_begin(@)
-			else_branch = parse_opt_block(ast, ls, ls.linenumber, 'TK_else')
+			else_branch = parse_opt_block(ast, ls, ls.line, 'TK_else')
 			ast.fscope_end(@)
 			break
 	
@@ -507,10 +505,10 @@ var parse_if = \ast, ls, line ->
 
 
 var parse_do = \ast, ls, line ->
-	ls.next(@) -- Skip 'do'
+	ls.step() -- Skip 'do'
 	ast.fscope_begin(@)
 	var body = parse_opt_block(ast, ls, line, 'TK_do')
-	var lastline = ls.linenumber
+	var lastline = ls.line
 	if lex_opt(ls, 'TK_until')
 		var cond = expr(ast, ls) -- until condition.
 		ast.fscope_end(@)
@@ -523,7 +521,7 @@ var parse_do = \ast, ls, line ->
 
 
 var parse_label = \ast, ls ->
-	ls.next(@) -- Skip '::'.
+	ls.step() -- Skip '::'.
 	var name = lex_str(ls)
 	lex_check(ls, 'TK_label')
 	-- Recursively parse trailing statements: labels and ';' (Lua 5.2 only).
@@ -531,15 +529,15 @@ var parse_label = \ast, ls ->
 		if ls.token == 'TK_label'
 			parse_label(ast, ls)
 		--else if LJ_52 and ls.token == ';'
-		--    ls.next(@)
+		--    ls.step()
 		else
 			break
 
-	return ast.label_stmt(@, name, ls.linenumber)
+	return ast.label_stmt(@, name, ls.line)
 
 
 var parse_goto = \ast, ls ->
-	var line = ls.linenumber
+	var line = ls.line
 	var name = lex_str(ls)
 	return ast.goto_stmt(@, name, line)
 
@@ -547,7 +545,7 @@ var parse_goto = \ast, ls ->
 -- Parse a statement. Returns the statement itself and a boolean that tells if it
 -- must be the last one in a chunk.
 var parse_stmt = \ast, ls ->
-	var line = ls.linenumber
+	var line = ls.line
 	var stmt
 	if ls.token == 'TK_if'
 		stmt = parse_if(ast, ls, line)
@@ -564,23 +562,23 @@ var parse_stmt = \ast, ls ->
 	else if ls.token == 'TK_lambda' or ls.token == 'TK_curry'
 		err_syntax(ls, "lambda must be an expression")
 	else if ls.token == 'TK_var'
-		ls.next(@)
+		ls.step()
 		stmt = parse_var(ast, ls, line)
 	else if ls.token == 'TK_return'
 		stmt = parse_return(ast, ls, line)
 		return stmt, true -- Must be last.
 	else if ls.token == 'TK_break'
-		ls.next(@)
+		ls.step()
 		stmt = ast.break_stmt(@, line)
 		return stmt, not LJ_52 -- Must be last in Lua 5.1.
 	--else if LJ_52 and ls.token == ';'
-	--    ls.next(@)
+	--    ls.step()
 	--    return parse_stmt(ast, ls)
 	else if ls.token == 'TK_label'
 		stmt = parse_label(ast, ls)
 	else if ls.token == 'TK_goto'
-		if LJ_52 or ls.lookahead(@) == 'TK_name'
-			ls.next(@)
+		if LJ_52 or ls.next() == 'TK_name'
+			ls.step()
 			stmt = parse_goto(ast, ls)
 
 	-- If here 'stmt' is "nil" then ls.token didn't match any of the previous rules.
@@ -600,7 +598,7 @@ var parse_params = \ast, ls ->
 				var name = lex_str(ls)
 				args[#args+1] = ast.var_declare(@, name)
 			else if ls.token == 'TK_dots'
-				ls.next(@)
+				ls.step()
 				ls.fs.varargs = true
 				args[#args + 1] = ast.expr_vararg(@)
 				break
@@ -610,7 +608,7 @@ var parse_params = \ast, ls ->
 		until not lex_opt(ls, ',')
 
 	if ls.token == 'TK_lambda'
-		ls.next(@)
+		ls.step()
 		return false, args
 	else if ls.token == 'TK_curry'
 		if ls.fs.varargs
@@ -619,27 +617,27 @@ var parse_params = \ast, ls ->
 		if #args < 2
 			err_syntax(ls, "at least 2 arguments needed with ~>")
 	
-		ls.next(@)
+		ls.step()
 		return true, args
 
 	err_token(ls, "->")
 
 
 var parse_block_stmts = \ast, ls ->
-	var firstline = ls.linenumber
+	var firstline = ls.line
 	var stmt, islast = nil, false
 	var body = { }
 	while not islast and not EndOfBlock[ls.token]
-		stmted = ls.linenumber
+		stmted = ls.line
 		stmt, islast = parse_stmt(ast, ls)
 		body[#body + 1] = stmt
 		lex_opt(ls, 'TK_newline')
 		-- deliberately disallow multiple statement in one line
-		if stmted == ls.linenumber
-			if ls.token ~= 'TK_eof' and ls.token ~= 'TK_dedent' and ls.lookahead(@) ~= 'TK_eof'
+		if stmted == ls.line
+			if ls.token ~= 'TK_eof' and ls.token ~= 'TK_dedent' and ls.next() ~= 'TK_eof'
 				ls.error(ls, ls.token, "only one statement allowed per line. <newline> expected")
 
-	return body, firstline, ls.linenumber
+	return body, firstline, ls.line
 
 
 var parse_chunk = \ast, ls ->
@@ -654,19 +652,19 @@ parse_opt_block = \ast, ls, line, match_token ->
 		body = parse_block(ast, ls, line)
 		--lex_match(ls, 'TK_dedent', match_token, line)
 		if not lex_dedent(ls)
-			ls.error(@, ls.token, "<dedent> expected to end %s at line %d", ls.token2str(match_token), line)
+			ls.error(ls.token, "<dedent> expected to end %s at line %d", ls.tostr(match_token), line)
 	
 	else
 		if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
 			-- single statement
 			body[1] = parse_stmt(ast, ls)
-			body.firstline, body.lastline = line, ls.linenumber
+			body.firstline, body.lastline = line, ls.line
 		-- if lookahead is indent, it belongs to parent block
-		--if NewLine[ls.token] and ls.lookahead(@) ~= 'TK_indent'
-		--	ls.next(@)
+		--if NewLine[ls.token] and ls.next() ~= 'TK_indent'
+		--	ls.step()
 		--else
 		if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
-			ls.error(@, ls.token, "only one statement may stay near `" .. ls.token2str(match_token) .. "`. <newline> expected")
+			ls.error(ls.token, "only one statement may stay near `" .. ls.tostr(match_token) .. "`. <newline> expected")
 	return body
 
 
@@ -680,7 +678,7 @@ parse_body = \ast, ls, line ->
 	var body = parse_opt_block(ast, ls, line, 'TK_lambda')
 	ast.fscope_end(@)
 	var proto = ls.fs
-	ls.fs.lastline = ls.linenumber
+	ls.fs.lastline = ls.line
 	ls.fs = pfs
 	return curry, args, body, proto
 
@@ -689,13 +687,13 @@ parse_body = \ast, ls, line ->
 parse_block = \ast, ls, firstline ->
 	--ast.fscope_begin(@)
 	var body = parse_block_stmts(ast, ls)
-	body.firstline, body.lastline = firstline, ls.linenumber
+	body.firstline, body.lastline = firstline, ls.line
 	--ast.fscope_end(@)
 	return body
 
 
 var parse = \ast, ls ->
-	ls.next(@)
+	ls.step()
 	lex_opt(ls, 'TK_newline')
 	ls.fs = { varargs = false }
 	ast.fscope_begin(@)
@@ -705,7 +703,7 @@ var parse = \ast, ls ->
 	--lex_check(ls, 'TK_eof')
 	-- give better message
 	if ls.token ~= 'TK_eof'
-		err_syntax(ls, "unexpected extra `" .. ls.token2str(ls.token) .. "`")
+		err_syntax(ls, "unexpected extra `" .. ls.tostr(ls.token) .. "`")
 	return chunk
 
 
