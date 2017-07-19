@@ -5,16 +5,16 @@ Luaty
 Luaty is a Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule) and less syntatic sugar.
 It compiles with basic lint checks to clean Lua.
 
-Its syntax resembles Lua, albeit shorter.
+Its syntax resembles Lua, but mostly shorter.
 If you know Lua, you already knew most of Luaty.
 
-After all, it's just a play of **Lua** with less **ty**-ping.
+After all, it's just a play of *Lua* with less *ty*ping.
 
 
 Quick start
 ---
 
-To run a Luaty source file, use
+To execute a Luaty source file, use
 ```
 luajit lt.lua source.lt
 ```
@@ -177,7 +177,7 @@ See the [tests folder](https://github.com/gnois/luaty/tree/master/tests) for mor
 
 To run tests in the folder, use
 ```
-luajit test.lua ./tests
+luajit run-test.lua ./tests
 ```
 
 
