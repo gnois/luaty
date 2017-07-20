@@ -19,34 +19,8 @@ local IsEscape = {a = true, b = true, f = true, n = true, r = true, t = true, v 
 local token2str = function(tok)
     if string.match(tok, "^TK_") then
         return TokenSymbol[tok] or string.sub(tok, 4)
-    else
-        return tok
     end
-end
-local throw = function(chunkname, line, em, ...)
-    local emfmt = string.format(em, ...)
-    local msg = string.format("%s:%d   %s", chunkname, line, emfmt)
-    error("LT-ERROR" .. msg, 0)
-end
-local fmt_token = function(token)
-    if token then
-        local tok
-        if token == "TK_name" or token == "TK_string" or token == "TK_number" then
-            tok = buff
-        else
-            tok = string.format("'%s'", token2str(token))
-        end
-        return (string.gsub(tok, "%%.", function(p)
-            return "%" .. p
-        end))
-    end
-end
-local fmt_error = function(token, em, template)
-    local tok = fmt_token(token)
-    if tok then
-        em = string.format(template, em, tok)
-    end
-    return em
+    return tok
 end
 local char_isalnum = function(c)
     if type(c) == "string" then
@@ -136,7 +110,34 @@ return function(read, chunkname)
     local minus = nil
     local tabs = nil
     local lookahead = {token = "TK_eof", value = nil}
-    local state = {chunkname = chunkname, lastline = 1, line = 1, pos = 0, token = "TK_eof", value = nil}
+    local state = {chunkname = chunkname, prevline = 1, prevpos = 1, line = 1, pos = 1, token = "TK_eof", value = nil}
+    local fmt_token = function(token)
+        if token then
+            local tok
+            if token == "TK_name" or token == "TK_string" or token == "TK_number" then
+                tok = buff
+            else
+                tok = string.format("'%s'", token2str(token))
+            end
+            return (string.gsub(tok, "%%.", function(p)
+                return "%" .. p
+            end))
+        end
+    end
+    local lex_error = function(token, em, ...)
+        local tok = fmt_token(token)
+        if tok then
+            em = em .. " near " .. tok
+        end
+        local pos = string.len(buff or "")
+        if pos > state.pos then
+            pos = state.pos
+        else
+            pos = state.pos - pos
+        end
+        local msg = string.format("%s: (%d,%d)  " .. em, state.chunkname, state.line, pos, ...)
+        error("LT-ERROR" .. msg, 0)
+    end
     local popchar = function()
         local k = p
         local c = string.sub(data, k, k)
@@ -241,12 +242,13 @@ return function(read, chunkname)
         end
     end
     local read_long_string = function(sep, comment)
+        local begin = state.line
         add_buffer(ch)
         nextchar()
         while true do
             local c = ch
             if c == END_OF_STREAM then
-                lex_error("TK_eof", comment and "unfinished long comment" or "unfinished long string")
+                lex_error("TK_eof", (comment and "unfinished long comment" or "unfinished long string") .. " from line %d till", begin)
             elseif c == "]" then
                 if skip_sep() == sep then
                     add_buffer(ch)
@@ -310,7 +312,7 @@ return function(read, chunkname)
         elseif c == END_OF_STREAM then
         else
             if not char_isdigit(c) then
-                lex_error("TK_string", "invalid escape sequence")
+                lex_error("TK_string", "invalid escape character \\" .. c)
             end
             add_buffer("\\")
             add_buffer(c)
@@ -483,7 +485,7 @@ return function(read, chunkname)
                     elseif sep == -1 then
                         return "["
                     else
-                        lex_error("TK_longstring", "delimiter error")
+                        lex_error("TK_longstring", "long string delimiter error")
                     end
                 elseif current == "=" then
                     nextchar()
@@ -562,16 +564,9 @@ return function(read, chunkname)
         end
         return token, value
     end
-    local lex_error = function(token, em, ...)
-        local msg = fmt_error(token, em, "%s near %s")
-        throw(chunkname, state.line, em, ...)
-    end
-    local parse_error = function(token, em, ...)
-        local msg = fmt_error(token, em, "%s instead of %s")
-        throw(chunkname, state.line, em, ...)
-    end
     local step = function()
-        state.lastline = state.line
+        state.prevline = state.line
+        state.prevpos = state.pos
         if lookahead.token == "TK_eof" then
             state.token, state.value = lex()
         else
@@ -586,7 +581,11 @@ return function(read, chunkname)
         end
         return lookahead.token, lookahead.value
     end
-    local lexer = setmetatable(state, {__index = {tostr = token2str, error = parse_error, step = step, next = next}})
+    local throw = function(state, em, ...)
+        local msg = string.format("%s: (%d,%d)  " .. em, state.chunkname, state.line, state.prevpos, ...)
+        error("LT-ERROR" .. msg, 0)
+    end
+    local lexer = setmetatable(state, {__index = {tostr = token2str, error = throw, step = step, next = next}})
     nextchar()
     if ch == "\xef" and n >= 2 and char(0) == "\xbb" and char(1) == "\xbf" then
         n = n - 2

@@ -8,7 +8,7 @@ var generate = require('lt.generate')
 
 var lang_error = \msg ->
 	if string.sub(msg, 1, 8) == "LT-ERROR"
-		return false, "[Luaty] " .. string.sub(msg, 9)
+		return false, string.sub(msg, 9)
 	else
 		error(msg)
 

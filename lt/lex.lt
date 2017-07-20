@@ -22,32 +22,8 @@ var IsEscape = { a = true, b = true, f = true, n = true, r = true, t = true, v =
 var token2str = \tok ->
 	if string.match(tok, "^TK_")
 		return TokenSymbol[tok] or string.sub(tok, 4)
-	else
-		return tok
+	return tok
 
-
-var throw = \chunkname, line, em, ... ->
-	var emfmt = string.format(em, ...)
-	var msg = string.format("%s:%d   %s", chunkname, line, emfmt)
-	error("LT-ERROR" .. msg, 0)
-
-
-var fmt_token = \token ->
-	if token
-		var tok
-		if token == 'TK_name' or token == 'TK_string' or token == 'TK_number'
-			tok = buff
-		else
-			tok = string.format("'%s'", token2str(token))
-		-- replace % with %%, so as not to confuse string.format() later
-		return (string.gsub(tok, "%%.", \p -> return '%' .. p ))
-
-
-var fmt_error = \token, em, template ->
-	var tok = fmt_token(token)
-	if tok
-		em = string.format(template, em, tok)
-	return em
 
 var char_isalnum = \c ->
 	if type(c) == 'string'
@@ -60,8 +36,6 @@ var char_isalnum = \c ->
 			return true
 		else
 			return (c == '_')
-	
-
 	return false
 
 
@@ -69,7 +43,6 @@ var char_isdigit = \c ->
 	if type(c) == 'string'
 		var b = string.byte(c)
 		return b >= ASCII_0 and b <= ASCII_9
-
 	return false
 
 
@@ -85,7 +58,6 @@ var build_64int = \str ->
 	while str[i] >= ASCII_0 and str[i] <= ASCII_9
 		x = 10 * x + (str[i] - ASCII_0)
 		i = i + 1
-
 	return x
 
 
@@ -125,7 +97,7 @@ var strnumdump = \str ->
 var hex_char = \c ->
 	if string.match(c, '^%x')
 		var b = bit.band(string.byte(c), 15)
-		if not char_isdigit(c) b = b + 9 
+		if not char_isdigit(c) b = b + 9
 		return b
 
 
@@ -148,13 +120,40 @@ return \read, chunkname ->
 	-- state to be returned to caller
 	var state = {
 		chunkname = chunkname
-		, lastline = 1
+		, prevline = 1
+		, prevpos = 1
 		, line = 1
-		, pos = 0
+		, pos = 1
 		, token = 'TK_eof'
 		, value = nil
 	}
 	
+
+	var fmt_token = \token ->
+		if token
+			var tok
+			if token == 'TK_name' or token == 'TK_string' or token == 'TK_number'
+				tok = buff
+			else
+				tok = string.format("'%s'", token2str(token))
+			-- replace % with %%, so as not to confuse string.format() later
+			return (string.gsub(tok, "%%.", \p -> return '%' .. p ))
+
+
+	var lex_error = \token, em, ... ->
+		var tok = fmt_token(token)
+		if tok
+			em = em .. " near " .. tok
+		-- if the buff is too long, pos will be negative, so don't minus away the length of buff
+		var pos = string.len(buff or '')
+		if pos > state.pos
+			pos = state.pos
+		else
+			pos = state.pos - pos
+		var msg = string.format("%s: (%d,%d)  " .. em, state.chunkname, state.line, pos, ...)
+		error("LT-ERROR" .. msg, 0)
+
+
 	var popchar = ->
 		var k = p
 		var c = string.sub(data, k, k)
@@ -259,6 +258,7 @@ return \read, chunkname ->
 
 
 	var read_long_string = \sep, comment ->
+		var begin = state.line
 		-- skip 2nd `['
 		add_buffer(ch)
 		nextchar()
@@ -268,21 +268,19 @@ return \read, chunkname ->
 		while true
 			var c = ch
 			if c == END_OF_STREAM
-				lex_error('TK_eof', comment and "unfinished long comment" or "unfinished long string")
+				lex_error('TK_eof', (comment and "unfinished long comment" or "unfinished long string") .. " from line %d till", begin)
 			else if c == ']'
 				if skip_sep() == sep
 					-- skip 2nd `]'
 					add_buffer(ch)
 					nextchar()
 					break
-			
 			else
 				add_buffer(c)
 				if IsNewLine[c]
 					inc_line()
 				else
 					nextchar()
-
 		--return get_buffer(2 + sep, 2 + sep)
 		return get_buffer(0, 0)
 
@@ -308,10 +306,8 @@ return \read, chunkname ->
 				if ch2
 					add_buffer(ch)
 					hc = string.char(ch1 * 16 + ch2)
-
 			if not hc
 				lex_error('TK_string', "invalid escape sequence")
-		
 			--add_buffer(hc)
 			nextchar()
 		else if c == 'z' -- Skip whitespace.
@@ -335,7 +331,7 @@ return \read, chunkname ->
 		else if c == END_OF_STREAM
 		else
 			if not char_isdigit(c)
-				lex_error('TK_string', "invalid escape sequence")
+				lex_error('TK_string', "invalid escape character \\" .. c)
 		
 			add_buffer('\\')
 			add_buffer(c)
@@ -347,7 +343,6 @@ return \read, chunkname ->
 					add_buffer(ch)
 					bc = bc * 10 + bit.band(string.byte(ch), 15)
 					nextchar()
-
 			-- cannot save in the end, "\04922" should be "122" but becomes "\4922" which is invalid
 			--add_buffer(strchar(bc))
 			if bc > 255
@@ -395,13 +390,11 @@ return \read, chunkname ->
 				stack.pop()
 				if stack.top() ~= ind
 					indent = ind
-			
 				return 'TK_dedent'
 		
 		else if indent
 			if indent > 0 and stack.top() == 0
 				lex_error(nil, "unaligned or dangling <indent>")
-		
 			stack.pop()
 			if indent == stack.top()
 				indent = nil
@@ -410,7 +403,6 @@ return \read, chunkname ->
 		else if minus
 			minus = nil
 			return '-'
-
 
 		var tab = nil   -- tab char of the current line
 		var mixed = false  -- mixing tab and space?
@@ -490,7 +482,7 @@ return \read, chunkname ->
 				if char_isalnum(current)
 					if char_isdigit(current) -- Numeric literal.
 						return 'TK_number', lex_number()
-				
+
 					do
 						add_buffer(ch)
 						nextchar()
@@ -512,7 +504,7 @@ return \read, chunkname ->
 					else if sep == -1
 						return '['
 					else
-						lex_error('TK_longstring', "delimiter error")
+						lex_error('TK_longstring', "long string delimiter error")
 				
 				else if current == '='
 					nextchar()
@@ -578,20 +570,9 @@ return \read, chunkname ->
 				break
 		return token, value
 
-
-	
-	var lex_error = \token, em, ... ->
-		var msg = fmt_error(token, em, "%s near %s")
-		throw(chunkname, state.line, em, ...)
-
-
-	var parse_error = \token, em, ... ->
-		var msg = fmt_error(token, em, "%s instead of %s")
-		throw(chunkname, state.line, em, ...)
-
-
 	var step = ->
-		state.lastline = state.line
+		state.prevline = state.line
+		state.prevpos = state.pos
 		if lookahead.token == 'TK_eof' -- No lookahead token
 			state.token, state.value = lex()
 		else
@@ -604,10 +585,14 @@ return \read, chunkname ->
 			lookahead.token, lookahead.value = lex()
 		return lookahead.token, lookahead.value
 
+	
+	var throw = \state, em, ... ->
+		var msg = string.format("%s: (%d,%d)  " .. em, state.chunkname, state.line, state.prevpos, ...)
+		error("LT-ERROR" .. msg, 0)
 
 	var lexer = setmetatable(state, { __index = {
 		tostr = token2str
-		, error = parse_error
+		, error = throw
 		, step = step
 		, next = next
 	}})

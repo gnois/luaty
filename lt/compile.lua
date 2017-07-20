@@ -9,7 +9,7 @@ local read = require("lt.read")
 local generate = require("lt.generate")
 local lang_error = function(msg)
     if string.sub(msg, 1, 8) == "LT-ERROR" then
-        return false, "[Luaty] " .. string.sub(msg, 9)
+        return false, string.sub(msg, 9)
     else
         error(msg)
     end
