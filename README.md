@@ -2,7 +2,7 @@
 Luaty
 ====
 
-Luaty is a Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule) and less syntatic sugar.
+Luaty is an opinionated Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule).
 It compiles with basic lint checks to clean Lua.
 
 Its syntax resembles Lua, but mostly shorter.
@@ -187,7 +187,7 @@ luajit run-test.lua ./tests
 Todo
 ---
 * resolve ambiguous syntax (function call x new statement) since we are line sensitive
-* assignment operators += -= /= *= %= ..=
+* static type check
 
 
 
