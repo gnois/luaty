@@ -64,6 +64,9 @@ eq(2, {pcall(\x ->
     return x
 , 10)}, {true, 10, nil})
 
+-- or use semi-colon ; to end function
+eq(3, {pcall(\x-> return x;, 10)}, {true, 10, nil})
+
 
 -- function returning function returning function
 var rr = \b -> return -> return -> return not b, -> return b

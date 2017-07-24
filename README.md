@@ -138,16 +138,18 @@ do                                     -- Ok, multiple child statements are inde
 
 print((-> return 'a', 1)())            -- Ok, immediately invoked one lined lambda expression
 
-if x == nil for y = 1, 10 do until true else if x == 0 assert(x) else if x assert(x) else assert(not x)
+if x == nil for y = 1, 10 do until true else if x == 0 p(x) else if x p(x) else assert(not x)
                                        -- Ok, `do` is a child of `for`, which in turn is a child of `if`
                                        
+
+
 ```
 
 4. An indent is allowed within table constructor/function call, but the line having its closing brace/parenthesis should realign back to its starting indent
 ```
 var y = { 1
    ,
-   2}                        -- Error: <dedent> expected
+   2}                    -- Error: <dedent> expected
 
 var z = { 1
    ,
@@ -162,13 +164,19 @@ print(
 
 ```
 
-
-* Note that proper indent/dedent makes a difference
+5. Functions can be ended using semicolon `;` when indent/dedent is not sufficient
 ```
+print(pcall(\x-> return x, 10))                                          -- multiple return values. Prints true, nil, 10
+
+print(pcall(\x -> return x;, 10))                                        -- ok, function ended with `;`. Prints true, 10
+
 print(pcall(\x ->
    return x
-, 10))                                -- prints true, 10
-print(pcall(\x-> return x, 10))       -- prints true, nil, 10
+, 10))                                                                   -- ok, function ended with dedent. Prints true, 10
+
+
+var a, b, c = -> var d, e, f = 2, -> return -> return 9;;; , 5, 7
+assert(b + c == 12)                                                      -- `;` needed to disambiguate multiple assignment/return values
 
 ```
 

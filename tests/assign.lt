@@ -1,38 +1,100 @@
+-- single line multi assign
+var a, b, c = -> var d, e, f = 2, \... -> return -> return 9;;; , 5, 7
+assert(b + c == 12)
+
+do
+	var a, b, c = -> var d, e, f = 2, \... -> return -> return 7;; , 5; , 8, 
+	9
+	assert(b + c == 17)
+
+do
+	var a, b, c = -> var d, e, f = 2, \... -> return -> return 7;;
+	, 5; 
+	, 8, 
+	9
+	assert(b + c == 17)
+
+do
+	var a, b, c = -> var d, e, f = 2, \... -> return -> return 7
+	, 5; 
+	, 8, 
+	9
+	assert(b + c == 17)
+	
+	
+-- multiline multi assign
+do
+	var a, b, c = \... -> return,
+	3, 8
+	assert(b + c == 11)
+
+	var d, e, f = \... -> return 40, 80
+	, 30
+	, 60
+	assert(e + f == 90)
+	assert(d() == 40)
+
+	var g, h, i = \... -> return ..., 
+	30, 80
+	assert(h + i == 110)
+
+	var j = \... -> return 4, 6, ...
+	var jt = {j(1, 2, 3)}
+	assert(#jt == 5)
+
+	var k, l, m = -> return
+	,10
+	assert(l == 10)
+
+	var p, q, r = \... -> return
+	, 7, 8
+	assert(q + r == 15)
+
+	var s, t, u = -> return
+	,5,
+	9
+	assert(t + u == 14)
+
+	var w, x, y = \... -> return, 30, 90
+	assert(x + y == 120)
+
+
 
 -- indexed assign in for loop
+do
+	var x = {}
+	for k = 1, 10
+		k, x[k] = k + 1, k*k + 1
 
-var x = {}
-for k = 1, 10
-	k, x[k] = k + 1, k*k + 1
-
-assert(x[1] == 2)
-assert(x[2] == 5)
-assert(x[3] == 10)
+	assert(x[1] == 2)
+	assert(x[2] == 5)
+	assert(x[3] == 10)
 
 
 -- assign via multiple return value 
+do
+	var foo = \k-> return k*k, 2*k + 1
 
-var foo = \k-> return k*k, 2*k + 1
+	var s = 3
+	var a, b, c = 13, foo(s)
 
-var s = 3
-var a, b, c = 13, foo(s)
-
-assert(a == 13)
-assert(b == 9)
-assert(c == 7)
+	assert(a == 13)
+	assert(b == 9)
+	assert(c == 7)
 
 
 
 -- assignment in sub table
 
-var bar = \v, i->
-	v.f[i+1], v.x, v.s[i] = i*i, i+5, 7*i
+do
+	var bar = \v, i->
+		v.f[i+1], v.x, v.s[i] = i*i, i+5, 7*i
 
 
-var v = { }
-v.f, v.s = v, v
+	var v = { }
+	v.f, v.s = v, v
 
-bar(v, 1)
-assert(#v == 2)
-assert(v[1] == 7)
-assert(v[2] == 1)
+	bar(v, 1)
+	assert(#v == 2)
+	assert(v[1] == 7)
+	assert(v[2] == 1)

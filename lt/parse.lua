@@ -6,9 +6,8 @@ local operator = require("lt.operator")
 local Keyword = require("lt.reserved")
 Keyword.var = true
 local LJ_52 = false
-local IsLastStatement = {TK_return = true, TK_break = true}
 local EndOfBlock = {TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true}
-local EndOfFunction = {["}"] = true, [")"] = true, [","] = true}
+local EndOfFunction = {["}"] = true, [")"] = true, [";"] = true, [","] = true}
 local NewLine = {TK_newline = true}
 local stmted
 local is_keyword = function(ls)
@@ -121,7 +120,7 @@ end
 expr_table = function(ast, ls)
     local line = ls.line
     local kvs = {}
-    local dented
+    local dented = false
     lex_check(ls, "{")
     while ls.token ~= "}" do
         dented = lex_opt_dent(ls, dented)
@@ -214,13 +213,32 @@ expr_simple = function(ast, ls)
     ls.step()
     return e
 end
-expr_list = function(ast, ls)
+expr_list = function(ast, ls, nmax)
     local exps = {}
     exps[1] = expr(ast, ls)
-    while lex_opt(ls, ",") do
-        exps[#exps + 1] = expr(ast, ls)
+    if nmax then
+        while ls.token == "," or NewLine[ls.token] and ls.next() == "," do
+            local nl = false
+            if NewLine[ls.token] then
+                ls.step()
+                nl = true
+            end
+            ls.step()
+            if not nl and NewLine[ls.token] then
+                ls.step()
+            end
+            exps[#exps + 1] = expr(ast, ls)
+        end
+    else
+        while ls.token == "," and not NewLine[ls.next()] do
+            ls.step()
+            exps[#exps + 1] = expr(ast, ls)
+        end
     end
     local n = #exps
+    if nmax and n > nmax then
+        err_syntax(ls, n .. " expressions found for " .. nmax .. " variables")
+    end
     if n > 0 then
         exps[n] = ast:set_expr_last(exps[n])
     end
@@ -290,10 +308,9 @@ expr_primary = function(ast, ls)
 end
 local parse_return = function(ast, ls, line)
     ls.step()
-    lex_opt(ls, "TK_newline")
     ls.fs.has_return = true
     local exps
-    if EndOfBlock[ls.token] then
+    if EndOfBlock[ls.token] or NewLine[ls.token] or EndOfFunction[ls.token] then
         exps = {}
     else
         exps = expr_list(ast, ls)
@@ -353,7 +370,7 @@ parse_args = function(ast, ls)
     if not LJ_52 and line ~= ls.prevline then
         err_syntax(ls, "ambiguous syntax (function call x new statement)")
     end
-    local dented
+    local dented = false
     local args = {}
     while ls.token ~= ")" do
         dented = lex_opt_dent(ls, dented)
@@ -391,7 +408,7 @@ parse_assignment = function(ast, ls, vlist, v, vk)
         if vk == "var" and not ast:in_scope(v) then
             err_syntax(ls, "undeclared identifier " .. v.name)
         end
-        local exps = expr_list(ast, ls)
+        local exps = expr_list(ast, ls, #vlist)
         return ast:assignment_expr(vlist, exps, line)
     end
 end
@@ -416,7 +433,7 @@ local parse_var = function(ast, ls)
     end
     local exps
     if lex_opt(ls, "=") then
-        exps = expr_list(ast, ls)
+        exps = expr_list(ast, ls, #vl)
     else
         exps = {}
     end
@@ -603,6 +620,7 @@ parse_body = function(ast, ls, line)
     ls.fs.firstline = line
     local curry, args = parse_params(ast, ls)
     local body = parse_opt_block(ast, ls, line, "TK_lambda")
+    lex_opt(ls, ";")
     ast:fscope_end()
     local proto = ls.fs
     ls.fs.lastline = ls.line

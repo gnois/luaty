@@ -4,9 +4,9 @@ Keyword.var = true
 
 var LJ_52 = false
 
-var IsLastStatement = { TK_return = true, TK_break  = true }
+--var IsLastStatement = { TK_return = true, TK_break  = true }
 var EndOfBlock = { TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true }
-var EndOfFunction = { ['}'] = true, [')'] = true, [','] = true} -- `,` is to end function within a table
+var EndOfFunction = { ['}'] = true, [')'] = true, [';'] = true, [','] = true} -- `,` is to end function within a table
 var NewLine = { TK_newline = true }
 
 -- disallow multiple statement on one line
@@ -131,7 +131,7 @@ var expr_bracket = \ast, ls ->
 expr_table = \ast, ls ->
 	var line = ls.line
 	var kvs = {}
-	var dented
+	var dented = false
 	lex_check(ls, '{')
 	while ls.token ~= '}'
 		dented = lex_opt_dent(ls, dented)
@@ -222,16 +222,33 @@ expr_simple = \ast, ls ->
 	return e
 
 
-expr_list = \ast, ls ->
-	var exps = { }
+-- nmax checks the max number of expression expected, and allows newline
+-- eg: for and return has nmax nil, so newline not accepted
+expr_list = \ast, ls, nmax ->
+	var exps = {}
 	exps[1] = expr(ast, ls)
-	while lex_opt(ls, ',')
-		exps[#exps + 1] = expr(ast, ls)
+	
+	-- newline needed in case earlier expression is a function with multi return
+	if nmax
+		while ls.token == ',' or NewLine[ls.token] and ls.next() == ','
+			var nl = false
+			if NewLine[ls.token]
+				ls.step()
+				nl = true
+			ls.step() -- skip ','
+			if not nl and NewLine[ls.token]
+				ls.step()
+			exps[#exps + 1] = expr(ast, ls)
+	else
+		while ls.token == ',' and not NewLine[ls.next()]
+			ls.step()
+			exps[#exps + 1] = expr(ast, ls)
 
 	var n = #exps
+	if nmax and n > nmax
+		err_syntax(ls, n .. " expressions found for " .. nmax .. " variables")
 	if n > 0
 		exps[n] = ast.set_expr_last(@, exps[n])
-
 	return exps
 
 
@@ -308,12 +325,11 @@ expr_primary = \ast, ls ->
 -- Parse 'return' statement.
 var parse_return = \ast, ls, line ->
 	ls.step() -- Skip 'return'.
-	lex_opt(ls, 'TK_newline')
 	ls.fs.has_return = true
 	var exps
-	if EndOfBlock[ls.token] -- or ls.token == ';'
-		exps = { }
-	else -- Return with one or more values.
+	if EndOfBlock[ls.token] or NewLine[ls.token] or EndOfFunction[ls.token]  -- or ls.token == ';'
+		exps = {}
+	else -- Return with one or more values
 		exps = expr_list(ast, ls)
 	return ast.return_stmt(@, exps, line)
 
@@ -378,8 +394,8 @@ parse_args = \ast, ls ->
 	if not LJ_52 and line ~= ls.prevline
 		err_syntax(ls, "ambiguous syntax (function call x new statement)")
 
-	var dented
-	var args = { }
+	var dented = false
+	var args = {}
 	while ls.token ~= ')'
 		dented = lex_opt_dent(ls, dented)
 		if ls.token == ')'
@@ -433,7 +449,7 @@ parse_assignment = \ast, ls, vlist, v, vk ->
 		if vk == 'var' and not ast.in_scope(@, v)
 			err_syntax(ls, "undeclared identifier " .. v.name)
 	
-		var exps = expr_list(ast, ls)
+		var exps = expr_list(ast, ls, #vlist)
 		return ast.assignment_expr(@, vlist, exps, line)
 
 
@@ -443,14 +459,14 @@ var parse_call_assign = \ast, ls ->
 	if vk == 'call'
 		return ast.new_statement_expr(@, v, ls.line)
 	else
-		var vlist = { }
+		var vlist = {}
 		return parse_assignment(ast, ls, vlist, v, vk)
 
 
 -- Parse 'var' statement.
 var parse_var = \ast, ls ->
 	var line = ls.line
-	var vl = { }
+	var vl = {}
 	do -- Collect LHS.
 		vl[#vl+1] = lex_str(ls)
 	until not lex_opt(ls, ',')
@@ -460,9 +476,9 @@ var parse_var = \ast, ls ->
 
 	var exps
 	if lex_opt(ls, '=') -- Optional RHS.
-		exps = expr_list(ast, ls)
+		exps = expr_list(ast, ls, #vl)
 	else
-		exps = { }
+		exps = {}
 	return ast.local_decl(@, vl, exps, line)
 
 
@@ -477,7 +493,7 @@ var parse_while = \ast, ls, line ->
 
 
 var parse_if = \ast, ls, line ->
-	var tests, blocks = { }, { }
+	var tests, blocks = {}, {}
 	ls.step()
 	tests[#tests+1] = expr(ast, ls)
 	ast.fscope_begin(@)
@@ -587,7 +603,7 @@ var parse_stmt = \ast, ls ->
 
 -- Parse function definition parameters
 var parse_params = \ast, ls ->
-	var args = { }
+	var args = {}
 	if ls.token ~= 'TK_lambda' and ls.token ~= 'TK_curry'
 		do
 			if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')
@@ -621,7 +637,7 @@ var parse_params = \ast, ls ->
 var parse_block_stmts = \ast, ls ->
 	var firstline = ls.line
 	var stmt, islast = nil, false
-	var body = { }
+	var body = {}
 	while not islast and not EndOfBlock[ls.token]
 		stmted = ls.line
 		stmt, islast = parse_stmt(ast, ls)
@@ -656,7 +672,6 @@ parse_opt_block = \ast, ls, line, match_token ->
 		-- if lookahead is indent, it belongs to parent block
 		--if NewLine[ls.token] and ls.next() ~= 'TK_indent'
 		--	ls.step()
-		--else
 		if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
 			err_instead(ls, "only one statement may stay near '%s'. %s expected", ls.tostr(match_token), ls.tostr('TK_newline'))
 	return body
@@ -670,6 +685,8 @@ parse_body = \ast, ls, line ->
 	ls.fs.firstline = line
 	var curry, args = parse_params(ast, ls)
 	var body = parse_opt_block(ast, ls, line, 'TK_lambda')
+	-- end of function
+	lex_opt(ls, ';')
 	ast.fscope_end(@)
 	var proto = ls.fs
 	ls.fs.lastline = ls.line
