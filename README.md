@@ -193,6 +193,7 @@ luajit run-test.lua ./tests
 Todo
 ---
 * resolve ambiguous syntax (function call x new statement) since we are line sensitive
+* static type check
 * op assign with LHS and RHS count match
    a, b += 1, 3
    c, d ..= "la", "s"
