@@ -237,7 +237,7 @@ expr_list = function(ast, ls, nmax)
     end
     local n = #exps
     if nmax and n > nmax then
-        err_syntax(ls, n .. " expressions found for " .. nmax .. " variables")
+        err_syntax(ls, "assigning " .. n .. " values to " .. nmax .. " variable(s)")
     end
     if n > 0 then
         exps[n] = ast:set_expr_last(exps[n])

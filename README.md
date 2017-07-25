@@ -118,9 +118,7 @@ var tbl = {
 The indent (offside) rule
 ---
 
-Luaty follows the general rules of other offside languages. Simply,
-
-1. Either tab or space can be used, but not both together in a single file, except for comments, which are ignored for the whole line.
+1. Either tabs or spaces can be used, but not both in a single file, except for comments, which are ignored.
 2. Only one statement is allowed per line.
 
 3. Block statements such as `if`, `for`, `while`, `do` and lambda expression `->` can have child statement(s).
@@ -139,7 +137,7 @@ do                                     -- Ok, multiple child statements are inde
 print((-> return 'a', 1)())            -- Ok, immediately invoked one lined lambda expression
 
 if x == nil for y = 1, 10 do until true else if x == 0 p(x) else if x p(x) else assert(not x)
-                                       -- Ok, `do` is a child of `for`, which in turn is a child of `if`
+                                       -- Ok, `do` is the sole children of `for`, which in turn is the sole children of `if`
                                        
 
 
@@ -164,19 +162,19 @@ print(
 
 ```
 
-5. Functions can be ended using semicolon `;` when indent/dedent is not sufficient
+5. To accomodate multiple assignment/return values, return statement in single lined functions can be ended using semicolon `;` to separate expressions of different scope
 ```
 print(pcall(\x-> return x, 10))                                          -- multiple return values. Prints true, nil, 10
 
-print(pcall(\x -> return x;, 10))                                        -- ok, function ended with `;`. Prints true, 10
+print(pcall(\x -> return x;, 10))                                        -- ok, single lined function ended with `;`. Prints true, 10
 
 print(pcall(\x ->
    return x
 , 10))                                                                   -- ok, function ended with dedent. Prints true, 10
 
 
-var a, b, c = -> var d, e, f = 2, -> return -> return 9;;; , 5, 7
-assert(b + c == 12)                                                      -- `;` needed to disambiguate multiple assignment/return values
+var a, b, c = -> var d, e, f = 2, -> return -> return 9;;, 5;, 7
+assert(b + c == 12)                                                      -- `;` used to disambiguate multiple assignment/return values
 
 ```
 
@@ -195,8 +193,9 @@ luajit run-test.lua ./tests
 Todo
 ---
 * resolve ambiguous syntax (function call x new statement) since we are line sensitive
-* assignment operators += -= /= *= %= ..=
-
+* op assign with LHS and RHS count match
+   a, b += 1, 3
+   c, d ..= "la", "s"
 
 
 Acknowledgment

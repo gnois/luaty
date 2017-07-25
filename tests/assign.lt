@@ -1,6 +1,40 @@
 -- single line multi assign
-var a, b, c = -> var d, e, f = 2, \... -> return -> return 9;;; , 5, 7
-assert(b + c == 12)
+
+-- this explains why comma after semicolon cannot be omitted by design
+-- case 1: result 9 is part of expr list
+do
+	var a, b, c = -> var d, e, f = 2, \... -> return -> return 7
+	, 5;,
+	(-> return 9)()
+	assert(b == 9)
+	assert(c == nil)
+
+-- case 2: without comma, result 9 is not part of expr list
+do
+	var a, b, c = -> var d, e, f = 2, \... -> return -> return 7
+	, 5;
+	(-> return 9)()
+	assert(b == nil)
+
+
+-- this shows one statement per line rule is checked correctly, hopefully
+do
+	var a, b, c = -> var d, e, f = 2, ->
+		return -> return d, e, f;, d, e, f
+	, 5;, 9, 4
+	assert(b + c == 13)
+
+
+do
+	var x, y, z = ->
+		return 4
+	, -> return 1,3;, 7
+	assert(y() == 1)
+	assert(z == 7)
+	
+do
+	var a, b, c = -> var d, e, f = 2, \... -> return -> return 9;;; , 5, 7
+	assert(b + c == 12)
 
 do
 	var a, b, c = -> var d, e, f = 2, \... -> return -> return 7;; , 5; , 8, 
@@ -14,14 +48,6 @@ do
 	9
 	assert(b + c == 17)
 
-do
-	var a, b, c = -> var d, e, f = 2, \... -> return -> return 7
-	, 5; 
-	, 8, 
-	9
-	assert(b + c == 17)
-	
-	
 -- multiline multi assign
 do
 	var a, b, c = \... -> return,

@@ -10,6 +10,7 @@ var EndOfFunction = { ['}'] = true, [')'] = true, [';'] = true, [','] = true} --
 var NewLine = { TK_newline = true }
 
 -- disallow multiple statement on one line
+-- need to be in file scope coz parse_block_stmts() is recursive
 var stmted  -- keep the line number that we parsed
 
 var is_keyword = \ls ->
@@ -223,7 +224,7 @@ expr_simple = \ast, ls ->
 
 
 -- nmax checks the max number of expression expected, and allows newline
--- eg: for and return has nmax nil, so newline not accepted
+-- eg: `for` and `return` has nmax nil, so newline not accepted
 expr_list = \ast, ls, nmax ->
 	var exps = {}
 	exps[1] = expr(ast, ls)
@@ -246,7 +247,7 @@ expr_list = \ast, ls, nmax ->
 
 	var n = #exps
 	if nmax and n > nmax
-		err_syntax(ls, n .. " expressions found for " .. nmax .. " variables")
+		err_syntax(ls, "assigning " .. n .. " values to " .. nmax .. " variable(s)")
 	if n > 0
 		exps[n] = ast.set_expr_last(@, exps[n])
 	return exps
@@ -261,7 +262,6 @@ expr_unop = \ast, ls ->
 		return ast.expr_unop(@, ls.tostr(tk), v, line)
 	else
 		return expr_simple(ast, ls)
-
 
 
 -- Parse binary expressions with priority higher than the limit.
@@ -410,28 +410,10 @@ parse_args = \ast, ls ->
 		err_instead(ls, "'%s' expected to match '%s' at line %d", ls.tostr('TK_dedent'), ls.tostr('TK_indent'), line)
 	lex_match(ls, ')', '(', line)
 
-	--[[  function call must have parens `()`, in which we allow newlines
-	if ls.token == '('
-		...
-	else if ls.token == '{'
-		var a = expr_table(ast, ls)
-		args = { a }
-	else if ls.token == 'TK_string'
-		var a = ls.value
-		ls.step()
-		args = { ast.literal(@, a) }
-	else if ls.token == 'TK_longstring'
-		var a = ls.value
-		ls.step()
-		args = { ast.longstrliteral(@, a) }
-	else
-		err_syntax(ls, "function arguments expected")
-	--]]
 	var n = #args
 	if n > 0
 		args[n] = ast.set_expr_last(@, args[n])
 	return args
-
 
 
 var parse_assignment
@@ -514,7 +496,6 @@ var parse_if = \ast, ls, line ->
 			else_branch = parse_opt_block(ast, ls, ls.line, 'TK_else')
 			ast.fscope_end(@)
 			break
-	
 
 	return ast.if_stmt(@, tests, blocks, else_branch, line)
 
@@ -545,7 +526,6 @@ var parse_label = \ast, ls ->
 		--    ls.step()
 		else
 			break
-
 	return ast.label_stmt(@, name, ls.line)
 
 
