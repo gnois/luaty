@@ -2,11 +2,10 @@
 Luaty
 ====
 
-Luaty is a Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule) and less syntatic sugar.
-It compiles with basic lint checks to clean Lua.
+Luaty is an opinionated Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule) and a few features.
+The compiler performs basic linting and generates clean Lua code.
 
-Its syntax resembles Lua, but mostly shorter.
-If you know Lua, you already knew most of Luaty.
+Luaty syntax resembles Lua, but is mostly shorter. If you know Lua, you already knew most of Luaty.
 
 After all, it's just a play of *Lua* with less *ty*ping.
 
@@ -44,7 +43,7 @@ if not x
 
 ```
 
-- Prefer consistency over sugar
+- Prefer consistency over syntactic sugar
   * function definition is always a lambda [expression](https://www.lua.org/manual/5.1/manual.html#2.5.9) using  `->` or `\arg1, arg2 ->`
   * function call always require parenthesis
   * colon `:` is not allowed in method definition or call. `self` or `@` need to be explicitly specified as the first lambda parameter
@@ -195,7 +194,9 @@ Todo
 * resolve ambiguous syntax (function call x new statement) since we are line sensitive
 * static type check
 * op assign with LHS and RHS count match
+   
    a, b += 1, 3
+   
    c, d ..= "la", "s"
 
 

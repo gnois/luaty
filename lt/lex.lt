@@ -107,7 +107,8 @@ return \read, chunkname ->
 	-- input stream pointer
 	var data, n, p = nil, 0, 0
 	-- char and buffer under process
-	var ch, buff, comment_buff = '', '', ''
+	var ch, comment_buff = '', ''
+	var buff, bi = {}, 0
 	var newline = nil -- remember the previously found newline
 	var indent = nil  -- current indent level
 	var minus = nil   -- are we at comment or minus
@@ -133,7 +134,7 @@ return \read, chunkname ->
 		if token
 			var tok
 			if token == 'TK_name' or token == 'TK_string' or token == 'TK_number'
-				tok = buff
+				tok = table.concat(buff)
 			else
 				tok = string.format("'%s'", token2str(token))
 			-- replace % with %%, so as not to confuse string.format() later
@@ -145,7 +146,7 @@ return \read, chunkname ->
 		if tok
 			em = em .. " near " .. tok
 		-- if the buff is too long, pos will be negative, so don't minus away the length of buff
-		var pos = string.len(buff or '')
+		var pos = #buff
 		if pos > state.pos
 			pos = state.pos
 		else
@@ -168,13 +169,11 @@ return \read, chunkname ->
 		data, n, p = stream, #stream, 1
 		return popchar()
 
-
 	var nextchar = ->
 		var c = n > 0 and popchar() or fill()
 		state.pos = state.pos + 1
 		ch = c
 		return c
-
 
 	var char = \n ->
 		var k = p + n
@@ -184,11 +183,16 @@ return \read, chunkname ->
 		n = n - len
 		p = p + len
 
-	var add_buffer = \c ->
-		buff = buff .. c
 
+	var add_buffer = \c ->
+		bi = bi + 1
+		buff[bi] = c
+
+	var clear_buffer = ->
+		buff, bi = {}, 0
+		
 	var get_buffer = \begin, last ->
-		return string.sub(buff, begin + 1, - (last + 1))
+		return table.concat(buff, '', begin + 1, #buff - last) -- -(last + 1))
 
 	var add_comment = \str ->
 		comment_buff = comment_buff .. str
@@ -239,7 +243,7 @@ return \read, chunkname ->
 			add_buffer(c)
 			nextchar()
 
-		var str = buff
+		var str = table.concat(buff)
 		var x
 		if string.sub(str, -1, -1) == 'i'
 			var img = tonumber(string.sub(str, 1, -2))
@@ -378,7 +382,7 @@ return \read, chunkname ->
 
 	var tokenize = ->
 		
-		buff = ''
+		clear_buffer()
 		if newline
 			var ind = newline
 			newline = nil
@@ -407,9 +411,9 @@ return \read, chunkname ->
 		var tab = nil   -- tab char of the current line
 		var mixed = false  -- mixing tab and space?
 		while true
-			var current = ch
+			var c = ch
 			
-			if IsNewLine[current]
+			if IsNewLine[ch]
 				tab = nil  -- if come back here, is an empty line, reset tab space tracker
 				inc_line()
 				var ind = 0
@@ -427,16 +431,16 @@ return \read, chunkname ->
 				else
 					newline = nil    -- reached EOF, ignore previous newline(s)
 			
-			else if current == END_OF_STREAM
+			else if ch == END_OF_STREAM
 				if stack.top() > 0
 					stack.pop()
 					return 'TK_dedent'
 			
 				return 'TK_eof'
-			else if current == ' ' or current == '\t' or current == '\b' or current == '\f'
+			else if ch == ' ' or ch == '\t' or ch == '\b' or ch == '\f'
 				-- skip space in between characters
 				nextchar()
-			else if current == '-'
+			else if ch == '-'
 				nextchar()
 				if ch == '-'
 					-- is a comment
@@ -447,12 +451,12 @@ return \read, chunkname ->
 					add_comment('--')
 					if ch == '['
 						var sep = skip_sep()
-						add_comment(buff)  -- `skip_sep' may have changed buff
-						buff = ''
+						add_comment(table.concat(buff))  -- `skip_sep' may have changed buff
+						clear_buffer()
 						if sep >= 0
 							read_long_string(sep, true) -- long comment
-							add_comment(buff)  -- `read_long_string' may have change buff
-							buff = '' 
+							add_comment(table.concat(buff))  -- `read_long_string' may have change buff
+							clear_buffer()
 						else
 							skip_line()
 					
@@ -479,8 +483,8 @@ return \read, chunkname ->
 					lex_error(nil, "cannot mix tab and space as indentation")
 				return 'TK_newline'
 			else
-				if char_isalnum(current)
-					if char_isdigit(current) -- Numeric literal.
+				if char_isalnum(ch)
+					if char_isdigit(ch) -- Numeric literal.
 						return 'TK_number', lex_number()
 
 					do
@@ -493,10 +497,10 @@ return \read, chunkname ->
 						return 'TK_' .. s
 				
 					return 'TK_name', s
-				else if current == '@'
+				else if ch == '@'
 					nextchar()
 					return 'TK_name', 'self'
-				else if current == '['
+				else if ch == '['
 					var sep = skip_sep()
 					if sep >= 0
 						var str = read_long_string(sep)
@@ -506,25 +510,25 @@ return \read, chunkname ->
 					else
 						lex_error('TK_longstring', "long string delimiter error")
 				
-				else if current == '='
+				else if ch == '='
 					nextchar()
 					if ch ~= '=' return '='
 					else
 						nextchar()
 						return 'TK_eq' 
-				else if current == '<'
+				else if ch == '<'
 					nextchar()
 					if ch ~= '=' return '<'
 					else
 						nextchar()
 						return 'TK_le' 
-				else if current == '>'
+				else if ch == '>'
 					nextchar()
 					if ch ~= '=' return '>'
 					else
 						nextchar()
 						return 'TK_ge' 
-				else if current == '~'
+				else if ch == '~'
 					nextchar()
 					if ch == '=' 
 						nextchar()
@@ -533,16 +537,16 @@ return \read, chunkname ->
 						nextchar()
 						return 'TK_curry'
 					return '~'
-				else if current == ':'
+				else if ch == ':'
 					nextchar()
 					if ch ~= ':' return ':'
 					else
 						nextchar()
 						return 'TK_label' 
-				else if current == '"' or current == "'"
-					var str = read_string(current)
+				else if ch == '"' or ch == "'"
+					var str = read_string(ch)
 					return 'TK_string', str
-				else if current == '.'
+				else if ch == '.'
 					add_buffer(ch)
 					nextchar()
 					if ch == '.'
@@ -556,10 +560,10 @@ return \read, chunkname ->
 						return '.'
 					else
 						return 'TK_number', lex_number()
-				
 				else
+					-- Single-char tokens (+ - / ...).
 					nextchar()
-					return current -- Single-char tokens (+ - / ...).
+					return c
 
 
 	var lex = ->

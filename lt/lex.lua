@@ -104,7 +104,8 @@ local hex_char = function(c)
 end
 return function(read, chunkname)
     local data, n, p = nil, 0, 0
-    local ch, buff, comment_buff = "", "", ""
+    local ch, comment_buff = "", ""
+    local buff, bi = {}, 0
     local newline = nil
     local indent = nil
     local minus = nil
@@ -115,7 +116,7 @@ return function(read, chunkname)
         if token then
             local tok
             if token == "TK_name" or token == "TK_string" or token == "TK_number" then
-                tok = buff
+                tok = table.concat(buff)
             else
                 tok = string.format("'%s'", token2str(token))
             end
@@ -129,7 +130,7 @@ return function(read, chunkname)
         if tok then
             em = em .. " near " .. tok
         end
-        local pos = string.len(buff or "")
+        local pos = #buff
         if pos > state.pos then
             pos = state.pos
         else
@@ -168,10 +169,14 @@ return function(read, chunkname)
         p = p + len
     end
     local add_buffer = function(c)
-        buff = buff .. c
+        bi = bi + 1
+        buff[bi] = c
+    end
+    local clear_buffer = function()
+        buff, bi = {}, 0
     end
     local get_buffer = function(begin, last)
-        return string.sub(buff, begin + 1, -(last + 1))
+        return table.concat(buff, "", begin + 1, #buff - last)
     end
     local add_comment = function(str)
         comment_buff = comment_buff .. str
@@ -220,7 +225,7 @@ return function(read, chunkname)
             add_buffer(c)
             nextchar()
         end
-        local str = buff
+        local str = table.concat(buff)
         local x
         if string.sub(str, -1, -1) == "i" then
             local img = tonumber(string.sub(str, 1, -2))
@@ -358,7 +363,7 @@ return function(read, chunkname)
         end
     end
     local tokenize = function()
-        buff = ""
+        clear_buffer()
         if newline then
             local ind = newline
             newline = nil
@@ -389,8 +394,8 @@ return function(read, chunkname)
         local tab = nil
         local mixed = false
         while true do
-            local current = ch
-            if IsNewLine[current] then
+            local c = ch
+            if IsNewLine[ch] then
                 tab = nil
                 inc_line()
                 local ind = 0
@@ -408,15 +413,15 @@ return function(read, chunkname)
                 else
                     newline = nil
                 end
-            elseif current == END_OF_STREAM then
+            elseif ch == END_OF_STREAM then
                 if stack.top() > 0 then
                     stack.pop()
                     return "TK_dedent"
                 end
                 return "TK_eof"
-            elseif current == " " or current == "\t" or current == "\b" or current == "\f" then
+            elseif ch == " " or ch == "\t" or ch == "\b" or ch == "\f" then
                 nextchar()
-            elseif current == "-" then
+            elseif ch == "-" then
                 nextchar()
                 if ch == "-" then
                     newline = nil
@@ -426,12 +431,12 @@ return function(read, chunkname)
                     add_comment("--")
                     if ch == "[" then
                         local sep = skip_sep()
-                        add_comment(buff)
-                        buff = ""
+                        add_comment(table.concat(buff))
+                        clear_buffer()
                         if sep >= 0 then
                             read_long_string(sep, true)
-                            add_comment(buff)
-                            buff = ""
+                            add_comment(table.concat(buff))
+                            clear_buffer()
                         else
                             skip_line()
                         end
@@ -460,8 +465,8 @@ return function(read, chunkname)
                 end
                 return "TK_newline"
             else
-                if char_isalnum(current) then
-                    if char_isdigit(current) then
+                if char_isalnum(ch) then
+                    if char_isdigit(ch) then
                         return "TK_number", lex_number()
                     end
                     repeat
@@ -474,10 +479,10 @@ return function(read, chunkname)
                         return "TK_" .. s
                     end
                     return "TK_name", s
-                elseif current == "@" then
+                elseif ch == "@" then
                     nextchar()
                     return "TK_name", "self"
-                elseif current == "[" then
+                elseif ch == "[" then
                     local sep = skip_sep()
                     if sep >= 0 then
                         local str = read_long_string(sep)
@@ -487,7 +492,7 @@ return function(read, chunkname)
                     else
                         lex_error("TK_longstring", "long string delimiter error")
                     end
-                elseif current == "=" then
+                elseif ch == "=" then
                     nextchar()
                     if ch ~= "=" then
                         return "="
@@ -495,7 +500,7 @@ return function(read, chunkname)
                         nextchar()
                         return "TK_eq"
                     end
-                elseif current == "<" then
+                elseif ch == "<" then
                     nextchar()
                     if ch ~= "=" then
                         return "<"
@@ -503,7 +508,7 @@ return function(read, chunkname)
                         nextchar()
                         return "TK_le"
                     end
-                elseif current == ">" then
+                elseif ch == ">" then
                     nextchar()
                     if ch ~= "=" then
                         return ">"
@@ -511,7 +516,7 @@ return function(read, chunkname)
                         nextchar()
                         return "TK_ge"
                     end
-                elseif current == "~" then
+                elseif ch == "~" then
                     nextchar()
                     if ch == "=" then
                         nextchar()
@@ -521,7 +526,7 @@ return function(read, chunkname)
                         return "TK_curry"
                     end
                     return "~"
-                elseif current == ":" then
+                elseif ch == ":" then
                     nextchar()
                     if ch ~= ":" then
                         return ":"
@@ -529,10 +534,10 @@ return function(read, chunkname)
                         nextchar()
                         return "TK_label"
                     end
-                elseif current == "\"" or current == "'" then
-                    local str = read_string(current)
+                elseif ch == "\"" or ch == "'" then
+                    local str = read_string(ch)
                     return "TK_string", str
-                elseif current == "." then
+                elseif ch == "." then
                     add_buffer(ch)
                     nextchar()
                     if ch == "." then
@@ -549,7 +554,7 @@ return function(read, chunkname)
                     end
                 else
                     nextchar()
-                    return current
+                    return c
                 end
             end
         end
