@@ -1,23 +1,18 @@
 -- single line multi assign
 
--- this explains why comma after semicolon cannot be omitted by design
--- case 1: result 9 is part of expr list
 do
-	var a, b, c = -> var d, e, f = 2, \... -> return -> return 7
-	, 5;,
-	(-> return 9)()
-	assert(b == 9)
-	assert(c == nil)
+	var a, b, c = \... -> return, 3, 8
+	assert(b + c == 11)
 
--- case 2: without comma, result 9 is not part of expr list
-do
-	var a, b, c = -> var d, e, f = 2, \... -> return -> return 7
-	, 5;
-	(-> return 9)()
-	assert(b == nil)
+	var w, x, y = \... -> return, 30, 90
+	assert(x + y == 120)
+
+	var j = \... -> return 4, 6, ...
+	var jt = {j(1, 2, 3)}
+	assert(#jt == 5)
 
 
--- this shows one statement per line rule is checked correctly, hopefully
+-- this shows one statement per line rule is checked correctly
 do
 	var a, b, c = -> var d, e, f = 2, ->
 		return -> return d, e, f;, d, e, f
@@ -25,64 +20,35 @@ do
 	assert(b + c == 13)
 
 
-do
 	var x, y, z = ->
 		return 4
 	, -> return 1,3;, 7
 	assert(y() == 1)
 	assert(z == 7)
-	
+
+
+do
+	var a, b, c = -> var d, e, f = 2, \... -> return -> return 7, 5
+	(-> return 9)()
+	assert(b == nil)
+
+do
+	var a, b, c = -> var d, e, f = 2, \... -> return -> return 7, 5;;;, (-> return 9)()
+	assert(b == 9)
+	assert(c == nil)
+
 do
 	var a, b, c = -> var d, e, f = 2, \... -> return -> return 9;;; , 5, 7
 	assert(b + c == 12)
 
 do
-	var a, b, c = -> var d, e, f = 2, \... -> return -> return 7;; , 5; , 8, 
-	9
+	var a, b, c = -> var d, e, f = 2, \... -> return -> return 7;; , 5; , 8, 9
 	assert(b + c == 17)
 
 do
-	var a, b, c = -> var d, e, f = 2, \... -> return -> return 7;;
-	, 5; 
-	, 8, 
-	9
-	assert(b + c == 17)
+	var a, b, c = -> var d, e, f = 2, \... -> return -> return 7;, 5; , 8;, 9
+	assert(b == 9)
 
--- multiline multi assign
-do
-	var a, b, c = \... -> return,
-	3, 8
-	assert(b + c == 11)
-
-	var d, e, f = \... -> return 40, 80
-	, 30
-	, 60
-	assert(e + f == 90)
-	assert(d() == 40)
-
-	var g, h, i = \... -> return ..., 
-	30, 80
-	assert(h + i == 110)
-
-	var j = \... -> return 4, 6, ...
-	var jt = {j(1, 2, 3)}
-	assert(#jt == 5)
-
-	var k, l, m = -> return
-	,10
-	assert(l == 10)
-
-	var p, q, r = \... -> return
-	, 7, 8
-	assert(q + r == 15)
-
-	var s, t, u = -> return
-	,5,
-	9
-	assert(t + u == 14)
-
-	var w, x, y = \... -> return, 30, 90
-	assert(x + y == 120)
 
 
 

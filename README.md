@@ -2,12 +2,10 @@
 Luaty
 ====
 
-Luaty is an opinionated Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule) and a few features.
-The compiler performs basic linting and generates clean Lua code.
+Luaty is an opinionated Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule) that compiles into clean Lua code.
+Its syntax resembles Lua, but is mostly shorter or more readable.
 
-Luaty syntax resembles Lua, but is mostly shorter. If you know Lua, you already knew most of Luaty.
-
-After all, it's just a play of *Lua* with less *ty*ping.
+If you know Lua, you already knew most of Luaty. After all, it's just a play of *Lua* with less *ty*ping.
 
 
 Quick start
@@ -44,9 +42,9 @@ if not x
 ```
 
 - Prefer consistency over syntactic sugar
-  * function definition is always a lambda [expression](https://www.lua.org/manual/5.1/manual.html#2.5.9) using  `->` or `\arg1, arg2 ->`
+  * function definition is always a [lambda expression](https://www.lua.org/manual/5.1/manual.html#2.5.9) using  `->` or `\arg1, arg2 ->`
   * function call always require parenthesis
-  * colon `:` is not allowed in method definition or call. `self` or `@` need to be explicitly specified as the first lambda parameter
+  * colon `:` is not allowed in method definition or call. `self` or `@` has to be explicitly specified as the first lambda parameter
 
 ```
 print 'a'                          -- Error: '=' expected instead of 'a'. This is valid in Lua
@@ -71,17 +69,17 @@ assert(obj.foo(@, 2) == 6)         -- Ok, specify @ explicitly. Compiles to obj:
 - table key can be keywords
 
 ```
-var e = {
+var z = {
    var = 7
    , local = 6
    , function = 5
    , if = \...-> return ...
-   , else = {true, false}
+   , goto = {true, false}
 }
 
-assert(e.var == 7)                           -- Ok, e.var becomes e['var']
-assert(11 == e.function + e.local)           -- Ditto
-assert(e.if(e.else)[2] == false)
+assert(z.var == 7)                           -- Ok, z.var becomes z['var']
+assert(11 == z.function + z.local)           -- Ditto
+assert(z.if(z.goto)[2] == false)
 
 ```
 
@@ -161,7 +159,7 @@ print(
 
 ```
 
-5. To accomodate multiple assignment/return values, return statement in single lined functions can be ended using semicolon `;` to separate expressions of different scope
+5. To accomodate multiple assignment/return values, return statement in single lined functions should be ended using semicolon `;` to separate expressions of different scope
 ```
 print(pcall(\x-> return x, 10))                                          -- multiple return values. Prints true, nil, 10
 
@@ -173,7 +171,7 @@ print(pcall(\x ->
 
 
 var a, b, c = -> var d, e, f = 2, -> return -> return 9;;, 5;, 7
-assert(b + c == 12)                                                      -- `;` used to disambiguate multiple assignment/return values
+assert(b == 7)                                                           -- `;` used to disambiguate multiple assignment/return values
 
 ```
 

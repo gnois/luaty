@@ -216,24 +216,9 @@ end
 expr_list = function(ast, ls, nmax)
     local exps = {}
     exps[1] = expr(ast, ls)
-    if nmax then
-        while ls.token == "," or NewLine[ls.token] and ls.next() == "," do
-            local nl = false
-            if NewLine[ls.token] then
-                ls.step()
-                nl = true
-            end
-            ls.step()
-            if not nl and NewLine[ls.token] then
-                ls.step()
-            end
-            exps[#exps + 1] = expr(ast, ls)
-        end
-    else
-        while ls.token == "," and not NewLine[ls.next()] do
-            ls.step()
-            exps[#exps + 1] = expr(ast, ls)
-        end
+    while ls.token == "," do
+        ls.step()
+        exps[#exps + 1] = expr(ast, ls)
     end
     local n = #exps
     if nmax and n > nmax then

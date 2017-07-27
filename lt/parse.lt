@@ -223,27 +223,14 @@ expr_simple = \ast, ls ->
 	return e
 
 
--- nmax checks the max number of expression expected, and allows newline
--- eg: `for` and `return` has nmax nil, so newline not accepted
+-- nmax checks the max number of expression expected
 expr_list = \ast, ls, nmax ->
 	var exps = {}
 	exps[1] = expr(ast, ls)
 	
-	-- newline needed in case earlier expression is a function with multi return
-	if nmax
-		while ls.token == ',' or NewLine[ls.token] and ls.next() == ','
-			var nl = false
-			if NewLine[ls.token]
-				ls.step()
-				nl = true
-			ls.step() -- skip ','
-			if not nl and NewLine[ls.token]
-				ls.step()
-			exps[#exps + 1] = expr(ast, ls)
-	else
-		while ls.token == ',' and not NewLine[ls.next()]
-			ls.step()
-			exps[#exps + 1] = expr(ast, ls)
+	while ls.token == ','
+		ls.step()
+		exps[#exps + 1] = expr(ast, ls)
 
 	var n = #exps
 	if nmax and n > nmax
