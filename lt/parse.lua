@@ -414,7 +414,7 @@ local parse_var = function(ast, ls)
     until not lex_opt(ls, ",")
     local v = ast:overwritten(vl)
     if v then
-        err_syntax(ls, "duplicate `var " .. v .. "`")
+        err_syntax(ls, "shadowing previous `var " .. v .. "`")
     end
     local exps
     if lex_opt(ls, "=") then

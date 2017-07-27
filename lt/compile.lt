@@ -1,39 +1,36 @@
+var read = require('lt.read')
 var lexer = require('lt.lex')
 var parse = require('lt.parse')
-var ast = require('lt.ast').New()
-var read = require('lt.read')
-
+var ast = require('lt.ast')
 -- Take the AST tree and produce a string that can be passed to the function "loadstring".
 var generate = require('lt.generate')
 
-var lang_error = \msg ->
-	if string.sub(msg, 1, 8) == "LT-ERROR"
-		return false, string.sub(msg, 9)
-	else
-		error(msg)
+var color = {
+	magenta = "\27[95;1m"
+	, cyan  = "\27[96;1m"
+	, reset = "\27[0m"
+}
 
 var compile = \reader, filename, options ->
 	var ls = lexer(reader, filename)
 	
 	var ok, tree, code
-	ok, tree = pcall(parse, ast, ls)
-	if not ok
-		return lang_error(tree)
-	
-	ok, code = pcall(generate, tree, filename)
-	if not ok
-		return lang_error(code)
-	
+	ok, tree = pcall(parse, ast.New(), ls)
+	var warns = {}
+	if #ls.warnings > 0
+		for i, m in ipairs(ls.warnings)
+			warns[i] = string.format("%s: (%d,%d)" .. color.cyan ..  "  %s" .. color.reset, filename, m.l, m.c, m.msg)
+		return false, table.concat(warns, "\n")
+
+	code = generate(tree)
 	return true, code
 
-var load_string = \src, filename, options ->
-	return compile(read.string(src), filename or "stdin", options)
 
-
-var load_file = \filename, options ->
-	return compile(read.file(filename), filename or "stdin", options)
 
 return {
-	string = load_string
-	, file = load_file
+	string = \src, filename, options ->
+		return compile(read.string(src), filename or "stdin", options)
+	
+	, file = \filename, options ->
+		return compile(read.file(filename), filename or "stdin", options)
 }

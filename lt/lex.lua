@@ -2,16 +2,12 @@
 -- Generated from lex.lt
 --
 
-local ffi = require("ffi")
+local chars = require("lt.chars")
 local stack = require("lt.stack")
 local Keyword = require("lt.reserved")
 Keyword.var = true
-local int64 = ffi.typeof("int64_t")
-local uint64 = ffi.typeof("uint64_t")
-local complex = ffi.typeof("complex")
-local ASCII_0, ASCII_9 = 48, 57
-local ASCII_a, ASCII_f, ASCII_z = 97, 102, 122
-local ASCII_A, ASCII_Z = 65, 90
+local is = chars.is
+local build = chars.build
 local END_OF_STREAM = -1
 local TokenSymbol = {TK_lambda = "->", TK_curry = "~>", TK_ge = ">=", TK_le = "<=", TK_concat = "..", TK_eq = "==", TK_ne = "~=", TK_indent = "<indent>", TK_dedent = "<dedent>", TK_newline = "<newline>", TK_eof = "<eof>"}
 local IsNewLine = {["\n"] = true, ["\r"] = true}
@@ -21,86 +17,6 @@ local token2str = function(tok)
         return TokenSymbol[tok] or string.sub(tok, 4)
     end
     return tok
-end
-local char_isalnum = function(c)
-    if type(c) == "string" then
-        local b = string.byte(c)
-        if b >= ASCII_0 and b <= ASCII_9 then
-            return true
-        elseif b >= ASCII_a and b <= ASCII_z then
-            return true
-        elseif b >= ASCII_A and b <= ASCII_Z then
-            return true
-        else
-            return c == "_"
-        end
-    end
-    return false
-end
-local char_isdigit = function(c)
-    if type(c) == "string" then
-        local b = string.byte(c)
-        return b >= ASCII_0 and b <= ASCII_9
-    end
-    return false
-end
-local char_isspace = function(c)
-    local b = string.byte(c)
-    return b >= 9 and b <= 13 or b == 32
-end
-local build_64int = function(str)
-    local u = str[#str - 2]
-    local x = u == 117 and uint64(0) or int64(0)
-    local i = 1
-    while str[i] >= ASCII_0 and str[i] <= ASCII_9 do
-        x = 10 * x + (str[i] - ASCII_0)
-        i = i + 1
-    end
-    return x
-end
-local byte_to_hexdigit = function(b)
-    if b >= ASCII_0 and b <= ASCII_9 then
-        return b - ASCII_0
-    elseif b >= ASCII_a and b <= ASCII_f then
-        return 10 + (b - ASCII_a)
-    else
-        return -1
-    end
-end
-local build_64hex = function(str)
-    local u = str[#str - 2]
-    local x = u == 117 and uint64(0) or int64(0)
-    local i = 3
-    while str[i] do
-        local n = byte_to_hexdigit(str[i])
-        if n < 0 then
-            break
-        end
-        x = 16 * x + n
-        i = i + 1
-    end
-    return x
-end
-local strnumdump = function(str)
-    local t = {}
-    for i = 1, #str do
-        local c = string.sub(str, i, i)
-        if char_isalnum(c) then
-            t[i] = string.byte(c)
-        else
-            return nil
-        end
-    end
-    return t
-end
-local hex_char = function(c)
-    if string.match(c, "^%x") then
-        local b = bit.band(string.byte(c), 15)
-        if not char_isdigit(c) then
-            b = b + 9
-        end
-        return b
-    end
 end
 return function(read, chunkname)
     local data, n, p = nil, 0, 0
@@ -112,6 +28,19 @@ return function(read, chunkname)
     local tabs = nil
     local lookahead = {token = "TK_eof", value = nil}
     local state = {chunkname = chunkname, prevline = 1, prevpos = 1, line = 1, pos = 1, token = "TK_eof", value = nil}
+    local warnings = {}
+    local warn = function(w)
+        for i, m in ipairs(warnings) do
+            if w.l == m.l and w.c == m.c and w.msg == m.msg then
+                return 
+            end
+            if w.l < m.l or w.l == m.l and w.c < m.c then
+                table.insert(warnings, i, w)
+                return 
+            end
+        end
+        table.insert(warnings, w)
+    end
     local fmt_token = function(token)
         if token then
             local tok
@@ -136,8 +65,10 @@ return function(read, chunkname)
         else
             pos = state.pos - pos
         end
-        local msg = string.format("%s: (%d,%d)  " .. em, state.chunkname, state.line, pos, ...)
-        error("LT-ERROR" .. msg, 0)
+        warn({msg = string.format(em, ...), l = state.line, c = pos})
+    end
+    local parse_error = function(state, em, ...)
+        warn({msg = string.format(em, ...), l = state.line, c = state.prevpos})
     end
     local popchar = function()
         local k = p
@@ -220,7 +151,7 @@ return function(read, chunkname)
                 xp = "p"
             end
         end
-        while char_isalnum(ch) or ch == "." or (ch == "-" or ch == "+") and lower(c) == xp do
+        while is.alnum(ch) or ch == "." or (ch == "-" or ch == "+") and lower(c) == xp do
             c = lower(ch)
             add_buffer(c)
             nextchar()
@@ -233,9 +164,9 @@ return function(read, chunkname)
                 x = complex(0, img)
             end
         elseif string.sub(str, -2, -1) == "ll" then
-            local t = strnumdump(str)
+            local t = chars.strnumdump(str)
             if t then
-                x = xp == "e" and build_64int(t) or build_64hex(t)
+                x = xp == "e" and build.int64(t) or build.hex64(t)
             end
         else
             x = tonumber(str)
@@ -281,11 +212,11 @@ return function(read, chunkname)
         elseif c == "x" then
             add_buffer("\\")
             add_buffer(c)
-            local ch1 = hex_char(nextchar())
+            local ch1 = chars.hex(nextchar())
             local hc
             if ch1 then
                 add_buffer(ch)
-                local ch2 = hex_char(nextchar())
+                local ch2 = chars.hex(nextchar())
                 if ch2 then
                     add_buffer(ch)
                     hc = string.char(ch1 * 16 + ch2)
@@ -297,7 +228,7 @@ return function(read, chunkname)
             nextchar()
         elseif c == "z" then
             nextchar()
-            while char_isspace(ch) do
+            while is.space(ch) do
                 if IsNewLine[ch] then
                     inc_line()
                 else
@@ -316,16 +247,16 @@ return function(read, chunkname)
             nextchar()
         elseif c == END_OF_STREAM then
         else
-            if not char_isdigit(c) then
+            if not is.digit(c) then
                 lex_error("TK_string", "invalid escape character \\" .. c)
             end
             add_buffer("\\")
             add_buffer(c)
             local bc = bit.band(string.byte(c), 15)
-            if char_isdigit(nextchar()) then
+            if is.digit(nextchar()) then
                 add_buffer(ch)
                 bc = bc * 10 + bit.band(string.byte(ch), 15)
-                if char_isdigit(nextchar()) then
+                if is.digit(nextchar()) then
                     add_buffer(ch)
                     bc = bc * 10 + bit.band(string.byte(ch), 15)
                     nextchar()
@@ -465,14 +396,14 @@ return function(read, chunkname)
                 end
                 return "TK_newline"
             else
-                if char_isalnum(ch) then
-                    if char_isdigit(ch) then
+                if is.alnum(ch) then
+                    if is.digit(ch) then
                         return "TK_number", lex_number()
                     end
                     repeat
                         add_buffer(ch)
                         nextchar()
-                    until not char_isalnum(ch)
+                    until not is.alnum(ch)
                     local s = get_buffer(0, 0)
                     local reserved = Keyword[s]
                     if reserved then
@@ -547,7 +478,7 @@ return function(read, chunkname)
                             return "TK_dots"
                         end
                         return "TK_concat"
-                    elseif not char_isdigit(ch) then
+                    elseif not is.digit(ch) then
                         return "."
                     else
                         return "TK_number", lex_number()
@@ -586,11 +517,7 @@ return function(read, chunkname)
         end
         return lookahead.token, lookahead.value
     end
-    local throw = function(state, em, ...)
-        local msg = string.format("%s: (%d,%d)  " .. em, state.chunkname, state.line, state.prevpos, ...)
-        error("LT-ERROR" .. msg, 0)
-    end
-    local lexer = setmetatable(state, {__index = {tostr = token2str, error = throw, step = step, next = next}})
+    local lexer = setmetatable(state, {__index = {tostr = token2str, step = step, next = next, error = parse_error, warnings = warnings}})
     nextchar()
     if ch == "\xef" and n >= 2 and char(0) == "\xbb" and char(1) == "\xbf" then
         n = n - 2

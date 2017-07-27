@@ -441,7 +441,7 @@ var parse_var = \ast, ls ->
 	until not lex_opt(ls, ',')
 	var v = ast.overwritten(@, vl)
 	if v
-		err_syntax(ls, "duplicate `var " .. v .. "`")
+		err_syntax(ls, "shadowing previous `var " .. v .. "`")
 
 	var exps
 	if lex_opt(ls, '=') -- Optional RHS.

@@ -239,12 +239,13 @@ AST.overwritten = \ast, vars ->
 				return v
 
 		var scope = ast.current
-		-- shadowing var at parent scope is normal
-		--do
-		if scope.vars[v]
-			return v
-		--scope = scope.parent
-		--until not scope
+		
+		-- shadowing var at parent scope is normal, but we want to be careful
+		do
+			if scope.vars[v]
+				return v
+			scope = scope.parent
+		until not scope
 
 
 var same

@@ -358,7 +358,7 @@ var proto_new = \parent, indent ->
 	return proto
 
 
-var generate = \tree, name ->
+var generate = \tree ->
 
 	var self = { line = 0 }
 	self.proto = proto_new()

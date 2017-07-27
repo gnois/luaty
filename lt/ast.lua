@@ -184,9 +184,12 @@ AST.overwritten = function(ast, vars)
             end
         end
         local scope = ast.current
-        if scope.vars[v] then
-            return v
-        end
+        repeat
+            if scope.vars[v] then
+                return v
+            end
+            scope = scope.parent
+        until not scope
     end
 end
 local same

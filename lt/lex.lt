@@ -1,105 +1,22 @@
-var ffi = require("ffi")
+var chars = require("lt.chars")
 var stack = require("lt.stack")
 var Keyword = require("lt.reserved")
 Keyword.var = true
+var is = chars.is
+var build = chars.build
 
-var int64 = ffi.typeof('int64_t')
-var uint64 = ffi.typeof('uint64_t')
-var complex = ffi.typeof('complex')
-
-var ASCII_0, ASCII_9 = 48, 57
-var ASCII_a, ASCII_f, ASCII_z = 97, 102, 122
-var ASCII_A, ASCII_Z = 65, 90
 var END_OF_STREAM = -1
-
 
 var TokenSymbol = { TK_lambda = '->', TK_curry = '~>', TK_ge = '>=', TK_le = '<=' , TK_concat = '..', TK_eq = '==', TK_ne = '~=', TK_indent = '<indent>', TK_dedent = '<dedent>', TK_newline = '<newline>', TK_eof = '<eof>' }
 
 var IsNewLine = { ['\n'] = true, ['\r'] = true }
-
 var IsEscape = { a = true, b = true, f = true, n = true, r = true, t = true, v = true }
- 
+
+
 var token2str = \tok ->
 	if string.match(tok, "^TK_")
 		return TokenSymbol[tok] or string.sub(tok, 4)
 	return tok
-
-
-var char_isalnum = \c ->
-	if type(c) == 'string'
-		var b = string.byte(c)
-		if b >= ASCII_0 and b <= ASCII_9
-			return true
-		else if b >= ASCII_a and b <= ASCII_z
-			return true
-		else if b >= ASCII_A and b <= ASCII_Z
-			return true
-		else
-			return (c == '_')
-	return false
-
-
-var char_isdigit = \c ->
-	if type(c) == 'string'
-		var b = string.byte(c)
-		return b >= ASCII_0 and b <= ASCII_9
-	return false
-
-
-var char_isspace = \c ->
-	var b = string.byte(c)
-	return b >= 9 and b <= 13 or b == 32
-
-
-var build_64int = \str ->
-	var u = str[#str - 2]
-	var x = (u == 117 and uint64(0) or int64(0))
-	var i = 1
-	while str[i] >= ASCII_0 and str[i] <= ASCII_9
-		x = 10 * x + (str[i] - ASCII_0)
-		i = i + 1
-	return x
-
-
--- Only lower case letters are accepted.
-var byte_to_hexdigit = \b ->
-	if b >= ASCII_0 and b <= ASCII_9
-		return b - ASCII_0
-	else if b >= ASCII_a and b <= ASCII_f
-		return 10 + (b - ASCII_a)
-	else
-		return -1
-
-
-var build_64hex = \str ->
-	var u = str[#str - 2]
-	var x = (u == 117 and uint64(0) or int64(0))
-	var i = 3
-	while str[i]
-		var n = byte_to_hexdigit(str[i])
-		if n < 0 break 
-		x = 16 * x + n
-		i = i + 1
-	return x
-
-
-var strnumdump = \str ->
-	var t = {}
-	for i = 1, #str
-		var c = string.sub(str, i, i)
-		if char_isalnum(c)
-			t[i] = string.byte(c)
-		else
-			return nil
-	return t
-
-
-var hex_char = \c ->
-	if string.match(c, '^%x')
-		var b = bit.band(string.byte(c), 15)
-		if not char_isdigit(c) b = b + 9
-		return b
-
 
 
 return \read, chunkname ->
@@ -128,7 +45,20 @@ return \read, chunkname ->
 		, token = 'TK_eof'
 		, value = nil
 	}
-	
+	-- keeps all errors as {l(ine) = l, c(ol) = c, msg = msg}
+	var warnings = {}
+
+	var warn = \w ->
+		for i, m in ipairs(warnings)
+			if w.l == m.l and w.c == m.c and w.msg == m.msg
+				return  -- skip same error
+			if w.l < m.l or (w.l == m.l and w.c < m.c)
+				-- insert
+				table.insert(warnings, i, w)
+				return
+		-- append
+		table.insert(warnings, w)
+
 
 	var fmt_token = \token ->
 		if token
@@ -151,8 +81,21 @@ return \read, chunkname ->
 			pos = state.pos
 		else
 			pos = state.pos - pos
-		var msg = string.format("%s: (%d,%d)  " .. em, state.chunkname, state.line, pos, ...)
-		error("LT-ERROR" .. msg, 0)
+		warn({
+			msg = string.format(em, ...)
+			, l = state.line
+			, c = pos
+		})
+		--var msg = string.format("%s: (%d,%d)  " .. em, state.chunkname, state.line, pos, ...)
+		--error("LT-ERROR" .. msg, 0)
+
+
+	var parse_error = \state, em, ... ->
+		warn({
+			msg = string.format(em, ...)
+			, l = state.line
+			, c = state.prevpos
+		})
 
 
 	var popchar = ->
@@ -238,7 +181,7 @@ return \read, chunkname ->
 			var xc = ch
 			if xc == 'x' or xc == 'X' xp = 'p' 
 
-		while char_isalnum(ch) or ch == '.' or ((ch == '-' or ch == '+') and lower(c) == xp)
+		while is.alnum(ch) or ch == '.' or ((ch == '-' or ch == '+') and lower(c) == xp)
 			c = lower(ch)
 			add_buffer(c)
 			nextchar()
@@ -249,9 +192,9 @@ return \read, chunkname ->
 			var img = tonumber(string.sub(str, 1, -2))
 			if img x = complex(0, img) 
 		else if string.sub(str, -2, -1) == 'll'
-			var t = strnumdump(str)
+			var t = chars.strnumdump(str)
 			if t
-				x = xp == 'e' and build_64int(t) or build_64hex(t)
+				x = xp == 'e' and build.int64(t) or build.hex64(t)
 		else
 			x = tonumber(str)
 
@@ -302,11 +245,11 @@ return \read, chunkname ->
 		else if c == 'x' -- Hexadecimal escape '\xXX'.
 			add_buffer('\\')
 			add_buffer(c)
-			var ch1 = hex_char(nextchar())
+			var ch1 = chars.hex(nextchar())
 			var hc
 			if ch1
 				add_buffer(ch)
-				var ch2 = hex_char(nextchar())
+				var ch2 = chars.hex(nextchar())
 				if ch2
 					add_buffer(ch)
 					hc = string.char(ch1 * 16 + ch2)
@@ -316,7 +259,7 @@ return \read, chunkname ->
 			nextchar()
 		else if c == 'z' -- Skip whitespace.
 			nextchar()
-			while char_isspace(ch)
+			while is.space(ch)
 				if IsNewLine[ch] 
 					inc_line() 
 				else 
@@ -334,16 +277,16 @@ return \read, chunkname ->
 			nextchar()
 		else if c == END_OF_STREAM
 		else
-			if not char_isdigit(c)
+			if not is.digit(c)
 				lex_error('TK_string', "invalid escape character \\" .. c)
 		
 			add_buffer('\\')
 			add_buffer(c)
 			var bc = bit.band(string.byte(c), 15) -- Decimal escape '\ddd'.
-			if char_isdigit(nextchar())
+			if is.digit(nextchar())
 				add_buffer(ch)
 				bc = bc * 10 + bit.band(string.byte(ch), 15)
-				if char_isdigit(nextchar())
+				if is.digit(nextchar())
 					add_buffer(ch)
 					bc = bc * 10 + bit.band(string.byte(ch), 15)
 					nextchar()
@@ -483,14 +426,14 @@ return \read, chunkname ->
 					lex_error(nil, "cannot mix tab and space as indentation")
 				return 'TK_newline'
 			else
-				if char_isalnum(ch)
-					if char_isdigit(ch) -- Numeric literal.
+				if is.alnum(ch)
+					if is.digit(ch) -- Numeric literal.
 						return 'TK_number', lex_number()
 
 					do
 						add_buffer(ch)
 						nextchar()
-					until not char_isalnum(ch)
+					until not is.alnum(ch)
 					var s = get_buffer(0, 0)
 					var reserved = Keyword[s]
 					if reserved
@@ -556,7 +499,7 @@ return \read, chunkname ->
 							return 'TK_dots' -- ...
 					
 						return 'TK_concat' -- ..
-					else if not char_isdigit(ch)
+					else if not is.digit(ch)
 						return '.'
 					else
 						return 'TK_number', lex_number()
@@ -589,16 +532,13 @@ return \read, chunkname ->
 			lookahead.token, lookahead.value = lex()
 		return lookahead.token, lookahead.value
 
-	
-	var throw = \state, em, ... ->
-		var msg = string.format("%s: (%d,%d)  " .. em, state.chunkname, state.line, state.prevpos, ...)
-		error("LT-ERROR" .. msg, 0)
 
 	var lexer = setmetatable(state, { __index = {
 		tostr = token2str
-		, error = throw
 		, step = step
 		, next = next
+		, error = parse_error
+		, warnings = warnings
 	}})
 
 

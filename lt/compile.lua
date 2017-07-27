@@ -2,35 +2,28 @@
 -- Generated from compile.lt
 --
 
+local read = require("lt.read")
 local lexer = require("lt.lex")
 local parse = require("lt.parse")
-local ast = require("lt.ast").New()
-local read = require("lt.read")
+local ast = require("lt.ast")
 local generate = require("lt.generate")
-local lang_error = function(msg)
-    if string.sub(msg, 1, 8) == "LT-ERROR" then
-        return false, string.sub(msg, 9)
-    else
-        error(msg)
-    end
-end
+local color = {magenta = "\27[95;1m", cyan = "\27[96;1m", reset = "\27[0m"}
 local compile = function(reader, filename, options)
     local ls = lexer(reader, filename)
     local ok, tree, code
-    ok, tree = pcall(parse, ast, ls)
-    if not ok then
-        return lang_error(tree)
+    ok, tree = pcall(parse, ast.New(), ls)
+    local warns = {}
+    if #ls.warnings > 0 then
+        for i, m in ipairs(ls.warnings) do
+            warns[i] = string.format("%s: (%d,%d)" .. color.cyan .. "  %s" .. color.reset, filename, m.l, m.c, m.msg)
+        end
+        return false, table.concat(warns, "\n")
     end
-    ok, code = pcall(generate, tree, filename)
-    if not ok then
-        return lang_error(code)
-    end
+    code = generate(tree)
     return true, code
 end
-local load_string = function(src, filename, options)
+return {string = function(src, filename, options)
     return compile(read.string(src), filename or "stdin", options)
-end
-local load_file = function(filename, options)
+end, file = function(filename, options)
     return compile(read.file(filename), filename or "stdin", options)
-end
-return {string = load_string, file = load_file}
+end}

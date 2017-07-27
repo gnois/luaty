@@ -313,7 +313,7 @@ local proto_new = function(parent, indent)
     proto.merge = proto_merge
     return proto
 end
-local generate = function(tree, name)
+local generate = function(tree)
     local self = {line = 0}
     self.proto = proto_new()
     self.chunkname = tree.chunkname
