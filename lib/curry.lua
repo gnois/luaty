@@ -8,15 +8,15 @@ return function(len, f)
         return function(...)
             local args = {...}
             local comb = {}
-            local a, c = 0, 0
-            while c < #parts do
-                c = c + 1
+            local a, c = 1, 1
+            while c <= #parts do
                 comb[c] = parts[c]
+                c = c + 1
             end
-            while a < #args do
+            while a <= #args do
+                comb[c] = args[a]
                 a = a + 1
                 c = c + 1
-                comb[c] = args[a]
             end
             if c > len then
                 return f(unpack(comb))

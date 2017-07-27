@@ -5,14 +5,14 @@ return \len, f->
         return \...->
             var args = {...}
             var comb = {}
-            var a, c = 0, 0
-            while c < #parts
-                c = c + 1
+            var a, c = 1, 1
+            while c <= #parts
                 comb[c] = parts[c]
-            while a < #args
+                c = c + 1
+            while a <= #args
+                comb[c] = args[a]
                 a = a + 1
                 c = c + 1
-                comb[c] = args[a]
             if c > len
                 return f(unpack(comb))
             return \...->
