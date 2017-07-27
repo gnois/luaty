@@ -1,3 +1,7 @@
+--
+-- Generated from compose.lt
+--
+
 return function(...)
     local list = {...}
     return function(...)

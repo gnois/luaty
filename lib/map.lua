@@ -1,3 +1,7 @@
+--
+-- Generated from map.lt
+--
+
 local curry = require("lib.curry")
 return curry(2, function(f, list)
     local acc = {}

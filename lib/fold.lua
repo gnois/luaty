@@ -1,3 +1,7 @@
+--
+-- Generated from fold.lt
+--
+
 local curry = require("lib.curry")
 return {l = curry(3, function(f, acc, list)
     local l = 0
