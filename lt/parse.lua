@@ -30,7 +30,6 @@ local err_symbol = function(ls)
     local sym = ls.value or ls.tostr(ls.token)
     local replace = {["end"] = "<dedent>", ["local"] = "'var'", ["function"] = "\\...->", ["elseif"] = "'else if'", ["repeat"] = "'do'"}
     local rep = replace[sym]
-    local msg
     if rep then
         ls.error(ls, "use %s instead of '%s'", rep, sym)
     else

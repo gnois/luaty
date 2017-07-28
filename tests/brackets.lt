@@ -19,17 +19,23 @@ var alls = \x->
 
 var triple, single = {2,3,4}, {2,nil,nil}
 
-eq(3, {foo(2)}, triple)
+eq(4, {foo(2)}, triple)
 
-eq(3, {alls(foo(2))}, triple)
+eq(4, {alls(foo(2))}, triple)
 
-eq(3, {first(foo(2))}, single)
+eq(4, {first(foo(2))}, single)
 
---eq(3, {(foo(2))}, single)
+eq(4, {(foo(2))}, single)
 
-eq(3, {one(foo(2))}, single)
+eq(6, {2, 3, (foo(4))}, triple)
 
-eq(3, {prova(foo(2))}, triple)
+eq(6, {foo(2), 3, 4}, triple)
+
+eq(6, {2, 3, foo(4)}, {2,3,4,5,8})
+
+eq(4, {one(foo(2))}, single)
+
+eq(4, {prova(foo(2))}, triple)
 
 
 assert(({2,3})[1] == 2)

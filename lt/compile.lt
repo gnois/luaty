@@ -1,7 +1,7 @@
 var read = require('lt.read')
+var ast = require('lt.ast')
 var lexer = require('lt.lex')
 var parse = require('lt.parse')
-var ast = require('lt.ast')
 -- Take the AST tree and produce a string that can be passed to the function "loadstring".
 var generate = require('lt.generate')
 
@@ -12,17 +12,16 @@ var color = {
 }
 
 var compile = \reader, filename, options ->
-	var ls = lexer(reader, filename)
+	var lx = lexer(reader, filename)
 	
-	var ok, tree, code
-	ok, tree = pcall(parse, ast.New(), ls)
+	var ok, tree = pcall(parse, ast.New(), lx)
 	var warns = {}
-	if #ls.warnings > 0
-		for i, m in ipairs(ls.warnings)
+	if #lx.warnings > 0
+		for i, m in ipairs(lx.warnings)
 			warns[i] = string.format("%s: (%d,%d)" .. color.cyan ..  "  %s" .. color.reset, filename, m.l, m.c, m.msg)
 		return false, table.concat(warns, "\n")
 
-	code = generate(tree)
+	var code = generate(tree)
 	return true, code
 
 

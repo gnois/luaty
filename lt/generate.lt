@@ -31,8 +31,8 @@ var char_isdigit = \c ->
 	return b >= ASCII_0 and b <= ASCII_9
 
 
-var StatementRule = { }
-var ExpressionRule = { }
+var StatementRule = {}
+var ExpressionRule = {}
 
 var concat = table.concat
 var format = string.format
@@ -66,7 +66,7 @@ var string_is_ident = \str ->
 var comma_sep_list = \ls, f ->
 	var strls
 	if f
-		strls = { }
+		strls = {}
 		for k = 1, #ls strls[k] = f(ls[k]) 
 	else
 		strls = ls
@@ -163,8 +163,9 @@ ExpressionRule.ConcatenateExpression = \@, node ->
 
 
 ExpressionRule.Table = \@, node ->
-	var hash = { }
-	for i = 1, #node.keyvals
+	var hash = {}
+	var last = #node.keyvals
+	for i = 1, last
 		var kv = node.keyvals[i]
 		var val = @.expr_emit(@, kv[1])
 		var key = kv[2]
@@ -175,8 +176,10 @@ ExpressionRule.Table = \@, node ->
 				hash[i] = format("[%s] = %s", @.expr_emit(@, key), val)
 		
 		else
-			hash[i] = format("%s", val)
-	
+			if i == last and kv[1].bracketed
+				hash[i] = format("(%s)", val)
+			else
+				hash[i] = format("%s", val)
 
 	var content = ""
 	if #hash > 0
@@ -352,7 +355,7 @@ var proto_new = \parent, indent ->
 	else if parent
 		ind = parent.indent
 
-	var proto = { code = { }, indent = ind, parent = parent }
+	var proto = { code = {}, indent = ind, parent = parent }
 	proto.inline = proto_inline
 	proto.merge = proto_merge
 	return proto
