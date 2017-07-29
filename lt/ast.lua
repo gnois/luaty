@@ -46,14 +46,14 @@ AST.expr_property = function(ast, v, prop, line)
     local index = ident(prop, line)
     return build("MemberExpression", {object = v, property = index, computed = false, line = line})
 end
-AST.literal = function(ast, val)
-    return build("Literal", {value = val})
+AST.literal = function(ast, val, line)
+    return build("Literal", {value = val, line = line})
 end
 AST.numberliteral = function(ast, val)
-    return build("NumberLiteral", {value = val})
+    return build("NumberLiteral", {value = val, line = line})
 end
 AST.longstrliteral = function(ast, txt)
-    return build("LongStringLiteral", {text = txt})
+    return build("LongStringLiteral", {text = txt, line = line})
 end
 AST.expr_vararg = function(ast)
     return build("Vararg", {})
@@ -103,8 +103,8 @@ AST.expr_binop = function(ast, op, expa, expb, line)
         return build("ConcatenateExpression", {terms = terms, line = expa.line})
     end
 end
-AST.identifier = function(ast, name)
-    return ident(name)
+AST.identifier = function(ast, name, line)
+    return ident(name, line)
 end
 AST.expr_method_call = function(ast, v, args, line)
     return build("SendExpression", {callee = v, arguments = args, line = line})
@@ -150,8 +150,8 @@ end
 local new_scope = function(parent_scope)
     return {vars = {}, parent = parent_scope}
 end
-AST.var_declare = function(ast, name)
-    local id = ident(name)
+AST.var_declare = function(ast, name, line)
+    local id = ident(name, line)
     ast.current.vars[name] = true
     return id
 end

@@ -70,16 +70,16 @@ AST.expr_property = \ast, v, prop, line ->
 	return build("MemberExpression", { object = v, property = index, computed = false, line = line })
 
 
-AST.literal = \ast, val ->
-	return build("Literal", { value = val })
+AST.literal = \ast, val, line ->
+	return build("Literal", { value = val, line = line })
 
 
 AST.numberliteral = \ast, val ->
-	return build("NumberLiteral", { value = val })
+	return build("NumberLiteral", { value = val, line = line })
 
 
 AST.longstrliteral = \ast, txt ->
-	return build("LongStringLiteral", { text = txt })
+	return build("LongStringLiteral", { text = txt, line = line })
 
 
 AST.expr_vararg = \ast ->
@@ -133,13 +133,13 @@ AST.expr_binop = \ast, op, expa, expb, line ->
 	
 
 
-AST.identifier = \ast, name ->
-	return ident(name)
+AST.identifier = \ast, name, line ->
+	return ident(name, line)
 
 
 --[[
 AST.expr_method_call = \ast, v, key, args, line ->
-	var m = ident(key)
+	var m = ident(key, line)
 	return build("SendExpression", { receiver = v, method = m, arguments = args, line = line })
 ]]
 
@@ -204,8 +204,8 @@ var new_scope = \parent_scope ->
 	}
 
 
-AST.var_declare = \ast, name ->
-	var id = ident(name)
+AST.var_declare = \ast, name, line ->
+	var id = ident(name, line)
 	ast.current.vars[name] = true
 	return id
 

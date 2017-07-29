@@ -1,41 +1,14 @@
---
--- luacode-generator.lua
---
--- This file is part of the LuaJIT Language Toolkit.
---
--- Module to generate the Lua code that corresponds to a given Lua AST Tree.
--- Can be used as an alternative to the bytecode generator.
-
 var operator = require("lt.operator")
 var Keyword = require("lt.reserved")
+var chars = require("lt.chars")
 
-var strbyte, strsub = string.byte, string.sub
-
-var ASCII_0, ASCII_9 = 48, 57
-var ASCII_a, ASCII_z = 97, 122
-var ASCII_A, ASCII_Z = 65, 90
-
-var char_isletter = \c ->
-	var b = strbyte(c)
-	if b >= ASCII_a and b <= ASCII_z
-		return true
-	else if b >= ASCII_A and b <= ASCII_Z
-		return true
-	else
-		return (c == '_')
-
-
-
-var char_isdigit = \c ->
-	var b = strbyte(c)
-	return b >= ASCII_0 and b <= ASCII_9
-
+var strsub, format = string.sub, string.format
+var concat = table.concat
+var is = chars.is
 
 var StatementRule = {}
 var ExpressionRule = {}
 
-var concat = table.concat
-var format = string.format
 
 var is_string = \node ->
 	return node.kind == "Literal" and type(node.value) == "string"
@@ -52,12 +25,12 @@ var is_literal = \node ->
 
 var string_is_ident = \str ->
 	var c = strsub(str, 1, 1)
-	if c == '' or not char_isletter(c)
+	if c == '' or not is.letter(c)
 		return false
 
 	for k = 2, #str
 		c = strsub(str, k, k)
-		if not char_isletter(c) and not char_isdigit(c)
+		if not is.letter(c) and not is.digit(c)
 			return false
 
 	return not Keyword[str]
@@ -67,7 +40,8 @@ var comma_sep_list = \ls, f ->
 	var strls
 	if f
 		strls = {}
-		for k = 1, #ls strls[k] = f(ls[k]) 
+		for k = 1, #ls
+			strls[k] = f(ls[k]) 
 	else
 		strls = ls
 
@@ -211,9 +185,7 @@ ExpressionRule.SendExpression = \@, node ->
 
 StatementRule.FunctionDeclaration = \@, node ->
 	@.proto_enter(@, 0)
-	var name = ''
-	if node.id
-		name = @.expr_emit(@, node.id)
+	var name = @.expr_emit(@, node.id)
 
 	var header = format("function %s(%s)", name, comma_sep_list(node.params, as_parameter))
 	if node.locald

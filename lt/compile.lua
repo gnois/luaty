@@ -10,9 +10,9 @@ local generate = require("lt.generate")
 local color = {magenta = "\27[95;1m", cyan = "\27[96;1m", reset = "\27[0m"}
 local compile = function(reader, filename, options)
     local lx = lexer(reader, filename)
-    local ok, tree = pcall(parse, ast.New(), lx)
-    local warns = {}
+    local tree = parse(ast.New(), lx)
     if #lx.warnings > 0 then
+        local warns = {}
         for i, m in ipairs(lx.warnings) do
             warns[i] = string.format("%s: (%d,%d)" .. color.cyan .. "  %s" .. color.reset, filename, m.l, m.c, m.msg)
         end

@@ -6,32 +6,39 @@ var complex = ffi.typeof('complex')
 var ASCII_0, ASCII_9 = 48, 57
 var ASCII_a, ASCII_f, ASCII_z = 97, 102, 122
 var ASCII_A, ASCII_Z = 65, 90
+var ASCII_TAB, ASCII_CR, ASCII_SPACE = 9, 13, 32
+
+
+var isletter = \c ->
+	var b = string.byte(c)
+	if b >= ASCII_a and b <= ASCII_z
+		return true
+	else if b >= ASCII_A and b <= ASCII_Z
+		return true
+	else
+		return (c == '_')
 
 
 var isalnum = \c ->
-	if type(c) == 'string'
-		var b = string.byte(c)
-		if b >= ASCII_0 and b <= ASCII_9
-			return true
-		else if b >= ASCII_a and b <= ASCII_z
-			return true
-		else if b >= ASCII_A and b <= ASCII_Z
-			return true
-		else
-			return (c == '_')
-	return false
+	var b = string.byte(c)
+	if b >= ASCII_0 and b <= ASCII_9
+		return true
+	else if b >= ASCII_a and b <= ASCII_z
+		return true
+	else if b >= ASCII_A and b <= ASCII_Z
+		return true
+	else
+		return (c == '_')
 
 
 var isdigit = \c ->
-	if type(c) == 'string'
-		var b = string.byte(c)
-		return b >= ASCII_0 and b <= ASCII_9
-	return false
+	var b = string.byte(c)
+	return b >= ASCII_0 and b <= ASCII_9
 
 
 var isspace = \c ->
 	var b = string.byte(c)
-	return b >= 9 and b <= 13 or b == 32
+	return b >= ASCII_TAB and b <= ASCII_CR or b == ASCII_SPACE
 
 
 var build_int64 = \str ->
@@ -86,7 +93,8 @@ var hex_char = \c ->
 
 return {
 	is = {
-		alnum = isalnum
+		letter = isletter
+		, alnum = isalnum
 		, digit = isdigit
 		, space = isspace
 	}

@@ -201,7 +201,7 @@ expr_simple = function(ast, ls)
                 err_syntax(ls, curry.name .. "() is required for ~>")
             end
             local cargs = {ast:literal(#args), lambda}
-            return ast:expr_function_call(curry, cargs, line)
+            return ast:expr_function_call(curry, cargs, ls.line)
         end
         return lambda
     elseif tk == "TK_curry" then

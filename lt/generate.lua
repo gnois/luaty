@@ -4,28 +4,12 @@
 
 local operator = require("lt.operator")
 local Keyword = require("lt.reserved")
-local strbyte, strsub = string.byte, string.sub
-local ASCII_0, ASCII_9 = 48, 57
-local ASCII_a, ASCII_z = 97, 122
-local ASCII_A, ASCII_Z = 65, 90
-local char_isletter = function(c)
-    local b = strbyte(c)
-    if b >= ASCII_a and b <= ASCII_z then
-        return true
-    elseif b >= ASCII_A and b <= ASCII_Z then
-        return true
-    else
-        return c == "_"
-    end
-end
-local char_isdigit = function(c)
-    local b = strbyte(c)
-    return b >= ASCII_0 and b <= ASCII_9
-end
+local chars = require("lt.chars")
+local strsub, format = string.sub, string.format
+local concat = table.concat
+local is = chars.is
 local StatementRule = {}
 local ExpressionRule = {}
-local concat = table.concat
-local format = string.format
 local is_string = function(node)
     return node.kind == "Literal" and type(node.value) == "string"
 end
@@ -38,12 +22,12 @@ local is_literal = function(node)
 end
 local string_is_ident = function(str)
     local c = strsub(str, 1, 1)
-    if c == "" or not char_isletter(c) then
+    if c == "" or not is.letter(c) then
         return false
     end
     for k = 2, #str do
         c = strsub(str, k, k)
-        if not char_isletter(c) and not char_isdigit(c) then
+        if not is.letter(c) and not is.digit(c) then
             return false
         end
     end
@@ -190,10 +174,7 @@ ExpressionRule.SendExpression = function(self, node)
 end
 StatementRule.FunctionDeclaration = function(self, node)
     self:proto_enter(0)
-    local name = ""
-    if node.id then
-        name = self:expr_emit(node.id)
-    end
+    local name = self:expr_emit(node.id)
     local header = format("function %s(%s)", name, comma_sep_list(node.params, as_parameter))
     if node.locald then
         header = "local " .. header

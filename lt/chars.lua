@@ -9,31 +9,36 @@ local complex = ffi.typeof("complex")
 local ASCII_0, ASCII_9 = 48, 57
 local ASCII_a, ASCII_f, ASCII_z = 97, 102, 122
 local ASCII_A, ASCII_Z = 65, 90
-local isalnum = function(c)
-    if type(c) == "string" then
-        local b = string.byte(c)
-        if b >= ASCII_0 and b <= ASCII_9 then
-            return true
-        elseif b >= ASCII_a and b <= ASCII_z then
-            return true
-        elseif b >= ASCII_A and b <= ASCII_Z then
-            return true
-        else
-            return c == "_"
-        end
+local ASCII_TAB, ASCII_CR, ASCII_SPACE = 9, 13, 32
+local isletter = function(c)
+    local b = string.byte(c)
+    if b >= ASCII_a and b <= ASCII_z then
+        return true
+    elseif b >= ASCII_A and b <= ASCII_Z then
+        return true
+    else
+        return c == "_"
     end
-    return false
+end
+local isalnum = function(c)
+    local b = string.byte(c)
+    if b >= ASCII_0 and b <= ASCII_9 then
+        return true
+    elseif b >= ASCII_a and b <= ASCII_z then
+        return true
+    elseif b >= ASCII_A and b <= ASCII_Z then
+        return true
+    else
+        return c == "_"
+    end
 end
 local isdigit = function(c)
-    if type(c) == "string" then
-        local b = string.byte(c)
-        return b >= ASCII_0 and b <= ASCII_9
-    end
-    return false
+    local b = string.byte(c)
+    return b >= ASCII_0 and b <= ASCII_9
 end
 local isspace = function(c)
     local b = string.byte(c)
-    return b >= 9 and b <= 13 or b == 32
+    return b >= ASCII_TAB and b <= ASCII_CR or b == ASCII_SPACE
 end
 local build_int64 = function(str)
     local u = str[#str - 2]
@@ -89,4 +94,4 @@ local hex_char = function(c)
         return b
     end
 end
-return {is = {alnum = isalnum, digit = isdigit, space = isspace}, build = {int64 = build_int64, hex64 = build_hex64}, strnumdump = strnumdump, hex = hex_char}
+return {is = {letter = isletter, alnum = isalnum, digit = isdigit, space = isspace}, build = {int64 = build_int64, hex64 = build_hex64}, strnumdump = strnumdump, hex = hex_char}

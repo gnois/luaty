@@ -14,9 +14,9 @@ var color = {
 var compile = \reader, filename, options ->
 	var lx = lexer(reader, filename)
 	
-	var ok, tree = pcall(parse, ast.New(), lx)
-	var warns = {}
+	var tree = parse(ast.New(), lx)
 	if #lx.warnings > 0
+		var warns = {}
 		for i, m in ipairs(lx.warnings)
 			warns[i] = string.format("%s: (%d,%d)" .. color.cyan ..  "  %s" .. color.reset, filename, m.l, m.c, m.msg)
 		return false, table.concat(warns, "\n")
