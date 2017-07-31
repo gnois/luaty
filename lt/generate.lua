@@ -18,7 +18,7 @@ local is_const = function(node, val)
 end
 local is_literal = function(node)
     local k = node.kind
-    return k == "Literal" or k == "Table"
+    return (k == "Literal" or k == "Table")
 end
 local string_is_ident = function(str)
     local c = strsub(str, 1, 1)
@@ -171,17 +171,6 @@ ExpressionRule.SendExpression = function(self, node)
     end
     local exp = format("%s(%s)", method, self:expr_list(node.arguments))
     return exp, operator.ident_priority
-end
-StatementRule.FunctionDeclaration = function(self, node)
-    self:proto_enter(0)
-    local name = self:expr_emit(node.id)
-    local header = format("function %s(%s)", name, comma_sep_list(node.params, as_parameter))
-    if node.locald then
-        header = "local " .. header
-    end
-    self:add_section(header, node.body)
-    local child_proto = self:proto_leave()
-    self.proto:merge(child_proto)
 end
 ExpressionRule.FunctionExpression = function(self, node)
     self:proto_enter()

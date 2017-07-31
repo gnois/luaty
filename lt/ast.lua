@@ -9,25 +9,12 @@ end
 local ident = function(name, line)
     return build("Identifier", {name = name, line = line})
 end
-local does_multi_return = function(expr)
-    local k = expr.kind
-    return k == "CallExpression" or k == "SendExpression" or k == "Vararg"
-end
 local AST = {}
-local func_decl = function(id, body, params, vararg, locald, firstline, lastline)
-    return build("FunctionDeclaration", {id = id, body = body, params = params, vararg = vararg, locald = locald, firstline = firstline, lastline = lastline, line = firstline})
-end
-local func_expr = function(body, params, vararg, firstline, lastline)
-    return build("FunctionExpression", {body = body, params = params, vararg = vararg, firstline = firstline, lastline = lastline})
-end
-AST.expr_function = function(ast, args, body, proto)
-    return func_expr(body, args, proto.varargs, proto.firstline, proto.lastline)
-end
-AST.function_decl = function(ast, path, args, body, proto)
-    return func_decl(path, body, args, proto.varargs, false, proto.firstline, proto.lastline)
-end
 AST.chunk = function(ast, body, chunkname, firstline, lastline)
     return build("Chunk", {body = body, chunkname = chunkname, firstline = firstline, lastline = lastline})
+end
+AST.expr_function = function(ast, args, body, proto)
+    return build("FunctionExpression", {body = body, params = args, vararg = proto.varargs, firstline = proto.firstline, lastline = proto.lastline})
 end
 AST.local_decl = function(ast, vlist, exps, line)
     local ids = {}
@@ -63,8 +50,11 @@ AST.expr_brackets = function(ast, expr)
     return expr
 end
 AST.set_expr_last = function(ast, expr)
-    if expr.bracketed and does_multi_return(expr) then
-        expr.bracketed = nil
+    if expr.bracketed then
+        local k = expr.kind
+        if k == "CallExpression" or k == "SendExpression" or k == "Vararg" then
+            expr.bracketed = nil
+        end
         return build("ExpressionValue", {value = expr})
     else
         return expr
@@ -80,16 +70,14 @@ local concat_append = function(ts, node)
     local n = #ts
     if node.kind == "ConcatenateExpression" then
         for k = 1, #node.terms do
-            do
-                ts[n + k] = node.terms[k]
-            end
+            ts[n + k] = node.terms[k]
         end
     else
         ts[n + 1] = node
     end
 end
 AST.expr_binop = function(ast, op, expa, expb, line)
-    local binop_body = op ~= ".." and {operator = op, left = expa, right = expb, line = line}
+    local binop_body = (op ~= ".." and {operator = op, left = expa, right = expb, line = line})
     if binop_body then
         if op == "and" or op == "or" then
             return build("LogicalExpression", binop_body)

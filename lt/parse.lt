@@ -113,7 +113,6 @@ var expr_field = \ast, ls, v ->
 		ls.step()
 		if key == "var"  -- `var` is not a Lua keyword
 			return ast.expr_property(@, v, key)
-	
 		return ast.expr_index(@, v, ast.literal(@, key))
 
 	key = lex_str(ls)
@@ -566,6 +565,52 @@ var parse_stmt = \ast, ls ->
 	return stmt, false
 
 
+var parse_block_stmts = \ast, ls ->
+	var firstline = ls.line
+	var stmt, islast = nil, false
+	var body = {}
+	while not islast and not EndOfBlock[ls.token]
+		stmted = ls.line
+		stmt, islast = parse_stmt(ast, ls)
+		body[#body + 1] = stmt
+		lex_opt(ls, 'TK_newline')
+		-- deliberately disallow multiple statement in one line
+		if stmted == ls.line
+			if ls.token ~= 'TK_eof' and ls.token ~= 'TK_dedent' and ls.next() ~= 'TK_eof'
+				err_instead(ls, "only one statement allowed per line. %s expected", ls.tostr('TK_newline'))
+
+	return body, firstline, ls.line
+
+
+parse_block = \ast, ls, firstline ->
+	--ast.fscope_begin(@)
+	var body = parse_block_stmts(ast, ls)
+	body.firstline, body.lastline = firstline, ls.line
+	--ast.fscope_end(@)
+	return body
+
+
+-- parse single or indented compound statement
+parse_opt_block = \ast, ls, line, match_token ->
+	var body = {}
+	if lex_indent(ls)
+		body = parse_block(ast, ls, line)
+		--lex_match(ls, 'TK_dedent', match_token, line)
+		if not lex_dedent(ls)
+			err_instead(ls, "'%s' expected to end %s at line %d", ls.tostr('TK_dedent'), ls.tostr(match_token), line)
+	else
+		if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
+			-- single statement
+			body[1] = parse_stmt(ast, ls)
+			body.firstline, body.lastline = line, ls.line
+		-- if lookahead is indent, it belongs to parent block
+		--if NewLine[ls.token] and ls.next() ~= 'TK_indent'
+		--	ls.step()
+		if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
+			err_instead(ls, "only one statement may stay near '%s'. %s expected", ls.tostr(match_token), ls.tostr('TK_newline'))
+	return body
+
+
 -- Parse function definition parameters
 var parse_params = \ast, ls ->
 	var args = {}
@@ -590,56 +635,12 @@ var parse_params = \ast, ls ->
 	else if ls.token == 'TK_curry'
 		if ls.fs.varargs
 			err_syntax(ls, "cannot curry varargs with ~>")
-	
 		if #args < 2
 			err_syntax(ls, "at least 2 arguments needed with ~>")
 	
 		ls.step()
 		return true, args
 	err_token(ls, "->")
-
-
-var parse_block_stmts = \ast, ls ->
-	var firstline = ls.line
-	var stmt, islast = nil, false
-	var body = {}
-	while not islast and not EndOfBlock[ls.token]
-		stmted = ls.line
-		stmt, islast = parse_stmt(ast, ls)
-		body[#body + 1] = stmt
-		lex_opt(ls, 'TK_newline')
-		-- deliberately disallow multiple statement in one line
-		if stmted == ls.line
-			if ls.token ~= 'TK_eof' and ls.token ~= 'TK_dedent' and ls.next() ~= 'TK_eof'
-				err_instead(ls, "only one statement allowed per line. %s expected", ls.tostr('TK_newline'))
-
-	return body, firstline, ls.line
-
-
-var parse_chunk = \ast, ls ->
-	var body, firstline, lastline = parse_block_stmts(ast, ls)
-	return ast.chunk(@, body, ls.chunkname, 0, lastline)
-
-
--- parse single or indented compound statement
-parse_opt_block = \ast, ls, line, match_token ->
-	var body = {}
-	if lex_indent(ls)
-		body = parse_block(ast, ls, line)
-		--lex_match(ls, 'TK_dedent', match_token, line)
-		if not lex_dedent(ls)
-			err_instead(ls, "'%s' expected to end %s at line %d", ls.tostr('TK_dedent'), ls.tostr(match_token), line)
-	else
-		if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
-			-- single statement
-			body[1] = parse_stmt(ast, ls)
-			body.firstline, body.lastline = line, ls.line
-		-- if lookahead is indent, it belongs to parent block
-		--if NewLine[ls.token] and ls.next() ~= 'TK_indent'
-		--	ls.step()
-		if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
-			err_instead(ls, "only one statement may stay near '%s'. %s expected", ls.tostr(match_token), ls.tostr('TK_newline'))
-	return body
 
 
 -- Parse body of a function
@@ -659,12 +660,9 @@ parse_body = \ast, ls, line ->
 	return curry, args, body, proto
 
 
-parse_block = \ast, ls, firstline ->
-	--ast.fscope_begin(@)
-	var body = parse_block_stmts(ast, ls)
-	body.firstline, body.lastline = firstline, ls.line
-	--ast.fscope_end(@)
-	return body
+var parse_chunk = \ast, ls ->
+	var body, firstline, lastline = parse_block_stmts(ast, ls)
+	return ast.chunk(@, body, ls.chunkname, 0, lastline)
 
 
 var parse = \ast, ls ->

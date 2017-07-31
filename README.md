@@ -1,31 +1,23 @@
 
-Luaty
-====
-
-Luaty is an opinionated Lua dialect with [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule) that compiles into clean Lua code.
-Its syntax resembles Lua, but is mostly shorter or more readable.
-
-If you know Lua, you already knew most of Luaty. After all, it's just a play of *Lua* with less *ty*ping.
+Luaty is another language with [off-side rule](https://en.wikipedia.org/wiki/Off-side_rule) that transcompiles into clean Lua code.
+Its syntax is brief yet unambiguous, with a compiler that is relatively unforgiving.
+The compiler itself is written in Luaty and compiled into Lua.
 
 
-Quick start
+Why Luaty
+---
+Because there's not enough Lua code generators.
+Really, because I like most of Lua's simplicity, and some of Moonscript's brevity, and also some safety.
+Luaty is just Lua with a syntactic skin that is likely more readable, shorter or safer.
+Syntactical wise, it follows [*"There should be only one way to do it"*.](https://wiki.python.org/moin/TOOWTDI)
+
+
+Differences from Lua
 ---
 
-To execute a Luaty source file, use
-```
-luajit lt.lua source.lt
-```
+Most syntaxes of Lua are kept, so that if you know Lua, you already knew most of Luaty.
+Here goes the differences:
 
-To compile a Luaty *source.lt* file to *dest.lua*, use
-```
-luajit lt.lua -c source.lt dest.lua
-```
-The output file is optional, and defaults to *source.lua*
-
-
-
-Philosophy:
----
 
 - Less or shorter keywords
   * no more `then`, `end`, `do`
@@ -41,32 +33,38 @@ if not x
 
 ```
 
-- Prefer consistency over syntactic sugar
-  * function definition is always a [lambda expression](https://www.lua.org/manual/5.1/manual.html#2.5.9) using  `->` or `\arg1, arg2 ->`
+- Consistency preferred over sugar, ironically
+  * function definition is always a [lambda expression](https://www.lua.org/manual/5.1/manual.html#2.5.9) using  `->` or `\arg1, arg2, ... ->`
   * function call always require parenthesis
+
+```
+
+function f(x)                       -- Error: use '->' instead of 'function'
+\x -> print(x)                      -- Error: lambda expression by itself not allowed
+(\x -> print(x))(3)                 -- Ok, immediately invoked lambda
+var f = -> print(3)                 -- Ok, lambda with assignment statement
+
+print 'a'                           -- Error: '=' expected instead of 'a'. This is valid in Lua
+print('a')                          -- Ok, obviously
+
+```
+
+- Explicit prefered over implicit
   * colon `:` is not allowed in method definition or call. `self` or `@` has to be explicitly specified as the first lambda parameter
 
 ```
-print 'a'                          -- Error: '=' expected instead of 'a'. This is valid in Lua
-
-function f()                       -- Error: use '->' instead of 'function'
--> print('x')                      -- Error: lambda expression by itself not allowed
-(-> print('x'))()                  -- Ok, immediately invoked lambda
-var f = -> print('x')              -- Ok, lambda with assignment statement
-
 var obj = {
    value = 3
    , foo = \@, k ->
-      return k * @.value           -- @ is equivalent to `self`
+      return k * @.value            -- @ is equivalent to `self`
 }
 
-p(obj:foo(2))                      -- Error: ')' expected instead of ':'. This is valid in Lua
-
-assert(obj.foo(@, 2) == 6)         -- Ok, specify @ explicitly. Compiles to obj:foo(2)
+p(obj:foo(2))                       -- Error: ')' expected instead of ':'. This is valid in Lua
+assert(obj.foo(@, 2) == 6)          -- Ok, specify @ explicitly. Compiles to obj:foo(2)
 
 ```
 
-- table key can be keywords
+- table keys can be keywords
 
 ```
 var z = {
@@ -85,21 +83,25 @@ assert(z.if(z.goto)[2] == false)
 
 
 
-Basic lint checks
+Basic lint checks during compilation
 ---
 
-The compiler treats these as mistakes:
-  * assigning to undeclared (a.k.a global) variable 
-  * duplicate variables in the same scope
+Although valid in Lua, Luaty compiler treats these as mistakes:
+  * assigning to undeclared (a.k.a global) variable
+  * number of values on the right side of multiple assignment is more than the variables on the left side
+  * shadowing variables in the parent or same scope
   * duplicate keys in a table
 
 ```
 a = 1                     -- Error: undeclared identifier a
+
+var c, d = 1, 2, 4        -- error: assigning 3 values to 2 variables
+
 var p = print
-var p = 'p'               -- Error: duplicate var p
+var p = 'p'               -- Error: shadowing previous var p
 
 var f = \z->
-   var z = 10             -- Error: duplicate var z
+   var z = 10             -- Error: shadowing previous var z
 
 var tbl = {
    x = 1
@@ -108,6 +110,24 @@ var tbl = {
 
 ```
 
+
+Quick start
+---
+
+1. Install LuaJIT
+2. Clone this repo
+
+
+To execute a Luaty source file, cd to Luaty folder, then
+```
+luajit lt.lua /path/to/source.lt
+```
+
+To compile a Luaty *source.lt* file to *dest.lua*, use
+```
+luajit lt.lua -c /path/to/source.lt dest.lua
+```
+The output file is optional, and defaults to *source.lua*
 
 
 
@@ -198,7 +218,7 @@ Todo
    c, d ..= "la", "s"
 
 
-Acknowledgment
+Acknowledgments
 ---
 Luaty is modified from the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit).
 

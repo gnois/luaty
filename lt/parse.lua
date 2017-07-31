@@ -526,6 +526,46 @@ local parse_stmt = function(ast, ls)
     end
     return stmt, false
 end
+local parse_block_stmts = function(ast, ls)
+    local firstline = ls.line
+    local stmt, islast = nil, false
+    local body = {}
+    while not islast and not EndOfBlock[ls.token] do
+        stmted = ls.line
+        stmt, islast = parse_stmt(ast, ls)
+        body[#body + 1] = stmt
+        lex_opt(ls, "TK_newline")
+        if stmted == ls.line then
+            if ls.token ~= "TK_eof" and ls.token ~= "TK_dedent" and ls.next() ~= "TK_eof" then
+                err_instead(ls, "only one statement allowed per line. %s expected", ls.tostr("TK_newline"))
+            end
+        end
+    end
+    return body, firstline, ls.line
+end
+parse_block = function(ast, ls, firstline)
+    local body = parse_block_stmts(ast, ls)
+    body.firstline, body.lastline = firstline, ls.line
+    return body
+end
+parse_opt_block = function(ast, ls, line, match_token)
+    local body = {}
+    if lex_indent(ls) then
+        body = parse_block(ast, ls, line)
+        if not lex_dedent(ls) then
+            err_instead(ls, "'%s' expected to end %s at line %d", ls.tostr("TK_dedent"), ls.tostr(match_token), line)
+        end
+    else
+        if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token] then
+            body[1] = parse_stmt(ast, ls)
+            body.firstline, body.lastline = line, ls.line
+        end
+        if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token] then
+            err_instead(ls, "only one statement may stay near '%s'. %s expected", ls.tostr(match_token), ls.tostr("TK_newline"))
+        end
+    end
+    return body
+end
 local parse_params = function(ast, ls)
     local args = {}
     if ls.token ~= "TK_lambda" and ls.token ~= "TK_curry" then
@@ -558,45 +598,6 @@ local parse_params = function(ast, ls)
     end
     err_token(ls, "->")
 end
-local parse_block_stmts = function(ast, ls)
-    local firstline = ls.line
-    local stmt, islast = nil, false
-    local body = {}
-    while not islast and not EndOfBlock[ls.token] do
-        stmted = ls.line
-        stmt, islast = parse_stmt(ast, ls)
-        body[#body + 1] = stmt
-        lex_opt(ls, "TK_newline")
-        if stmted == ls.line then
-            if ls.token ~= "TK_eof" and ls.token ~= "TK_dedent" and ls.next() ~= "TK_eof" then
-                err_instead(ls, "only one statement allowed per line. %s expected", ls.tostr("TK_newline"))
-            end
-        end
-    end
-    return body, firstline, ls.line
-end
-local parse_chunk = function(ast, ls)
-    local body, firstline, lastline = parse_block_stmts(ast, ls)
-    return ast:chunk(body, ls.chunkname, 0, lastline)
-end
-parse_opt_block = function(ast, ls, line, match_token)
-    local body = {}
-    if lex_indent(ls) then
-        body = parse_block(ast, ls, line)
-        if not lex_dedent(ls) then
-            err_instead(ls, "'%s' expected to end %s at line %d", ls.tostr("TK_dedent"), ls.tostr(match_token), line)
-        end
-    else
-        if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token] then
-            body[1] = parse_stmt(ast, ls)
-            body.firstline, body.lastline = line, ls.line
-        end
-        if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token] then
-            err_instead(ls, "only one statement may stay near '%s'. %s expected", ls.tostr(match_token), ls.tostr("TK_newline"))
-        end
-    end
-    return body
-end
 parse_body = function(ast, ls, line)
     local pfs = ls.fs
     ls.fs = {varargs = false}
@@ -611,10 +612,9 @@ parse_body = function(ast, ls, line)
     ls.fs = pfs
     return curry, args, body, proto
 end
-parse_block = function(ast, ls, firstline)
-    local body = parse_block_stmts(ast, ls)
-    body.firstline, body.lastline = firstline, ls.line
-    return body
+local parse_chunk = function(ast, ls)
+    local body, firstline, lastline = parse_block_stmts(ast, ls)
+    return ast:chunk(body, ls.chunkname, 0, lastline)
 end
 local parse = function(ast, ls)
     ls.step()

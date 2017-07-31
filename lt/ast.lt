@@ -2,51 +2,17 @@ var build = \kind, node ->
 	node.kind = kind
 	return node
 
-
 var ident = \name, line ->
 	return build("Identifier", { name = name, line = line })
 
 
-var does_multi_return = \expr ->
-	var k = expr.kind
-	return k == "CallExpression" or k == "SendExpression" or k == "Vararg"
-
-
 var AST = {}
-
-var func_decl = \id, body, params, vararg, locald, firstline, lastline ->
-	return build("FunctionDeclaration", {
-		id         = id,
-		body       = body,
-		params     = params,
-		vararg     = vararg,
-		locald     = locald,
-		firstline  = firstline,
-		lastline   = lastline,
-		line       = firstline,
-	})
-
-
-var func_expr = \body, params, vararg, firstline, lastline ->
-	return build("FunctionExpression", { body = body, params = params, vararg = vararg, firstline = firstline, lastline = lastline })
-
-
-AST.expr_function = \ast, args, body, proto ->
-	return func_expr(body, args, proto.varargs, proto.firstline, proto.lastline)
-
-
---[[
-AST.local_function_decl = \ast, name, args, body, proto ->
-	var id = ast:var_declare(name)
-	return func_decl(id, body, args, proto.varargs, true, proto.firstline, proto.lastline)
---]]
-
-AST.function_decl = \ast, path, args, body, proto ->
-	return func_decl(path, body, args, proto.varargs, false, proto.firstline, proto.lastline)
-
 
 AST.chunk = \ast, body, chunkname, firstline, lastline ->
 	return build("Chunk", { body = body, chunkname = chunkname, firstline = firstline, lastline = lastline })
+
+AST.expr_function = \ast, args, body, proto ->
+	return build("FunctionExpression", { body = body, params = args, vararg = proto.varargs, firstline = proto.firstline, lastline = proto.lastline })
 
 
 AST.local_decl = \ast, vlist, exps, line ->
@@ -83,7 +49,7 @@ AST.longstrliteral = \ast, txt ->
 
 
 AST.expr_vararg = \ast ->
-	return build("Vararg", { })
+	return build("Vararg", {})
 
 
 AST.expr_brackets = \ast, expr ->
@@ -92,8 +58,10 @@ AST.expr_brackets = \ast, expr ->
 
 
 AST.set_expr_last = \ast, expr ->
-	if expr.bracketed and does_multi_return(expr)
-		expr.bracketed = nil
+	if expr.bracketed
+		var k = expr.kind
+		if k == "CallExpression" or k == "SendExpression" or k == "Vararg"
+			expr.bracketed = nil
 		return build("ExpressionValue", { value = expr })
 	else
 		return expr
@@ -111,7 +79,8 @@ AST.expr_unop = \ast, op, v, line ->
 var concat_append = \ts, node ->
 	var n = #ts
 	if node.kind == "ConcatenateExpression"
-		for k = 1, #node.terms do ts[n + k] = node.terms[k] 
+		for k = 1, #node.terms
+			ts[n + k] = node.terms[k]
 	else
 		ts[n + 1] = node
 	
@@ -126,7 +95,7 @@ AST.expr_binop = \ast, op, expa, expb, line ->
 			return build("BinaryExpression", binop_body)
 		
 	else
-		var terms = { }
+		var terms = {}
 		concat_append(terms, expa)
 		concat_append(terms, expb)
 		return build("ConcatenateExpression", { terms = terms, line = expa.line })
@@ -218,7 +187,8 @@ AST.fscope_end = \ast ->
 	ast.current = ast.current.parent
 
 
--- lint checks
+
+---- lint checks --------------------------------------
 AST.in_scope = \ast, v ->
 	if v.name
 		var scope = ast.current

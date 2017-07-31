@@ -182,7 +182,7 @@ ExpressionRule.SendExpression = \@, node ->
 	var exp = format("%s(%s)", method, @.expr_list(@, node.arguments))
 	return exp, operator.ident_priority
 
-
+--[[
 StatementRule.FunctionDeclaration = \@, node ->
 	@.proto_enter(@, 0)
 	var name = @.expr_emit(@, node.id)
@@ -194,7 +194,7 @@ StatementRule.FunctionDeclaration = \@, node ->
 	@.add_section(@, header, node.body)
 	var child_proto = @.proto_leave(@)
 	self.proto.merge(@, child_proto)
-
+--]]
 
 ExpressionRule.FunctionExpression = \@, node ->
 	@.proto_enter(@)
