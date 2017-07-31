@@ -5,7 +5,6 @@
 local chars = require("lt.chars")
 local stack = require("lt.stack")
 local Keyword = require("lt.reserved")
-Keyword.var = true
 local is = chars.is
 local build = chars.build
 local END_OF_STREAM = -1

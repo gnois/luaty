@@ -163,13 +163,12 @@ ExpressionRule.CallExpression = function(self, node)
     return exp, operator.ident_priority
 end
 ExpressionRule.SendExpression = function(self, node)
-    local callee, prio = self:expr_emit(node.callee)
-    local dot = string.match(callee, ".*%.()")
-    local method = callee:sub(1, dot - 2) .. ":" .. callee:sub(dot)
-    if prio < operator.ident_priority or is_literal(node.callee) then
-        method = "(" .. method .. ")"
+    local receiver, prio = self:expr_emit(node.receiver)
+    if prio < operator.ident_priority or is_literal(node.receiver) then
+        receiver = "(" .. receiver .. ")"
     end
-    local exp = format("%s(%s)", method, self:expr_list(node.arguments))
+    local method = node.method.name
+    local exp = format("%s:%s(%s)", receiver, method, self:expr_list(node.arguments))
     return exp, operator.ident_priority
 end
 ExpressionRule.FunctionExpression = function(self, node)

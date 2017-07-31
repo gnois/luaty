@@ -1,7 +1,7 @@
 var chars = require("lt.chars")
 var stack = require("lt.stack")
 var Keyword = require("lt.reserved")
-Keyword.var = true
+
 var is = chars.is
 var build = chars.build
 

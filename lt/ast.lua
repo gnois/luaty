@@ -94,8 +94,9 @@ end
 AST.identifier = function(ast, name, line)
     return ident(name, line)
 end
-AST.expr_method_call = function(ast, v, args, line)
-    return build("SendExpression", {callee = v, arguments = args, line = line})
+AST.expr_method_call = function(ast, v, key, args, line)
+    local m = ident(key, line)
+    return build("SendExpression", {receiver = v, method = m, arguments = args, line = line})
 end
 AST.expr_function_call = function(ast, v, args, line)
     return build("CallExpression", {callee = v, arguments = args, line = line})

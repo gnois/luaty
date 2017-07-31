@@ -1,6 +1,5 @@
 var operator = require("lt.operator")
 var Keyword = require("lt.reserved")
-Keyword.var = true
 
 var LJ_52 = false
 
@@ -32,7 +31,7 @@ var err_token = \ls, token ->
 
 var err_symbol = \ls ->
 	var sym = ls.value or ls.tostr(ls.token)
-	var replace = {['end'] = "<dedent>", ['local'] = "'var'", ['function'] = "\\...->", ['elseif'] = "'else if'", ['repeat'] = "'do'"}
+	var replace = {['end'] = "<dedent>", ['local'] = "`var`", ['function'] = "\\...->", ['elseif'] = "`else if`", ['repeat'] = "`do`"}
 	var rep = replace[sym]
 	if rep
 		ls.error(ls, "use %s instead of '%s'", rep, sym)
@@ -111,12 +110,10 @@ var expr_field = \ast, ls, v ->
 	var key = is_keyword(ls)
 	if key
 		ls.step()
-		if key == "var"  -- `var` is not a Lua keyword
-			return ast.expr_property(@, v, key)
 		return ast.expr_index(@, v, ast.literal(@, key))
 
 	key = lex_str(ls)
-	return ast.expr_property(@, v, key)
+	return ast.expr_property(@, v, key), v, key
 
 
 var expr_bracket = \ast, ls ->
@@ -280,25 +277,25 @@ expr_primary = \ast, ls ->
 	else
 		err_symbol(ls)
 
-	var key
+	var val, key
 	while true -- Parse multiple expression suffixes.
 		var line = ls.line
 		if ls.token == '.'
-			vk, v = 'indexed', expr_field(ast, ls, v)
+			vk, v, val, key = 'indexed', expr_field(ast, ls, v)
 		else if ls.token == '['
 			key = expr_bracket(ast, ls)
-			vk, v = 'indexed', ast.expr_index(@, v, key)
-		else if ls.token == ':'
-			err_syntax(ls, "use of `:` is not supported")
+			vk, v, val, key = 'indexed', ast.expr_index(@, v, key)  -- clear val and key
 		else if ls.token == '(' -- or ls.token == 'TK_string' or ls.token == '{'
 			var args = parse_args(ast, ls)
 			-- if vk is indexed and first argument is @, it is a method call
-			if vk == 'indexed' and args[1] and args[1].kind == 'Identifier' and args[1].name == 'self'
+			if val and key and args[1] and args[1].kind == 'Identifier' and args[1].name == 'self'
 				table.remove(args, 1)
-				vk, v = 'call', ast.expr_method_call(@, v, args, line)
+				vk, v = 'call', ast.expr_method_call(@, val, key, args, line)
 			else
 				vk, v = 'call', ast.expr_function_call(@, v, args, line)
 		else
+			if ls.token == ':'
+				err_syntax(ls, "use of `:` is not supported")
 			break
 
 	return v, vk
@@ -538,7 +535,7 @@ var parse_stmt = \ast, ls ->
 	--    stmt = parse_func(ast, ls, line)
 	else if ls.token == 'TK_lambda' or ls.token == 'TK_curry'
 		err_syntax(ls, "lambda must either be assigned or invoked")
-	else if ls.token == 'TK_var'
+	else if ls.token == 'TK_name' and ls.value == 'var'
 		ls.step()
 		stmt = parse_var(ast, ls, line)
 	else if ls.token == 'TK_return'

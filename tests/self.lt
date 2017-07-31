@@ -16,15 +16,15 @@ assert(self.x() == 3)
 
 
 -- string method
-print(("hi").rep(@, 3))
-print(("hi").rep("Hello! ", 3))
+assert(("hi").rep(@, 3) == "hihihi")
+assert(("hi").rep("Hello! ", 3) == "Hello! Hello! Hello! ")
 
 
 -- objects
 var met = \@, k-> return k * self.value
 
-var obj = { value = 3.141592, met = met }
-print(obj.met(@, 2))
+var obj = { value = 3, met = met }
+assert(obj.met(@, 2) == 6)
 
 
 var foo = \@, k-> return k * @.value

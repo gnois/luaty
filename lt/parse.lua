@@ -4,7 +4,6 @@
 
 local operator = require("lt.operator")
 local Keyword = require("lt.reserved")
-Keyword.var = true
 local LJ_52 = false
 local EndOfBlock = {TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true}
 local EndOfFunction = {["}"] = true, [")"] = true, [";"] = true, [","] = true}
@@ -28,7 +27,7 @@ local err_token = function(ls, token)
 end
 local err_symbol = function(ls)
     local sym = ls.value or ls.tostr(ls.token)
-    local replace = {["end"] = "<dedent>", ["local"] = "'var'", ["function"] = "\\...->", ["elseif"] = "'else if'", ["repeat"] = "'do'"}
+    local replace = {["end"] = "<dedent>", ["local"] = "`var`", ["function"] = "\\...->", ["elseif"] = "`else if`", ["repeat"] = "`do`"}
     local rep = replace[sym]
     if rep then
         ls.error(ls, "use %s instead of '%s'", rep, sym)
@@ -102,13 +101,10 @@ local expr_field = function(ast, ls, v)
     local key = is_keyword(ls)
     if key then
         ls.step()
-        if key == "var" then
-            return ast:expr_property(v, key)
-        end
         return ast:expr_index(v, ast:literal(key))
     end
     key = lex_str(ls)
-    return ast:expr_property(v, key)
+    return ast:expr_property(v, key), v, key
 end
 local expr_bracket = function(ast, ls)
     ls.step()
@@ -266,25 +262,26 @@ expr_primary = function(ast, ls)
     else
         err_symbol(ls)
     end
-    local key
+    local val, key
     while true do
         local line = ls.line
         if ls.token == "." then
-            vk, v = "indexed", expr_field(ast, ls, v)
+            vk, v, val, key = "indexed", expr_field(ast, ls, v)
         elseif ls.token == "[" then
             key = expr_bracket(ast, ls)
-            vk, v = "indexed", ast:expr_index(v, key)
-        elseif ls.token == ":" then
-            err_syntax(ls, "use of `:` is not supported")
+            vk, v, val, key = "indexed", ast:expr_index(v, key)
         elseif ls.token == "(" then
             local args = parse_args(ast, ls)
-            if vk == "indexed" and args[1] and args[1].kind == "Identifier" and args[1].name == "self" then
+            if val and key and args[1] and args[1].kind == "Identifier" and args[1].name == "self" then
                 table.remove(args, 1)
-                vk, v = "call", ast:expr_method_call(v, args, line)
+                vk, v = "call", ast:expr_method_call(val, key, args, line)
             else
                 vk, v = "call", ast:expr_function_call(v, args, line)
             end
         else
+            if ls.token == ":" then
+                err_syntax(ls, "use of `:` is not supported")
+            end
             break
         end
     end
@@ -503,7 +500,7 @@ local parse_stmt = function(ast, ls)
         stmt = parse_for(ast, ls, line)
     elseif ls.token == "TK_lambda" or ls.token == "TK_curry" then
         err_syntax(ls, "lambda must either be assigned or invoked")
-    elseif ls.token == "TK_var" then
+    elseif ls.token == "TK_name" and ls.value == "var" then
         ls.step()
         stmt = parse_var(ast, ls, line)
     elseif ls.token == "TK_return" then

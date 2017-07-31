@@ -172,6 +172,17 @@ ExpressionRule.CallExpression = \@, node ->
 
 
 ExpressionRule.SendExpression = \@, node ->
+	var receiver, prio = @.expr_emit(@, node.receiver)
+	if prio < operator.ident_priority or is_literal(node.receiver)
+		receiver = "(" .. receiver .. ")"
+
+	var method = node.method.name
+	var exp = format("%s:%s(%s)", receiver, method, self.expr_list(@, node.arguments))
+	return exp, operator.ident_priority
+
+
+--[[
+ExpressionRule.SendExpression = \@, node ->
 	var callee, prio = @.expr_emit(@, node.callee)
 	-- replace the last . with :
 	var dot = string.match(callee, ".*%.()")
@@ -182,7 +193,7 @@ ExpressionRule.SendExpression = \@, node ->
 	var exp = format("%s(%s)", method, @.expr_list(@, node.arguments))
 	return exp, operator.ident_priority
 
---[[
+
 StatementRule.FunctionDeclaration = \@, node ->
 	@.proto_enter(@, 0)
 	var name = @.expr_emit(@, node.id)

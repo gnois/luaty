@@ -106,15 +106,9 @@ AST.identifier = \ast, name, line ->
 	return ident(name, line)
 
 
---[[
 AST.expr_method_call = \ast, v, key, args, line ->
 	var m = ident(key, line)
 	return build("SendExpression", { receiver = v, method = m, arguments = args, line = line })
-]]
-
-AST.expr_method_call = \ast, v, args, line ->
-	return build("SendExpression", { callee = v, arguments = args, line = line })
-
 
 AST.expr_function_call = \ast, v, args, line ->
 	return build("CallExpression", { callee = v, arguments = args, line = line })
