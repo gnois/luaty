@@ -94,7 +94,11 @@ local expr_primary, expr, expr_unop, expr_binop, expr_simple, expr_list, expr_ta
 local parse_body, parse_args, parse_block, parse_opt_block
 local var_name = function(ast, ls)
     local name = lex_str(ls)
-    return ast:identifier(name)
+    local vk = "var"
+    if name == "self" or name == "@" then
+        vk = "self"
+    end
+    return ast:identifier(name), vk
 end
 local expr_field = function(ast, ls, v)
     ls.step()
@@ -236,7 +240,7 @@ expr_unop = function(ast, ls)
     end
 end
 expr_binop = function(ast, ls, limit)
-    local v = expr_unop(ast, ls)
+    local v, vk = expr_unop(ast, ls)
     local op = ls.tostr(ls.token)
     while operator.is_binop(op) and operator.left_priority(op) > limit do
         local line = ls.line
@@ -244,8 +248,9 @@ expr_binop = function(ast, ls, limit)
         local v2, nextop = expr_binop(ast, ls, operator.right_priority(op))
         v = ast:expr_binop(op, v, v2, line)
         op = nextop
+        vk = nil
     end
-    return v, op
+    return v, op, vk
 end
 expr = function(ast, ls)
     return expr_binop(ast, ls, 0)
@@ -258,7 +263,7 @@ expr_primary = function(ast, ls)
         vk, v = "expr", ast:expr_brackets(expr(ast, ls))
         lex_match(ls, ")", "(", line)
     elseif ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
-        vk, v = "var", var_name(ast, ls)
+        v, vk = var_name(ast, ls)
     else
         err_symbol(ls)
     end
@@ -271,17 +276,14 @@ expr_primary = function(ast, ls)
             key = expr_bracket(ast, ls)
             vk, v, val, key = "indexed", ast:expr_index(v, key)
         elseif ls.token == "(" then
-            local args = parse_args(ast, ls)
-            if val and key and args[1] and args[1].kind == "Identifier" and args[1].name == "self" then
+            local args, ismethod = parse_args(ast, ls)
+            if val and key and ismethod then
                 table.remove(args, 1)
                 vk, v = "call", ast:expr_method_call(val, key, args, line)
             else
                 vk, v = "call", ast:expr_function_call(v, args, line)
             end
         else
-            if ls.token == ":" then
-                err_syntax(ls, "use of `:` is not supported")
-            end
             break
         end
     end
@@ -352,13 +354,18 @@ parse_args = function(ast, ls)
         err_syntax(ls, "ambiguous syntax (function call x new statement)")
     end
     local dented = false
-    local args = {}
+    local ismethod, vk = false
+    local args, n = {}, 0
     while ls.token ~= ")" do
         dented = lex_opt_dent(ls, dented)
         if ls.token == ")" then
             break
         end
-        args[#args + 1] = expr(ast, ls)
+        n = n + 1
+        args[n], _, vk = expr(ast, ls)
+        if n == 1 and vk == "self" then
+            ismethod = true
+        end
         dented = lex_opt_dent(ls, dented)
         if not lex_opt(ls, ",") then
             break
@@ -368,16 +375,15 @@ parse_args = function(ast, ls)
         err_instead(ls, "'%s' expected to match '%s' at line %d", ls.tostr("TK_dedent"), ls.tostr("TK_indent"), line)
     end
     lex_match(ls, ")", "(", line)
-    local n = #args
     if n > 0 then
         args[n] = ast:set_expr_last(args[n])
     end
-    return args
+    return args, ismethod
 end
 local parse_assignment
 parse_assignment = function(ast, ls, vlist, v, vk)
     local line = ls.line
-    if vk ~= "var" and vk ~= "indexed" then
+    if vk ~= "var" and vk ~= "self" and vk ~= "indexed" then
         err_symbol(ls)
     end
     vlist[#vlist + 1] = v
@@ -386,7 +392,7 @@ parse_assignment = function(ast, ls, vlist, v, vk)
         return parse_assignment(ast, ls, vlist, n_var, n_vk)
     else
         lex_check(ls, "=")
-        if vk == "var" and not ast:in_scope(v) then
+        if (vk == "var" or vk == "self") and not ast:in_scope(v) then
             err_syntax(ls, "undeclared identifier " .. v.name)
         end
         local exps = expr_list(ast, ls, #vlist)

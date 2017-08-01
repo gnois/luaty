@@ -1,5 +1,5 @@
 
-Luaty is another language with [off-side rule](https://en.wikipedia.org/wiki/Off-side_rule) that transcompiles into clean Lua code.
+Luaty is another language with [off-side rule](https://en.wikipedia.org/wiki/Off-side_rule) that transcompiles into clean Lua.
 Its syntax is brief yet unambiguous, with a compiler that is relatively unforgiving.
 The compiler itself is written in Luaty and compiled into Lua.
 
@@ -8,15 +8,17 @@ Why Luaty
 ---
 Because there's not enough Lua code generators.
 Really, because I like most of Lua's simplicity, and some of Moonscript's brevity, and also some safety.
+
 Luaty is just Lua with a syntactic skin that is likely more readable, shorter or safer.
-Syntactical wise, it follows [*"There should be only one way to do it"*.](https://wiki.python.org/moin/TOOWTDI)
+Its mantra follows [*"There should be only one way to do it"*.](https://wiki.python.org/moin/TOOWTDI)
 
 
 Differences from Lua
 ---
 
 Most syntaxes of Lua are kept, so that if you know Lua, you already knew most of Luaty.
-Here goes the differences:
+
+Here are the differences:
 
 
 - Less or shorter keywords
@@ -115,10 +117,9 @@ Quick start
 ---
 
 1. Install LuaJIT
-2. Clone this repo
+2. Clone this repo, and cd into it
 
-
-To execute a Luaty source file, cd to Luaty folder, then
+To execute a Luaty source file, use
 ```
 luajit lt.lua /path/to/source.lt
 ```
@@ -129,6 +130,11 @@ luajit lt.lua -c /path/to/source.lt dest.lua
 ```
 The output file is optional, and defaults to *source.lua*
 
+
+To run tests in the [tests folder](https://github.com/gnois/luaty/tree/master/tests), use
+```
+luajit run-test.lua
+```
 
 
 
@@ -198,10 +204,6 @@ assert(b == 7)                                                           -- `;` 
 
 See the [tests folder](https://github.com/gnois/luaty/tree/master/tests) for more code examples.
 
-To run tests in the folder, use
-```
-luajit run-test.lua ./tests
-```
 
 
 
