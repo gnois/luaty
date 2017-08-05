@@ -56,7 +56,7 @@ AST.expr_brackets = \ast, expr ->
 	expr.bracketed = true
 	return expr
 
-
+--[[
 AST.set_expr_last = \ast, expr ->
 	if expr.bracketed
 		var k = expr.kind
@@ -65,8 +65,7 @@ AST.set_expr_last = \ast, expr ->
 		return build("ExpressionValue", { value = expr })
 	else
 		return expr
-	
-
+]]
 
 AST.expr_table = \ast, keyvals, line ->
 	return build("Table", { keyvals = keyvals, line = line })
@@ -93,7 +92,6 @@ AST.expr_binop = \ast, op, expa, expb, line ->
 			return build("LogicalExpression", binop_body)
 		else
 			return build("BinaryExpression", binop_body)
-		
 	else
 		var terms = {}
 		concat_append(terms, expa)
@@ -162,8 +160,8 @@ AST.goto_stmt = \ast, name, line ->
 
 var new_scope = \parent_scope ->
 	return {
-		vars = { },
-		parent = parent_scope,
+		vars = {}
+		, parent = parent_scope
 	}
 
 
@@ -203,7 +201,6 @@ AST.overwritten = \ast, vars ->
 				return v
 
 		var scope = ast.current
-		
 		-- shadowing var at parent scope is normal, but we want to be careful
 		do
 			if scope.vars[v]
@@ -254,10 +251,9 @@ same = \a, b ->
 
 AST.same = same
 
-var ASTClass = { __index = AST }
 
-var new_ast = \ ->
-	return setmetatable({ }, ASTClass)
+return {
+	New = ->
+		return setmetatable({}, { __index = AST })
+}
 
-
-return { New = new_ast }

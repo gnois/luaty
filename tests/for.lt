@@ -10,21 +10,25 @@ var four = -> return 4
 for i = 1, four() 
 	print("B", i)
 
+-- inline function
+for i = 1, (-> return 4)()
+	print("C", i)
 
--- just test
+
+-- var as normal variable
 var foo = \n->
 	var sum = 0
 	var fs = {}
-	for i = 1, n 
-		sum = sum + i*i
-		fs[i] = \x->
-			return i + x 
+	for var = 1, n 
+		sum = sum + var*var
+		fs[var] = \x->
+			return var + x 
 	return sum, fs
 
 
 var s, fs = foo(10)
-print(s)
-print(fs[1](7), fs[2](7), fs[3](7))
+assert(s == 385)
+assert(fs[1](7) + fs[2](7) + fs[3](7) == 27)
 
 
 

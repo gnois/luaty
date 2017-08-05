@@ -223,9 +223,6 @@ expr_list = function(ast, ls, nmax)
     if nmax and n > nmax then
         err_syntax(ls, "assigning " .. n .. " values to " .. nmax .. " variable(s)")
     end
-    if n > 0 then
-        exps[n] = ast:set_expr_last(exps[n])
-    end
     return exps
 end
 expr_unop = function(ast, ls)
@@ -375,9 +372,6 @@ parse_args = function(ast, ls)
         err_instead(ls, "'%s' expected to match '%s' at line %d", ls.tostr("TK_dedent"), ls.tostr("TK_indent"), line)
     end
     lex_match(ls, ")", "(", line)
-    if n > 0 then
-        args[n] = ast:set_expr_last(args[n])
-    end
     return args, ismethod
 end
 local parse_assignment

@@ -7,10 +7,10 @@ The compiler itself is written in Luaty and compiled into Lua.
 Why Luaty
 ---
 Because there's not enough Lua code generators.
-Really, because I like most of Lua's simplicity, and some of Moonscript's brevity, and also some safety.
 
+Really, because I like most of Lua's simplicity, and some of Moonscript's brevity, and also some safety.
 Luaty is just Lua with a syntactic skin that is likely more readable, shorter or safer.
-Its mantra follows [*"There should be only one way to do it"*.](https://wiki.python.org/moin/TOOWTDI)
+Its philosophy follows [*"There should be only one way to do it"*.](https://wiki.python.org/moin/TOOWTDI)
 
 
 Differences from Lua

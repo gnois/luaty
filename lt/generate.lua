@@ -83,9 +83,6 @@ end
 ExpressionRule.Vararg = function(self)
     return "...", operator.ident_priority
 end
-ExpressionRule.ExpressionValue = function(self, node)
-    return "(" .. self:expr_emit(node.value) .. ")"
-end
 ExpressionRule.BinaryExpression = function(self, node)
     local oper = node.operator
     local lprio = operator.left_priority(oper)
@@ -299,8 +296,12 @@ local generate = function(tree)
         self.proto = proto.parent
         return proto
     end
-    local to_expr = function(node)
-        return self:expr_emit(node)
+    local to_expr = function(node, bracket)
+        local val = self:expr_emit(node)
+        if bracket then
+            return "(" .. val .. ")"
+        end
+        return val
     end
     self.compile_code = function(self)
         return concat(self.code, "\n")
@@ -337,7 +338,12 @@ local generate = function(tree)
         return rule(self, node)
     end
     self.expr_list = function(self, exps)
-        return comma_sep_list(exps, to_expr)
+        local strls = {}
+        local last = #exps
+        for k = 1, last do
+            strls[k] = to_expr(exps[k], k == last and exps[k].bracketed)
+        end
+        return concat(strls, ", ")
     end
     self.emit = function(self, node)
         local rule = StatementRule[node.kind]

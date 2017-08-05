@@ -231,8 +231,8 @@ expr_list = \ast, ls, nmax ->
 	var n = #exps
 	if nmax and n > nmax
 		err_syntax(ls, "assigning " .. n .. " values to " .. nmax .. " variable(s)")
-	if n > 0
-		exps[n] = ast.set_expr_last(@, exps[n])
+	--if n > 0
+	--	exps[n] = ast.set_expr_last(@, exps[n])
 	return exps
 
 
@@ -394,8 +394,8 @@ parse_args = \ast, ls ->
 		err_instead(ls, "'%s' expected to match '%s' at line %d", ls.tostr('TK_dedent'), ls.tostr('TK_indent'), line)
 	lex_match(ls, ')', '(', line)
 
-	if n > 0
-		args[n] = ast.set_expr_last(@, args[n])
+	--if n > 0
+	--	args[n] = ast.set_expr_last(@, args[n])
 	return args, ismethod
 
 

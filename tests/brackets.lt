@@ -42,18 +42,13 @@ assert(({2,3})[1] == 2)
 assert(({2,3})[2] == 3)
 
 
-print(({(-> return 2,3,4,5)})[3])
-print(({(-> return 2,3,4,5)})[1])
-print(({(->return 2,3,4,5)})[2])
-print(({(-> return 2,3,4,5)})[1])
-print(({(-> return 2,3,4,5)()})[1])
-print(({(-> return 2,3,4,5)()})[3])
-print(({(-> return 2,3,4,5)()})[4])
+assert(({(-> return 2,3,4,5)})[1]() == 2)
+assert(({(-> return 2,3,4,5)})[2] == nil)
+assert(({(-> return 2,3,4,5)()})[1] == 2)
+assert(({(-> return 2,3,4,5)()})[4] == 5)
 
-print(({((-> return 2,3,4,5)())})[4] == 5)
-print(({((-> return 2,3,4,5)())})[3] == 4)
-print(({((-> return 2,3,4,5)())})[2] == 3)
-print(({((-> return 2,3,4,5)())})[1] == 2)
+assert(({((-> return 2,3,4,5)())})[2] == nil)
+assert(({((-> return 2,3,4,5)())})[1] == 2)
 
 
 -- 

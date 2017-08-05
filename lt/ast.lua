@@ -49,17 +49,6 @@ AST.expr_brackets = function(ast, expr)
     expr.bracketed = true
     return expr
 end
-AST.set_expr_last = function(ast, expr)
-    if expr.bracketed then
-        local k = expr.kind
-        if k == "CallExpression" or k == "SendExpression" or k == "Vararg" then
-            expr.bracketed = nil
-        end
-        return build("ExpressionValue", {value = expr})
-    else
-        return expr
-    end
-end
 AST.expr_table = function(ast, keyvals, line)
     return build("Table", {keyvals = keyvals, line = line})
 end
@@ -225,8 +214,6 @@ same = function(a, b)
     return false
 end
 AST.same = same
-local ASTClass = {__index = AST}
-local new_ast = function()
-    return setmetatable({}, ASTClass)
-end
-return {New = new_ast}
+return {New = function()
+    return setmetatable({}, {__index = AST})
+end}

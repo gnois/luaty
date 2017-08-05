@@ -96,10 +96,10 @@ ExpressionRule.MemberExpression = \@, node ->
 ExpressionRule.Vararg = \@ ->
 	return "...", operator.ident_priority
 
-
+--[[
 ExpressionRule.ExpressionValue = \@, node ->
 	return "(" .. @.expr_emit(@, node.value) .. ")"
-
+]]
 
 ExpressionRule.BinaryExpression = \@, node ->
 	var oper = node.operator
@@ -360,8 +360,11 @@ var generate = \tree ->
 		return proto
 
 
-	var to_expr = \node ->
-		return @.expr_emit(@, node)
+	var to_expr = \node, bracket ->
+		var val = @.expr_emit(@, node)
+		if bracket
+			return "(" .. val .. ")"
+		return val
 
 
 	self.compile_code = \@ ->
@@ -405,7 +408,12 @@ var generate = \tree ->
 
 
 	self.expr_list = \@, exps ->
-		return comma_sep_list(exps, to_expr)
+		--return comma_sep_list(exps, to_expr)
+		var strls = {}
+		var last = #exps
+		for k = 1, last
+			strls[k] = to_expr(exps[k], k == last and exps[k].bracketed)
+		return concat(strls, ", ")
 
 
 	self.emit = \@, node ->
