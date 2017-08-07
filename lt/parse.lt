@@ -281,15 +281,30 @@ expr_primary = \ast, ls ->
 	while true -- Parse multiple expression suffixes.
 		var line = ls.line
 		if ls.token == '.'
-			vk, v, val, key = 'indexed', expr_field(ast, ls, v)
+			vk, v, val, key = 'proped', expr_field(ast, ls, v)
 		else if ls.token == '['
 			key = expr_bracket(ast, ls)
-			vk, v, val, key = 'indexed', ast.expr_index(@, v, key)  -- clear val and key
+			val = v
+			vk, v = 'indexed', ast.expr_index(@, val, key)
 		else if ls.token == '(' -- or ls.token == 'TK_string' or ls.token == '{'
 			var args, self1 = parse_args(ast, ls)
-			if val and key and self1
+			if self1
 				table.remove(args, 1)
-				vk, v = 'call', ast.expr_method_call(@, val, key, args, line)
+				if vk == 'proped'
+					vk, v = 'call', ast.expr_method_call(@, val, key, args, line)
+				else if vk == 'indexed'
+					-- simulate a wrapped self method call
+					var nm = 'o'
+					var obj = ast.identifier(@, nm)
+					table.insert(args, 1, obj)
+					var body = {
+						ast.local_decl(@, {nm}, {val}, line)
+						, ast.return_stmt(@, {
+							ast.expr_function_call(@, ast.expr_index(@, obj, key), args, line)
+						}, line)
+					}
+					var lambda = ast.expr_function(@, {}, body, { varargs = false })
+					vk, v = 'call', ast.expr_function_call(@, lambda, {}, line)
 			else
 				vk, v = 'call', ast.expr_function_call(@, v, args, line)
 		else
@@ -400,7 +415,7 @@ parse_args = \ast, ls ->
 var parse_assignment
 parse_assignment = \ast, ls, vlist, v, vk ->
 	var line = ls.line
-	if vk ~= 'var' and vk ~= 'self' and vk ~= 'indexed'
+	if vk ~= 'var' and vk ~= 'self' and vk ~= 'proped' and vk ~= 'indexed'
 		err_symbol(ls)
 
 	vlist[#vlist+1] = v

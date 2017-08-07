@@ -8,7 +8,7 @@ Why Luaty
 ---
 Because there's not enough Lua code generators.
 
-Really, because I like most of Lua's simplicity, and some of Moonscript's brevity, and then some safety.
+Really, because I like all of Lua except some of its syntax, and wanted some safety.
 Luaty is just Lua with a syntactic skin that is likely more readable, shorter or safer.
 Its philosophy follows [*"There should be only one way to do it"*.](https://wiki.python.org/moin/TOOWTDI)
 
@@ -58,11 +58,16 @@ print('a')                          -- Ok, obviously
 var obj = {
    value = 3
    , foo = \@, k ->
-      return k * @.value            -- @ is equivalent to `self`
+      return k * @.value                    -- @ is equivalent to `self`
+   , ['long-name'] = \@, n ->
+      return n + @.value
 }
 
-p(obj:foo(2))                       -- Error: ')' expected instead of ':'. This is valid in Lua
-assert(obj.foo(@, 2) == 6)          -- Ok, specify @ explicitly. Compiles to obj:foo(2)
+var ret_o = -> return obj
+assert(ret_o()['long-name'](@, 10) == 20)   -- @ *just works*, better than `:`
+
+p(obj:foo(2))                               -- Error: ')' expected instead of ':'. This is valid in Lua
+assert(obj.foo(@, 2) == 6)                  -- Ok, specify @ explicitly. Compiles to obj:foo(2)
 
 ```
 
@@ -148,19 +153,19 @@ The indent (offside) rule
    - A single child statement may choose to stay at the same line as its parent
    - Multiple child statements should start at an indented newline
 ```
-if true p(1)                           -- Ok, p(1) is the only child statement of `if`
+if true p(1)                    -- Ok, p(1) is the only child statement of `if`
 p(2)
 
-if true p(1) p(2)                      -- Error, two statements at the same line, `if` and p(2)
+if true p(1) p(2)               -- Error, two statements at the same line, `if` and p(2)
 
-do                                     -- Ok, multiple child statements are indented
+do                              -- Ok, multiple child statements are indented
    p(1)
    p(2)
 
-print((-> return 'a', 1)())            -- Ok, immediately invoked one lined lambda expression
+print((-> return 'a', 1)())     -- Ok, immediately invoked one lined lambda expression
 
 if x == nil for y = 1, 10 do until true else if x == 0 p(x) else if x p(x) else assert(not x)
-                                       -- Ok, `do` is the sole children of `for`, which in turn is the sole children of `if`
+                                -- Ok, `do` is the sole children of `for`, which in turn is the sole children of `if`
                                        
 
 
@@ -187,17 +192,17 @@ print(
 
 5. To accomodate multiple assignment/return values, return statement in single lined functions should be ended using semicolon `;` to separate expressions of different scope
 ```
-print(pcall(\x-> return x, 10))                                -- multiple return values. Prints true, nil, 10
+print(pcall(\x-> return x, 10))                 -- multiple return values. Prints true, nil, 10
 
-print(pcall(\x -> return x;, 10))                              -- ok, single lined function ended with `;`. Prints true, 10
+print(pcall(\x -> return x;, 10))               -- ok, single lined function ended with `;`. Prints true, 10
 
 print(pcall(\x ->
    return x
-, 10))                                                         -- ok, function ended with dedent. Prints true, 10
+, 10))                                          -- ok, function ended with dedent. Prints true, 10
 
 
 var a, b, c = -> var d, e, f = 2, -> return -> return 9;;, 5;, 7
-assert(b == 7)                                                 -- `;` used to disambiguate multiple assignment/return values
+assert(b == 7)                                  -- `;` used to disambiguate multiple assignment/return values
 
 ```
 

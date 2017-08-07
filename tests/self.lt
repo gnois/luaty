@@ -38,6 +38,18 @@ var inline = { value = 3.141592, foo = \@, i-> return i*@.value }
 print(inline.foo(@, 2))
 
 
+-- @ should just works
+
+var t = {num = 10}
+t['h-a'] = \@, n ->
+	return @.num + n
+
+assert(t['h-a'](@, 40) == 50)
+var ret_t = ->
+	return t
+print(ret_t()['h-a'](@, 10) == 20)
+
+
 -- self and @ is interchangeable
 
 var boo = { value = 7, compute= \self, i-> return self.value*i+1 }

@@ -264,15 +264,25 @@ expr_primary = function(ast, ls)
     while true do
         local line = ls.line
         if ls.token == "." then
-            vk, v, val, key = "indexed", expr_field(ast, ls, v)
+            vk, v, val, key = "proped", expr_field(ast, ls, v)
         elseif ls.token == "[" then
             key = expr_bracket(ast, ls)
-            vk, v, val, key = "indexed", ast:expr_index(v, key)
+            val = v
+            vk, v = "indexed", ast:expr_index(val, key)
         elseif ls.token == "(" then
             local args, self1 = parse_args(ast, ls)
-            if val and key and self1 then
+            if self1 then
                 table.remove(args, 1)
-                vk, v = "call", ast:expr_method_call(val, key, args, line)
+                if vk == "proped" then
+                    vk, v = "call", ast:expr_method_call(val, key, args, line)
+                elseif vk == "indexed" then
+                    local nm = "o"
+                    local obj = ast:identifier(nm)
+                    table.insert(args, 1, obj)
+                    local body = {ast:local_decl({nm}, {val}, line), ast:return_stmt({ast:expr_function_call(ast:expr_index(obj, key), args, line)}, line)}
+                    local lambda = ast:expr_function({}, body, {varargs = false})
+                    vk, v = "call", ast:expr_function_call(lambda, {}, line)
+                end
             else
                 vk, v = "call", ast:expr_function_call(v, args, line)
             end
@@ -373,7 +383,7 @@ end
 local parse_assignment
 parse_assignment = function(ast, ls, vlist, v, vk)
     local line = ls.line
-    if vk ~= "var" and vk ~= "self" and vk ~= "indexed" then
+    if vk ~= "var" and vk ~= "self" and vk ~= "proped" and vk ~= "indexed" then
         err_symbol(ls)
     end
     vlist[#vlist + 1] = v
