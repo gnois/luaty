@@ -30,7 +30,7 @@ return function(read, chunkname)
     local warnings = {}
     local warn = function(w)
         for i, m in ipairs(warnings) do
-            if w.l == m.l and w.c == m.c and w.msg == m.msg then
+            if w.l == m.l and w.c == m.c then
                 return 
             end
             if w.l < m.l or w.l == m.l and w.c < m.c then

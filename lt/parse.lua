@@ -189,7 +189,7 @@ expr_simple = function(ast, ls)
         e = ast:expr_vararg()
     elseif tk == "{" then
         return expr_table(ast, ls)
-    elseif tk == "\\" or tk == "TK_lambda" then
+    elseif tk == "\\" or tk == "TK_lambda" or tk == "TK_curry" then
         if tk == "\\" then
             ls.step()
         end
@@ -204,8 +204,6 @@ expr_simple = function(ast, ls)
             return ast:expr_function_call(curry, cargs, ls.line)
         end
         return lambda
-    elseif tk == "TK_curry" then
-        err_syntax(ls, "no argument to curry with ~>")
     else
         return expr_primary(ast, ls)
     end
@@ -259,10 +257,8 @@ expr_primary = function(ast, ls)
         ls.step()
         vk, v = "expr", ast:expr_brackets(expr(ast, ls))
         lex_match(ls, ")", "(", line)
-    elseif ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
-        v, vk = var_name(ast, ls)
     else
-        err_symbol(ls)
+        v, vk = var_name(ast, ls)
     end
     local val, key
     while true do
@@ -273,8 +269,8 @@ expr_primary = function(ast, ls)
             key = expr_bracket(ast, ls)
             vk, v, val, key = "indexed", ast:expr_index(v, key)
         elseif ls.token == "(" then
-            local args, ismethod = parse_args(ast, ls)
-            if val and key and ismethod then
+            local args, self1 = parse_args(ast, ls)
+            if val and key and self1 then
                 table.remove(args, 1)
                 vk, v = "call", ast:expr_method_call(val, key, args, line)
             else
@@ -351,7 +347,7 @@ parse_args = function(ast, ls)
         err_syntax(ls, "ambiguous syntax (function call x new statement)")
     end
     local dented = false
-    local ismethod, vk = false
+    local self1, vk = false
     local args, n = {}, 0
     while ls.token ~= ")" do
         dented = lex_opt_dent(ls, dented)
@@ -361,7 +357,7 @@ parse_args = function(ast, ls)
         n = n + 1
         args[n], _, vk = expr(ast, ls)
         if n == 1 and vk == "self" then
-            ismethod = true
+            self1 = true
         end
         dented = lex_opt_dent(ls, dented)
         if not lex_opt(ls, ",") then
@@ -372,7 +368,7 @@ parse_args = function(ast, ls)
         err_instead(ls, "'%s' expected to match '%s' at line %d", ls.tostr("TK_dedent"), ls.tostr("TK_indent"), line)
     end
     lex_match(ls, ")", "(", line)
-    return args, ismethod
+    return args, self1
 end
 local parse_assignment
 parse_assignment = function(ast, ls, vlist, v, vk)

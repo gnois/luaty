@@ -50,7 +50,7 @@ return \read, chunkname ->
 
 	var warn = \w ->
 		for i, m in ipairs(warnings)
-			if w.l == m.l and w.c == m.c and w.msg == m.msg
+			if w.l == m.l and w.c == m.c -- and w.msg == m.msg
 				return  -- skip same error
 			if w.l < m.l or (w.l == m.l and w.c < m.c)
 				-- insert

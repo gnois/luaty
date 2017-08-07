@@ -195,7 +195,7 @@ expr_simple = \ast, ls ->
 		e = ast.expr_vararg(@)
 	else if tk == '{'
 		return expr_table(ast, ls)
-	else if tk == '\\' or tk == 'TK_lambda'
+	else if tk == '\\' or tk == 'TK_lambda' or tk == 'TK_curry'
 		if tk == '\\'
 			ls.step()
 	
@@ -210,8 +210,6 @@ expr_simple = \ast, ls ->
 			return ast.expr_function_call(@, curry, cargs, ls.line)
 	
 		return lambda
-	else if tk == 'TK_curry'
-		err_syntax(ls, "no argument to curry with ~>")
 	else
 		return expr_primary(ast, ls)
 
@@ -274,10 +272,10 @@ expr_primary = \ast, ls ->
 		ls.step()
 		vk, v = 'expr', ast.expr_brackets(@, expr(ast, ls))
 		lex_match(ls, ')', '(', line)
-	else if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')
+	else --if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')    -- comment out coz err_symbol() will not quit, and v will be nil
 		v, vk = var_name(ast, ls)
-	else
-		err_symbol(ls)
+	--else
+	--	err_symbol(ls)
 
 	var val, key
 	while true -- Parse multiple expression suffixes.
@@ -288,8 +286,8 @@ expr_primary = \ast, ls ->
 			key = expr_bracket(ast, ls)
 			vk, v, val, key = 'indexed', ast.expr_index(@, v, key)  -- clear val and key
 		else if ls.token == '(' -- or ls.token == 'TK_string' or ls.token == '{'
-			var args, ismethod = parse_args(ast, ls)
-			if val and key and ismethod -- args[1] and args[1].kind == 'Identifier' and args[1].name == 'self'
+			var args, self1 = parse_args(ast, ls)
+			if val and key and self1
 				table.remove(args, 1)
 				vk, v = 'call', ast.expr_method_call(@, val, key, args, line)
 			else
@@ -375,7 +373,7 @@ parse_args = \ast, ls ->
 		err_syntax(ls, "ambiguous syntax (function call x new statement)")
 
 	var dented = false
-	var ismethod, vk = false
+	var self1, vk = false
 	var args, n = {}, 0
 	while ls.token ~= ')'
 		dented = lex_opt_dent(ls, dented)
@@ -384,7 +382,7 @@ parse_args = \ast, ls ->
 		n = n + 1
 		args[n], _, vk = expr(ast, ls)
 		if n == 1 and vk == 'self'
-			ismethod = true
+			self1 = true
 		
 		dented = lex_opt_dent(ls, dented)
 		if not lex_opt(ls, ',')
@@ -396,7 +394,7 @@ parse_args = \ast, ls ->
 
 	--if n > 0
 	--	args[n] = ast.set_expr_last(@, args[n])
-	return args, ismethod
+	return args, self1
 
 
 var parse_assignment
@@ -602,9 +600,7 @@ parse_opt_block = \ast, ls, line, match_token ->
 			-- single statement
 			body[1] = parse_stmt(ast, ls)
 			body.firstline, body.lastline = line, ls.line
-		-- if lookahead is indent, it belongs to parent block
-		--if NewLine[ls.token] and ls.next() ~= 'TK_indent'
-		--	ls.step()
+
 		if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
 			err_instead(ls, "only one statement may stay near '%s'. %s expected", ls.tostr(match_token), ls.tostr('TK_newline'))
 	return body
@@ -636,7 +632,6 @@ var parse_params = \ast, ls ->
 			err_syntax(ls, "cannot curry varargs with ~>")
 		if #args < 2
 			err_syntax(ls, "at least 2 arguments needed with ~>")
-	
 		ls.step()
 		return true, args
 	err_token(ls, "->")

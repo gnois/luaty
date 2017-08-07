@@ -8,7 +8,7 @@ Why Luaty
 ---
 Because there's not enough Lua code generators.
 
-Really, because I like most of Lua's simplicity, and some of Moonscript's brevity, and also some safety.
+Really, because I like most of Lua's simplicity, and some of Moonscript's brevity, and then some safety.
 Luaty is just Lua with a syntactic skin that is likely more readable, shorter or safer.
 Its philosophy follows [*"There should be only one way to do it"*.](https://wiki.python.org/moin/TOOWTDI)
 
@@ -18,7 +18,7 @@ Differences from Lua
 
 Most syntaxes of Lua are kept, so that if you know Lua, you already knew most of Luaty.
 
-Here are the differences:
+Here goes the differences:
 
 
 - Less or shorter keywords
@@ -187,17 +187,17 @@ print(
 
 5. To accomodate multiple assignment/return values, return statement in single lined functions should be ended using semicolon `;` to separate expressions of different scope
 ```
-print(pcall(\x-> return x, 10))                                          -- multiple return values. Prints true, nil, 10
+print(pcall(\x-> return x, 10))                                -- multiple return values. Prints true, nil, 10
 
-print(pcall(\x -> return x;, 10))                                        -- ok, single lined function ended with `;`. Prints true, 10
+print(pcall(\x -> return x;, 10))                              -- ok, single lined function ended with `;`. Prints true, 10
 
 print(pcall(\x ->
    return x
-, 10))                                                                   -- ok, function ended with dedent. Prints true, 10
+, 10))                                                         -- ok, function ended with dedent. Prints true, 10
 
 
 var a, b, c = -> var d, e, f = 2, -> return -> return 9;;, 5;, 7
-assert(b == 7)                                                           -- `;` used to disambiguate multiple assignment/return values
+assert(b == 7)                                                 -- `;` used to disambiguate multiple assignment/return values
 
 ```
 

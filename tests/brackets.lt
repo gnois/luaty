@@ -4,24 +4,23 @@ var eq = require('tests.inc').eq
 var foo = \x->
 	return x, x + 1, 2*x
 
-var prova = \...->
+var all = \...->
 	return ...
 
 var one = \...->
 	return (...)
 
-var first = \x->
-	return (foo(x))
-
-var alls = \x->
+var full = \x->
 	return foo(x)
 
+var first = \x->
+	return (foo(x))
 
 var triple, single = {2,3,4}, {2,nil,nil}
 
 eq(4, {foo(2)}, triple)
 
-eq(4, {alls(foo(2))}, triple)
+eq(4, {full(foo(2))}, triple)
 
 eq(4, {first(foo(2))}, single)
 
@@ -35,7 +34,7 @@ eq(6, {2, 3, foo(4)}, {2,3,4,5,8})
 
 eq(4, {one(foo(2))}, single)
 
-eq(4, {prova(foo(2))}, triple)
+eq(4, {all(foo(2))}, triple)
 
 
 assert(({2,3})[1] == 2)
@@ -49,6 +48,12 @@ assert(({(-> return 2,3,4,5)()})[4] == 5)
 
 assert(({((-> return 2,3,4,5)())})[2] == nil)
 assert(({((-> return 2,3,4,5)())})[1] == 2)
+
+
+do
+	var a = (7 % 2 == 1)
+	var b = (8 % 2 == 1)
+	var c, d, e = 6, (7 % 2), ((((9))))
 
 
 -- 
