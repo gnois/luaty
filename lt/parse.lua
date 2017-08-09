@@ -19,13 +19,14 @@ end
 local err_syntax = function(ls, em)
     ls.error(ls, "%s", em)
 end
+local as_val = function(ls)
+    if ls.value then
+        return "'" .. ls.value .. "'"
+    end
+end
 local err_instead = function(ls, em, ...)
     local msg = string.format(em, ...)
-    local text = ls.value
-    if text then
-        text = "'" .. text .. "'"
-    end
-    ls.error(ls, "%s instead of %s", msg, text or ls.astext(ls.token))
+    ls.error(ls, "%s instead of %s", msg, as_val(ls) or ls.astext(ls.token))
 end
 local err_expect = function(ls, token)
     err_instead(ls, "%s expected", ls.astext(token))
@@ -37,11 +38,7 @@ local err_symbol = function(ls)
     if rep then
         ls.error(ls, "use %s instead of %s", rep, sym)
     else
-        local text = ls.value
-        if text then
-            text = "'" .. text .. "'"
-        end
-        ls.error(ls, "unexpected %s", text or ls.astext(ls.token))
+        ls.error(ls, "unexpected %s", as_val(ls) or ls.astext(ls.token))
     end
 end
 local lex_opt = function(ls, tok)
@@ -644,7 +641,7 @@ local parse = function(ls)
     local chunk = parse_chunk(ast, ls)
     ast:fscope_end()
     if ls.token ~= "TK_eof" then
-        err_syntax(ls, "unexpected extra `" .. ls.tostr(ls.token) .. "`")
+        err_syntax(ls, "unexpected extra " .. ls.astext(ls.token))
     end
     return chunk
 end

@@ -1,51 +1,37 @@
+local term = require("term")
 local compile = require("lt.compile")
+local color = term.color
 
-local function usage()
-    io.stderr:write [[
-Luaty usage: 
-  luajit lt.lua [-c] source.lt [dest.lua]
+function usage()
+    term.usage([[
+Usage: 
+  luajit lt.lua [-c] file.lt [file.lua]
   where:
-    -c   Write into dest.lua without running. 
-         If dest.lua is not provided, default to source.lua
-]]
-  os.exit(1)
+    -c   Write into file.lua without running.
+         file.lua is optional
+]])
 end
 
-local color = {
-	magenta = "\27[95;1m"
-	, cyan  = "\27[96;1m"
-	, reset = "\27[0m"
-}
-local run = true
-local args = {...}
-local filenames = {}
-local k = 1
-while args[k] do
-    local a = args[k]
-    if string.sub(a, 1, 1) == "-" then
-        if string.sub(a, 2, 2) == "c" then
-            run = false
-        else
-            usage()
-        end
-    else
-        table.insert(filenames, a)
-    end
-    k = k + 1
-end
-
-if #filenames < 1 or #filenames > 2 then
+local switches, paths = term.scan({...})
+if #paths < 1 or #paths > 2 then
     usage()
 end
+for k, _ in pairs(switches) do
+    if k ~= 'c' then
+        usage()
+    end
+end
 
-local source = filenames[1]
+local run = not switches['c']
+local source = paths[1]
+
 local ok, result = compile.file(source)
 if ok then
     if run then
         local fn = assert(loadstring(result))
         fn()
     else
-        local dest = filenames[2] or string.gsub(filenames[1], "%.lt", '.lua')
+        local dest = paths[2] or string.gsub(paths[1], "%.lt", '.lua')
         while dest == source do
             dest = dest .. '.lua'
         end
@@ -61,10 +47,6 @@ if ok then
         f:write(result)
     end
 else
-    local warns = {}
-    for i, m in ipairs(result) do
-        warns[i] = string.format(" (%d,%d)" .. color.cyan ..  "  %s" .. color.reset, m.l, m.c, m.msg)
-    end
     io.stderr:write(color.magenta .. "Error compiling " .. source .. "\n" .. color.reset)
-    io.stderr:write(table.concat(warns, "\n") .. "\n")
+    term.show_error(result)
 end

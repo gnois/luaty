@@ -22,16 +22,18 @@ var err_syntax = \ls, em ->
 	ls.error(ls, "%s", em)
 
 
+var as_val = \ls ->
+	if ls.value
+		return "'" .. ls.value .. "'"
+
+
 var err_instead = \ls, em, ... ->
 	var msg = string.format(em, ...)
-	var text = ls.value
-	if text
-		text = "'" .. text .. "'"
-	ls.error(ls, "%s instead of %s", msg, text or ls.astext(ls.token)) --ls.tostr(ls.token)))
+	ls.error(ls, "%s instead of %s", msg, as_val(ls) or ls.astext(ls.token))
 
 
 var err_expect = \ls, token ->
-	err_instead(ls, "%s expected", ls.astext(token)) --ls.tostr(token))
+	err_instead(ls, "%s expected", ls.astext(token))
 
 
 var err_symbol = \ls ->
@@ -41,10 +43,7 @@ var err_symbol = \ls ->
 	if rep
 		ls.error(ls, "use %s instead of %s", rep, sym)
 	else
-		var text = ls.value
-		if text
-			text = "'" .. text .. "'"
-		ls.error(ls, "unexpected %s", text or ls.astext(ls.token))
+		ls.error(ls, "unexpected %s", as_val(ls) or ls.astext(ls.token))
 
 
 var lex_opt = \ls, tok ->
@@ -72,7 +71,7 @@ var lex_str = \ls ->
 	var s
 	if ls.token ~= 'TK_name' and (LJ_52 or ls.token ~= 'TK_goto')
 		err_expect(ls, 'TK_name')
-		-- no longer exiting, so cannot return nil
+		-- no longer exiting, so cannot be nil
 		s = ls.tostr(ls.token)
 	else
 		s = ls.value
@@ -700,7 +699,7 @@ var parse = \ls ->
 	--lex_check(ls, 'TK_eof')
 	-- give better message
 	if ls.token ~= 'TK_eof'
-		err_syntax(ls, "unexpected extra `" .. ls.tostr(ls.token) .. "`")
+		err_syntax(ls, "unexpected extra " .. ls.astext(ls.token))
 	return chunk
 
 

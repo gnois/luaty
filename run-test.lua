@@ -1,66 +1,33 @@
-local function usage()
-  io.stderr:write[[
-Usage: luajit test.lua [-c] path
- where:
-     path       The path of a directory
-     -c         Compile to lua code only
-]]
-  os.exit(1)
-end
-
--- determine forward or back slash
-local slash = package.config:sub(1,1)
-
-local run = true
-local dirname
-local args = {...}
-local k = 1
-while args[k] do
-    local a = args[k]
-    if string.sub(args[k], 1, 1) == "-" then
-        if string.sub(a, 2, 2) == "c" then
-            run = false
-        end
-    else
-        dirname = args[k]
-    end
-    k = k + 1
-end
-if not dirname then
-    dirname = '.' .. slash .. 'tests'
-else  -- remove trailing slash(es)
-    dirname = string.gsub(dirname, slash .. "*$", '')
-end
-
+local term = require("term")
 local compile = require("lt.compile")
 
-local color = {
-	magenta = "\27[95;1m"
-	, cyan  = "\27[96;1m"
-	, reset = "\27[0m"
-}
+local slash = term.slash
+local color = term.color
 
-function show_error(result)
-    local warns = {}
-    for i, m in ipairs(result) do
-        warns[i] = string.format(" (%d,%d)" .. color.cyan ..  "  %s" .. color.reset, m.l, m.c, m.msg)
-    end
-    io.stderr:write(table.concat(warns, "\n") .. "\n")
+local switches, paths = term.scan({...})
+if switches['h'] then 
+    term.usage(
+[[
+luajit test.lua [-c] path
+where:
+     path       The path of a directory
+     -c         Compile to lua code only
+     -h         Show help
+]])
+end
+
+local run = not switches['c']
+local folder = paths[1]
+
+if not folder then
+    folder = '.' .. slash .. 'tests'
+else  -- remove trailing slash(es)
+    folder = string.gsub(folder, slash .. "*$", '')
 end
 
 
-function check(success, result)
-    if success then
-        return result
-    end
-    show_error(result)
-    error('Compilation should pass. [ TEST FAILED ]')
-end
-
-function failure(success, result)
-    if success then
-        error('Compilation should fail. [ TEST FAILED ]')
-    end
+function failed()
+    error(color.red .. '[ TEST FAILED ]' .. color.reset)
 end
 
 
@@ -86,19 +53,23 @@ end
 
 
 -- begin passing tests
-print('Scanning ' .. dirname .. ' folder...')
+print('Scanning ' .. folder .. ' folder...')
 
-local files = scandir(dirname)
+local files = scandir(folder)
 for k, v in pairs(files) do
     if #v > 0 and string.sub(v, -string.len('.lt'))=='.lt' then
         print('\n' .. v .. ':')
-        filename = dirname .. slash .. v
-        local luacode = check(compile.file(filename))
+        filename = folder .. slash .. v
+        local ok, result = compile.file(filename)
+        if not ok then
+            term.show_error(result)
+            failed()
+        end
         if run then
-            local fn = assert(loadstring(luacode))
+            local fn = assert(loadstring(result))
             fn()
         else
-            print(luacode)
+            print(result)
         end
     end
 end
@@ -106,15 +77,17 @@ end
 
 
 -- begin failing tests
-dirname = dirname .. slash .. 'fails'
-print('Scanning ' .. dirname .. ' folder...')
-files = scandir(dirname)
+folder = folder .. slash .. 'fails'
+print('Scanning ' .. folder .. ' folder...')
+files = scandir(folder)
 for k, v in pairs(files) do
     if #v > 0 and string.sub(v, -string.len('.lt'))=='.lt' then
         print('\n' .. v .. ':')
-        filename = dirname .. slash .. v
-        failure(compile.file(filename))
+        filename = folder .. slash .. v
+        if compile.file(filename) then
+            failed()
+        end
     end
 end
 
-print('[ TEST PASSED ]')
+print(color.green .. '[ TEST PASSED ]' .. color.reset)
