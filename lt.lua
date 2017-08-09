@@ -11,15 +11,11 @@ Luaty usage:
   os.exit(1)
 end
 
-local function check(success, result)
-    if not success then
-        io.stderr:write(result .. "\n")
-        os.exit(1)
-    else
-        return result
-    end
-end
-
+local color = {
+	magenta = "\27[95;1m"
+	, cyan  = "\27[96;1m"
+	, reset = "\27[0m"
+}
 local run = true
 local args = {...}
 local filenames = {}
@@ -43,24 +39,32 @@ if #filenames < 1 or #filenames > 2 then
 end
 
 local source = filenames[1]
-local luacode = check(compile.file(source))
-
-if run then
-    local fn = assert(loadstring(luacode))
-    fn()
-else
-    local dest = filenames[2] or string.gsub(filenames[1], "%.lt", '.lua')
-    while dest == source do
-        dest = dest .. '.lua'
-    end
-    --print("Compiled " .. source .. " to " .. dest)
-    local f, err = io.open(dest, 'wb')
-    if not f then
-        error(err)
+local ok, result = compile.file(source)
+if ok then
+    if run then
+        local fn = assert(loadstring(result))
+        fn()
     else
+        local dest = filenames[2] or string.gsub(filenames[1], "%.lt", '.lua')
+        while dest == source do
+            dest = dest .. '.lua'
+        end
+        --print("Compiled " .. source .. " to " .. dest)
+        local f, err = io.open(dest, 'wb')
+        if not f then
+            error(err)
+        end
+        
         -- get the filename without path
         local basename = string.gsub(source, "(.*[/\\])(.*)", "%2")
         f:write("--\n-- Generated from " .. basename .. "\n--\n\n")
-        f:write(luacode)
+        f:write(result)
     end
+else
+    local warns = {}
+    for i, m in ipairs(result) do
+        warns[i] = string.format(" (%d,%d)" .. color.cyan ..  "  %s" .. color.reset, m.l, m.c, m.msg)
+    end
+    io.stderr:write(color.magenta .. "Error compiling " .. source .. "\n" .. color.reset)
+    io.stderr:write(table.concat(warns, "\n") .. "\n")
 end

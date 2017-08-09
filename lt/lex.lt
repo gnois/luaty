@@ -7,19 +7,20 @@ var build = chars.build
 
 var END_OF_STREAM = -1
 
-var TokenSymbol = { TK_lambda = '->', TK_curry = '~>', TK_ge = '>=', TK_le = '<=' , TK_concat = '..', TK_eq = '==', TK_ne = '~=', TK_indent = '<indent>', TK_dedent = '<dedent>', TK_newline = '<newline>', TK_eof = '<eof>' }
-
+var TokenSymbol = { TK_name = 'identifier', TK_indent = '<indent>', TK_dedent = '<dedent>', TK_newline = '<newline>', TK_eof = '<eof>' }
 var IsNewLine = { ['\n'] = true, ['\r'] = true }
 var IsEscape = { a = true, b = true, f = true, n = true, r = true, t = true, v = true }
 
+var token2sym = \tok ->
+	return TokenSymbol[tok]
 
 var token2str = \tok ->
 	if string.match(tok, "^TK_")
-		return TokenSymbol[tok] or string.sub(tok, 4)
+		return string.sub(tok, 4)
 	return tok
 
 
-return \read, chunkname ->
+return \read ->
 
 	-- input stream pointer
 	var data, n, p = nil, 0, 0
@@ -37,8 +38,7 @@ return \read, chunkname ->
 	}
 	-- state to be returned to caller
 	var state = {
-		chunkname = chunkname
-		, prevline = 1
+		prevline = 1
 		, prevpos = 1
 		, line = 1
 		, pos = 1
@@ -62,13 +62,14 @@ return \read, chunkname ->
 
 	var fmt_token = \token ->
 		if token
-			var tok
 			if token == 'TK_name' or token == 'TK_string' or token == 'TK_number'
-				tok = table.concat(buff)
+				var tok = table.concat(buff)
+				-- replace % with %%, so as not to confuse string.format() later
+				return (string.gsub(tok, "%%.", \p -> return "%" .. p ))
+			else if token2sym(token)
+				return token2sym(token)
 			else
-				tok = string.format("'%s'", token2str(token))
-			-- replace % with %%, so as not to confuse string.format() later
-			return (string.gsub(tok, "%%.", \p -> return '%' .. p ))
+				return string.format("`%s`", token2str(token))
 
 
 	var lex_error = \token, em, ... ->
@@ -86,8 +87,6 @@ return \read, chunkname ->
 			, l = state.line
 			, c = pos
 		})
-		--var msg = string.format("%s: (%d,%d)  " .. em, state.chunkname, state.line, pos, ...)
-		--error("LT-ERROR" .. msg, 0)
 
 
 	var parse_error = \state, em, ... ->
@@ -409,7 +408,7 @@ return \read, chunkname ->
 					return 'TK_comment', get_comment()
 				else if ch == '>'
 					nextchar()
-					return 'TK_lambda'
+					return '->'
 				else if newline
 					minus = true
 				else
@@ -458,34 +457,34 @@ return \read, chunkname ->
 					if ch ~= '=' return '='
 					else
 						nextchar()
-						return 'TK_eq' 
+						return '==' 
 				else if ch == '<'
 					nextchar()
 					if ch ~= '=' return '<'
 					else
 						nextchar()
-						return 'TK_le' 
+						return '<='
 				else if ch == '>'
 					nextchar()
 					if ch ~= '=' return '>'
 					else
 						nextchar()
-						return 'TK_ge' 
+						return '>=' 
 				else if ch == '~'
 					nextchar()
 					if ch == '=' 
 						nextchar()
-						return 'TK_ne'
+						return '~='
 					else if ch == '>' 
 						nextchar()
-						return 'TK_curry'
+						return '~>'
 					return '~'
 				else if ch == ':'
 					nextchar()
 					if ch ~= ':' return ':'
 					else
 						nextchar()
-						return 'TK_label' 
+						return '::' 
 				else if ch == '"' or ch == "'"
 					var str = read_string(ch)
 					return 'TK_string', str
@@ -496,9 +495,9 @@ return \read, chunkname ->
 						nextchar()
 						if ch == '.'
 							nextchar()
-							return 'TK_dots' -- ...
+							return '...'
 					
-						return 'TK_concat' -- ..
+						return '..'
 					else if not is.digit(ch)
 						return '.'
 					else

@@ -1,0 +1,2 @@
+print(({(function() return 2,3,4,5 end)})[3])
+

@@ -3,23 +3,16 @@
 --
 
 local read = require("lt.read")
-local ast = require("lt.ast")
-local lexer = require("lt.lex")
+local lex = require("lt.lex")
 local parse = require("lt.parse")
 local generate = require("lt.generate")
-local color = {magenta = "\27[95;1m", cyan = "\27[96;1m", reset = "\27[0m"}
-local compile = function(reader, filename, options)
-    local lx = lexer(reader, filename)
-    local tree = parse(ast.New(), lx)
-    if #lx.warnings > 0 then
-        local warns = {}
-        for i, m in ipairs(lx.warnings) do
-            warns[i] = string.format("%s: (%d,%d)" .. color.cyan .. "  %s" .. color.reset, filename, m.l, m.c, m.msg)
-        end
-        return false, table.concat(warns, "\n")
+local compile = function(reader, options)
+    local lexer = lex(reader)
+    local tree = parse(lexer)
+    if #lexer.warnings == 0 then
+        return true, generate(tree)
     end
-    local code = generate(tree)
-    return true, code
+    return false, lexer.warnings
 end
 return {string = function(src, filename, options)
     return compile(read.string(src), filename or "stdin", options)

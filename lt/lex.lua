@@ -8,16 +8,19 @@ local Keyword = require("lt.reserved")
 local is = chars.is
 local build = chars.build
 local END_OF_STREAM = -1
-local TokenSymbol = {TK_lambda = "->", TK_curry = "~>", TK_ge = ">=", TK_le = "<=", TK_concat = "..", TK_eq = "==", TK_ne = "~=", TK_indent = "<indent>", TK_dedent = "<dedent>", TK_newline = "<newline>", TK_eof = "<eof>"}
+local TokenSymbol = {TK_name = "identifier", TK_indent = "<indent>", TK_dedent = "<dedent>", TK_newline = "<newline>", TK_eof = "<eof>"}
 local IsNewLine = {["\n"] = true, ["\r"] = true}
 local IsEscape = {a = true, b = true, f = true, n = true, r = true, t = true, v = true}
+local token2sym = function(tok)
+    return TokenSymbol[tok]
+end
 local token2str = function(tok)
     if string.match(tok, "^TK_") then
-        return TokenSymbol[tok] or string.sub(tok, 4)
+        return string.sub(tok, 4)
     end
     return tok
 end
-return function(read, chunkname)
+return function(read)
     local data, n, p = nil, 0, 0
     local ch, comment_buff = "", ""
     local buff, bi = {}, 0
@@ -26,7 +29,7 @@ return function(read, chunkname)
     local minus = nil
     local tabs = nil
     local lookahead = {token = "TK_eof", value = nil}
-    local state = {chunkname = chunkname, prevline = 1, prevpos = 1, line = 1, pos = 1, token = "TK_eof", value = nil}
+    local state = {prevline = 1, prevpos = 1, line = 1, pos = 1, token = "TK_eof", value = nil}
     local warnings = {}
     local warn = function(w)
         for i, m in ipairs(warnings) do
@@ -42,15 +45,16 @@ return function(read, chunkname)
     end
     local fmt_token = function(token)
         if token then
-            local tok
             if token == "TK_name" or token == "TK_string" or token == "TK_number" then
-                tok = table.concat(buff)
+                local tok = table.concat(buff)
+                return (string.gsub(tok, "%%.", function(p)
+                    return "%" .. p
+                end))
+            elseif token2sym(token) then
+                return token2sym(token)
             else
-                tok = string.format("'%s'", token2str(token))
+                return string.format("`%s`", token2str(token))
             end
-            return (string.gsub(tok, "%%.", function(p)
-                return "%" .. p
-            end))
         end
     end
     local lex_error = function(token, em, ...)
@@ -376,7 +380,7 @@ return function(read, chunkname)
                     return "TK_comment", get_comment()
                 elseif ch == ">" then
                     nextchar()
-                    return "TK_lambda"
+                    return "->"
                 elseif newline then
                     minus = true
                 else
@@ -428,7 +432,7 @@ return function(read, chunkname)
                         return "="
                     else
                         nextchar()
-                        return "TK_eq"
+                        return "=="
                     end
                 elseif ch == "<" then
                     nextchar()
@@ -436,7 +440,7 @@ return function(read, chunkname)
                         return "<"
                     else
                         nextchar()
-                        return "TK_le"
+                        return "<="
                     end
                 elseif ch == ">" then
                     nextchar()
@@ -444,16 +448,16 @@ return function(read, chunkname)
                         return ">"
                     else
                         nextchar()
-                        return "TK_ge"
+                        return ">="
                     end
                 elseif ch == "~" then
                     nextchar()
                     if ch == "=" then
                         nextchar()
-                        return "TK_ne"
+                        return "~="
                     elseif ch == ">" then
                         nextchar()
-                        return "TK_curry"
+                        return "~>"
                     end
                     return "~"
                 elseif ch == ":" then
@@ -462,7 +466,7 @@ return function(read, chunkname)
                         return ":"
                     else
                         nextchar()
-                        return "TK_label"
+                        return "::"
                     end
                 elseif ch == "\"" or ch == "'" then
                     local str = read_string(ch)
@@ -474,9 +478,9 @@ return function(read, chunkname)
                         nextchar()
                         if ch == "." then
                             nextchar()
-                            return "TK_dots"
+                            return "..."
                         end
-                        return "TK_concat"
+                        return ".."
                     elseif not is.digit(ch) then
                         return "."
                     else

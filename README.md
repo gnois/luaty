@@ -82,9 +82,9 @@ var z = {
    , goto = {true, false}
 }
 
-assert(z.var == 7)                           -- Ok, z.var becomes z['var']
-assert(11 == z.function + z.local)           -- Ditto
-assert(z.if(z.goto)[2] == false)
+assert(z.var == 7)                           -- Ok, z.var works as in Lua
+assert(11 == z.function + z.local)           -- Becomes z['function'] and z['local']
+assert(z.if(z.goto)[2] == false)             -- Ditto
 
 ```
 
@@ -102,7 +102,7 @@ Although valid in Lua, Luaty compiler treats these as mistakes:
 ```
 a = 1                     -- Error: undeclared identifier a
 
-var c, d = 1, 2, 4        -- error: assigning 3 values to 2 variables
+var c, d = 1, 2, 4        -- Error: assigning 3 values to 2 variables
 
 var p = print
 var p = 'p'               -- Error: shadowing previous var p

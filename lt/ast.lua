@@ -145,12 +145,12 @@ AST.in_scope = function(ast, v)
         while not scope.vars[v.name] do
             scope = scope.parent
             if not scope then
-                return false
+                return v.name
             end
         end
         return true
     end
-    return false
+    return v.name
 end
 AST.overwritten = function(ast, vars)
     local n = #vars

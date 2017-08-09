@@ -2,6 +2,7 @@
 -- Generated from parse.lt
 --
 
+local syntree = require("lt.ast")
 local operator = require("lt.operator")
 local Keyword = require("lt.reserved")
 local LJ_52 = false
@@ -20,17 +21,17 @@ local err_syntax = function(ls, em)
 end
 local err_instead = function(ls, em, ...)
     local msg = string.format(em, ...)
-    ls.error(ls, "%s instead of '%s'", msg, ls.value or ls.tostr(ls.token))
+    ls.error(ls, "%s instead of %s", msg, ls.value or ls.tostr(ls.token))
 end
 local err_token = function(ls, token)
-    err_instead(ls, "'%s' expected", ls.tostr(token))
+    err_instead(ls, "%s expected", ls.tostr(token))
 end
 local err_symbol = function(ls)
     local sym = ls.value or ls.tostr(ls.token)
     local replace = {["end"] = "<dedent>", ["local"] = "`var`", ["function"] = "\\...->", ["elseif"] = "`else if`", ["repeat"] = "`do`"}
     local rep = replace[sym]
     if rep then
-        ls.error(ls, "use %s instead of '%s'", rep, sym)
+        ls.error(ls, "use %s instead of %s", rep, sym)
     else
         ls.error(ls, "unexpected %s", sym)
     end
@@ -53,15 +54,18 @@ local lex_match = function(ls, what, who, line)
         if line == ls.line then
             err_token(ls, what)
         else
-            err_instead(ls, "'%s' expected to match '%s' at line %d", ls.tostr(what), ls.tostr(who), line)
+            err_instead(ls, "%s expected to match %s at line %d", ls.tostr(what), ls.tostr(who), line)
         end
     end
 end
 local lex_str = function(ls)
+    local s
     if ls.token ~= "TK_name" and (LJ_52 or ls.token ~= "TK_goto") then
         err_token(ls, "TK_name")
+        s = ls.tostr(ls.token)
+    else
+        s = ls.value
     end
-    local s = ls.value
     ls.step()
     return s
 end
@@ -162,7 +166,7 @@ expr_table = function(ast, ls)
         end
     end
     if dented and not lex_dedent(ls) then
-        err_instead(ls, "'%s' expected to match '%s' at line %d", ls.tostr("TK_dedent"), ls.tostr("TK_indent"), line)
+        err_instead(ls, "%s expected to match %s at line %d", ls.tostr("TK_dedent"), ls.tostr("TK_indent"), line)
     end
     lex_match(ls, "}", "{", line)
     return ast:expr_table(kvs, line)
@@ -182,14 +186,14 @@ expr_simple = function(ast, ls)
         e = ast:literal(true)
     elseif tk == "TK_false" then
         e = ast:literal(false)
-    elseif tk == "TK_dots" then
+    elseif tk == "..." then
         if not ls.fs.varargs then
-            err_syntax(ls, "cannot use `...` outside a vararg function")
+            err_syntax(ls, "cannot use `...` in a function without variable arguments")
         end
         e = ast:expr_vararg()
     elseif tk == "{" then
         return expr_table(ast, ls)
-    elseif tk == "\\" or tk == "TK_lambda" or tk == "TK_curry" then
+    elseif tk == "\\" or tk == "->" or tk == "~>" then
         if tk == "\\" then
             ls.step()
         end
@@ -197,8 +201,9 @@ expr_simple = function(ast, ls)
         local lambda = ast:expr_function(args, body, proto)
         if curry then
             curry = ast:identifier("curry")
-            if not ast:in_scope(curry) then
-                err_syntax(ls, curry.name .. "() is required for ~>")
+            local identifier = ast:in_scope(curry)
+            if identifier ~= true then
+                err_syntax(ls, identifier .. "() is required for ~>")
             end
             local cargs = {ast:literal(#args), lambda}
             return ast:expr_function_call(curry, cargs, ls.line)
@@ -264,19 +269,19 @@ expr_primary = function(ast, ls)
     while true do
         local line = ls.line
         if ls.token == "." then
-            vk, v, val, key = "proped", expr_field(ast, ls, v)
+            vk, v, val, key = "field", expr_field(ast, ls, v)
         elseif ls.token == "[" then
             key = expr_bracket(ast, ls)
             val = v
-            vk, v = "indexed", ast:expr_index(val, key)
+            vk, v = "index", ast:expr_index(val, key)
         elseif ls.token == "(" then
             local args, self1 = parse_args(ast, ls)
             if self1 then
                 table.remove(args, 1)
-                if vk == "proped" then
+                if vk == "field" then
                     vk, v = "call", ast:expr_method_call(val, key, args, line)
-                elseif vk == "indexed" then
-                    local nm = "o"
+                elseif vk == "index" then
+                    local nm = "_0"
                     local obj = ast:identifier(nm)
                     table.insert(args, 1, obj)
                     local body = {ast:local_decl({nm}, {val}, line), ast:return_stmt({ast:expr_function_call(ast:expr_index(obj, key), args, line)}, line)}
@@ -375,7 +380,7 @@ parse_args = function(ast, ls)
         end
     end
     if dented and not lex_dedent(ls) then
-        err_instead(ls, "'%s' expected to match '%s' at line %d", ls.tostr("TK_dedent"), ls.tostr("TK_indent"), line)
+        err_instead(ls, "%s expected to match %s at line %d", ls.tostr("TK_dedent"), ls.tostr("TK_indent"), line)
     end
     lex_match(ls, ")", "(", line)
     return args, self1
@@ -383,7 +388,7 @@ end
 local parse_assignment
 parse_assignment = function(ast, ls, vlist, v, vk)
     local line = ls.line
-    if vk ~= "var" and vk ~= "self" and vk ~= "proped" and vk ~= "indexed" then
+    if vk ~= "var" and vk ~= "self" and vk ~= "field" and vk ~= "index" then
         err_symbol(ls)
     end
     vlist[#vlist + 1] = v
@@ -392,8 +397,11 @@ parse_assignment = function(ast, ls, vlist, v, vk)
         return parse_assignment(ast, ls, vlist, n_var, n_vk)
     else
         lex_check(ls, "=")
-        if (vk == "var" or vk == "self") and not ast:in_scope(v) then
-            err_syntax(ls, "undeclared identifier " .. v.name)
+        if vk == "var" or vk == "self" then
+            local identifier = ast:in_scope(v)
+            if identifier ~= true then
+                err_syntax(ls, "undeclared identifier `" .. identifier .. "`")
+            end
         end
         local exps = expr_list(ast, ls, #vlist)
         return ast:assignment_expr(vlist, exps, line)
@@ -478,9 +486,9 @@ end
 local parse_label = function(ast, ls)
     ls.step()
     local name = lex_str(ls)
-    lex_check(ls, "TK_label")
+    lex_check(ls, "::")
     while true do
-        if ls.token == "TK_label" then
+        if ls.token == "::" then
             parse_label(ast, ls)
         else
             break
@@ -504,7 +512,7 @@ local parse_stmt = function(ast, ls)
         stmt = parse_do(ast, ls, line)
     elseif ls.token == "TK_for" then
         stmt = parse_for(ast, ls, line)
-    elseif ls.token == "TK_lambda" or ls.token == "TK_curry" then
+    elseif ls.token == "->" or ls.token == "~>" then
         err_syntax(ls, "lambda must either be assigned or invoked")
     elseif ls.token == "TK_name" and ls.value == "var" then
         ls.step()
@@ -516,7 +524,7 @@ local parse_stmt = function(ast, ls)
         ls.step()
         stmt = ast:break_stmt(line)
         return stmt, not LJ_52
-    elseif ls.token == "TK_label" then
+    elseif ls.token == "::" then
         stmt = parse_label(ast, ls)
     elseif ls.token == "TK_goto" then
         if LJ_52 or ls.next() == "TK_name" then
@@ -556,7 +564,7 @@ parse_opt_block = function(ast, ls, line, match_token)
     if lex_indent(ls) then
         body = parse_block(ast, ls, line)
         if not lex_dedent(ls) then
-            err_instead(ls, "'%s' expected to end %s at line %d", ls.tostr("TK_dedent"), ls.tostr(match_token), line)
+            err_instead(ls, "%s expected to end %s at line %d", ls.tostr("TK_dedent"), ls.tostr(match_token), line)
         end
     else
         if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token] then
@@ -564,34 +572,34 @@ parse_opt_block = function(ast, ls, line, match_token)
             body.firstline, body.lastline = line, ls.line
         end
         if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token] then
-            err_instead(ls, "only one statement may stay near '%s'. %s expected", ls.tostr(match_token), ls.tostr("TK_newline"))
+            err_instead(ls, "only one statement may stay near %s. %s expected", ls.tostr(match_token), ls.tostr("TK_newline"))
         end
     end
     return body
 end
 local parse_params = function(ast, ls)
     local args = {}
-    if ls.token ~= "TK_lambda" and ls.token ~= "TK_curry" then
+    if ls.token ~= "->" and ls.token ~= "~>" then
         repeat
             if ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
                 local name = lex_str(ls)
                 args[#args + 1] = ast:var_declare(name)
-            elseif ls.token == "TK_dots" then
+            elseif ls.token == "..." then
                 ls.step()
                 ls.fs.varargs = true
                 args[#args + 1] = ast:expr_vararg()
                 break
             else
-                err_instead(ls, "%s argument expected", ls.tostr("TK_lambda"))
+                err_instead(ls, "argument expected for %s", "->")
             end
         until not lex_opt(ls, ",")
     end
-    if ls.token == "TK_lambda" then
+    if ls.token == "->" then
         ls.step()
         return false, args
-    elseif ls.token == "TK_curry" then
+    elseif ls.token == "~>" then
         if ls.fs.varargs then
-            err_syntax(ls, "cannot curry varargs with ~>")
+            err_syntax(ls, "cannot curry variable arguments with ~>")
         end
         if #args < 2 then
             err_syntax(ls, "at least 2 arguments needed with ~>")
@@ -607,7 +615,7 @@ parse_body = function(ast, ls, line)
     ast:fscope_begin()
     ls.fs.firstline = line
     local curry, args = parse_params(ast, ls)
-    local body = parse_opt_block(ast, ls, line, "TK_lambda")
+    local body = parse_opt_block(ast, ls, line, "->")
     lex_opt(ls, ";")
     ast:fscope_end()
     local proto = ls.fs
@@ -619,12 +627,12 @@ local parse_chunk = function(ast, ls)
     local body, firstline, lastline = parse_block_stmts(ast, ls)
     return ast:chunk(body, ls.chunkname, 0, lastline)
 end
-local parse = function(ast, ls)
+local parse = function(ls)
+    local ast = syntree.New()
     ls.step()
     lex_opt(ls, "TK_newline")
     ls.fs = {varargs = false}
     ast:fscope_begin()
-    local args = {ast:expr_vararg(ast)}
     local chunk = parse_chunk(ast, ls)
     ast:fscope_end()
     if ls.token ~= "TK_eof" then

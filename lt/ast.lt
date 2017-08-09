@@ -187,9 +187,9 @@ AST.in_scope = \ast, v ->
 		while not scope.vars[v.name]
 			scope = scope.parent
 			if not scope
-				return false
+				return v.name
 		return true
-	return false
+	return v.name
 
 
 AST.overwritten = \ast, vars ->

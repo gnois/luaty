@@ -1,3 +1,4 @@
+var syntree = require("lt.ast")
 var operator = require("lt.operator")
 var Keyword = require("lt.reserved")
 
@@ -22,19 +23,19 @@ var err_syntax = \ls, em ->
 
 var err_instead = \ls, em, ... ->
 	var msg = string.format(em, ...)
-	ls.error(ls, "%s instead of '%s'", msg, ls.value or ls.tostr(ls.token))
+	ls.error(ls, "%s instead of %s", msg, ls.value or ls.tostr(ls.token))
 
 
 var err_token = \ls, token ->
-	err_instead(ls, "'%s' expected", ls.tostr(token))
+	err_instead(ls, "%s expected", ls.tostr(token))
 
 
 var err_symbol = \ls ->
 	var sym = ls.value or ls.tostr(ls.token)
-	var replace = {['end'] = "<dedent>", ['local'] = "`var`", ['function'] = "\\...->", ['elseif'] = "`else if`", ['repeat'] = "`do`"}
+	var replace = {end = "<dedent>", local = "`var`", function = "\\...->", elseif = "`else if`", repeat = "`do`"}
 	var rep = replace[sym]
 	if rep
-		ls.error(ls, "use %s instead of '%s'", rep, sym)
+		ls.error(ls, "use %s instead of %s", rep, sym)
 	else
 		ls.error(ls, "unexpected %s", sym)
 
@@ -57,14 +58,17 @@ var lex_match = \ls, what, who, line ->
 		if line == ls.line
 			err_token(ls, what)
 		else
-			err_instead(ls, "'%s' expected to match '%s' at line %d", ls.tostr(what), ls.tostr(who), line)
+			err_instead(ls, "%s expected to match %s at line %d", ls.tostr(what), ls.tostr(who), line)
 
 
 var lex_str = \ls ->
+	var s
 	if ls.token ~= 'TK_name' and (LJ_52 or ls.token ~= 'TK_goto')
 		err_token(ls, 'TK_name')
-
-	var s = ls.value
+		-- no longer exiting, so cannot return nil
+		s = ls.tostr(ls.token)
+	else
+		s = ls.value
 	ls.step()
 	return s
 
@@ -169,7 +173,7 @@ expr_table = \ast, ls ->
 			break
 
 	if dented and not lex_dedent(ls)
-		err_instead(ls, "'%s' expected to match '%s' at line %d", ls.tostr('TK_dedent'), ls.tostr('TK_indent'), line)
+		err_instead(ls, "%s expected to match %s at line %d", ls.tostr('TK_dedent'), ls.tostr('TK_indent'), line)
 	lex_match(ls, '}', '{', line)
 	return ast.expr_table(@, kvs, line)
 
@@ -189,13 +193,13 @@ expr_simple = \ast, ls ->
 		e = ast.literal(@, true)
 	else if tk == 'TK_false'
 		e = ast.literal(@, false)
-	else if tk == 'TK_dots'
+	else if tk == '...'
 		if not ls.fs.varargs
-			err_syntax(ls, "cannot use `...` outside a vararg function")
+			err_syntax(ls, "cannot use `...` in a function without variable arguments")
 		e = ast.expr_vararg(@)
 	else if tk == '{'
 		return expr_table(ast, ls)
-	else if tk == '\\' or tk == 'TK_lambda' or tk == 'TK_curry'
+	else if tk == '\\' or tk == '->' or tk == '~>'
 		if tk == '\\'
 			ls.step()
 	
@@ -203,8 +207,9 @@ expr_simple = \ast, ls ->
 		var lambda = ast.expr_function(@, args, body, proto)
 		if curry
 			curry = ast.identifier(@, 'curry')
-			if not ast.in_scope(@, curry)
-				err_syntax(ls, curry.name .. "() is required for ~>")
+			var identifier = ast.in_scope(@, curry)
+			if identifier ~= true
+				err_syntax(ls, identifier .. "() is required for ~>")
 		
 			var cargs = { ast.literal(@, #args), lambda }
 			return ast.expr_function_call(@, curry, cargs, ls.line)
@@ -281,20 +286,20 @@ expr_primary = \ast, ls ->
 	while true -- Parse multiple expression suffixes.
 		var line = ls.line
 		if ls.token == '.'
-			vk, v, val, key = 'proped', expr_field(ast, ls, v)
+			vk, v, val, key = 'field', expr_field(ast, ls, v)
 		else if ls.token == '['
 			key = expr_bracket(ast, ls)
 			val = v
-			vk, v = 'indexed', ast.expr_index(@, val, key)
+			vk, v = 'index', ast.expr_index(@, val, key)
 		else if ls.token == '(' -- or ls.token == 'TK_string' or ls.token == '{'
 			var args, self1 = parse_args(ast, ls)
 			if self1
 				table.remove(args, 1)
-				if vk == 'proped'
+				if vk == 'field'
 					vk, v = 'call', ast.expr_method_call(@, val, key, args, line)
-				else if vk == 'indexed'
+				else if vk == 'index'
 					-- simulate a wrapped self method call
-					var nm = 'o'
+					var nm = '_0'   -- lets hope we dont name clash
 					var obj = ast.identifier(@, nm)
 					table.insert(args, 1, obj)
 					var body = {
@@ -404,7 +409,7 @@ parse_args = \ast, ls ->
 			break
 		
 	if dented and not lex_dedent(ls)
-		err_instead(ls, "'%s' expected to match '%s' at line %d", ls.tostr('TK_dedent'), ls.tostr('TK_indent'), line)
+		err_instead(ls, "%s expected to match %s at line %d", ls.tostr('TK_dedent'), ls.tostr('TK_indent'), line)
 	lex_match(ls, ')', '(', line)
 
 	--if n > 0
@@ -415,7 +420,7 @@ parse_args = \ast, ls ->
 var parse_assignment
 parse_assignment = \ast, ls, vlist, v, vk ->
 	var line = ls.line
-	if vk ~= 'var' and vk ~= 'self' and vk ~= 'proped' and vk ~= 'indexed'
+	if vk ~= 'var' and vk ~= 'self' and vk ~= 'field' and vk ~= 'index'
 		err_symbol(ls)
 
 	vlist[#vlist+1] = v
@@ -424,9 +429,11 @@ parse_assignment = \ast, ls, vlist, v, vk ->
 		return parse_assignment(ast, ls, vlist, n_var, n_vk)
 	else -- Parse RHS.
 		lex_check(ls, '=')
-		if (vk == 'var' or vk == 'self') and not ast.in_scope(@, v)
-			err_syntax(ls, "undeclared identifier " .. v.name)
-	
+		if (vk == 'var' or vk == 'self') 
+			var identifier = ast.in_scope(@, v)
+			if identifier ~= true
+				err_syntax(ls, "undeclared identifier `" .. identifier .. "`")
+
 		var exps = expr_list(ast, ls, #vlist)
 		return ast.assignment_expr(@, vlist, exps, line)
 
@@ -513,10 +520,10 @@ var parse_do = \ast, ls, line ->
 var parse_label = \ast, ls ->
 	ls.step() -- Skip '::'.
 	var name = lex_str(ls)
-	lex_check(ls, 'TK_label')
+	lex_check(ls, '::')
 	-- Recursively parse trailing statements: labels and ';' (Lua 5.2 only).
 	while true
-		if ls.token == 'TK_label'
+		if ls.token == '::'
 			parse_label(ast, ls)
 		--else if LJ_52 and ls.token == ';'
 		--    ls.step()
@@ -548,7 +555,7 @@ var parse_stmt = \ast, ls ->
 	--    stmt = parse_repeat(ast, ls, line)
 	--else if ls.token == 'TK_function'
 	--    stmt = parse_func(ast, ls, line)
-	else if ls.token == 'TK_lambda' or ls.token == 'TK_curry'
+	else if ls.token == '->' or ls.token == '~>'
 		err_syntax(ls, "lambda must either be assigned or invoked")
 	else if ls.token == 'TK_name' and ls.value == 'var'
 		ls.step()
@@ -563,7 +570,7 @@ var parse_stmt = \ast, ls ->
 	--else if LJ_52 and ls.token == ';'
 	--    ls.step()
 	--    return parse_stmt(ast, ls)
-	else if ls.token == 'TK_label'
+	else if ls.token == '::'
 		stmt = parse_label(ast, ls)
 	else if ls.token == 'TK_goto'
 		if LJ_52 or ls.next() == 'TK_name'
@@ -609,7 +616,7 @@ parse_opt_block = \ast, ls, line, match_token ->
 		body = parse_block(ast, ls, line)
 		--lex_match(ls, 'TK_dedent', match_token, line)
 		if not lex_dedent(ls)
-			err_instead(ls, "'%s' expected to end %s at line %d", ls.tostr('TK_dedent'), ls.tostr(match_token), line)
+			err_instead(ls, "%s expected to end %s at line %d", ls.tostr('TK_dedent'), ls.tostr(match_token), line)
 	else
 		if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
 			-- single statement
@@ -617,39 +624,39 @@ parse_opt_block = \ast, ls, line, match_token ->
 			body.firstline, body.lastline = line, ls.line
 
 		if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
-			err_instead(ls, "only one statement may stay near '%s'. %s expected", ls.tostr(match_token), ls.tostr('TK_newline'))
+			err_instead(ls, "only one statement may stay near %s. %s expected", ls.tostr(match_token), ls.tostr('TK_newline'))
 	return body
 
 
 -- Parse function definition parameters
 var parse_params = \ast, ls ->
 	var args = {}
-	if ls.token ~= 'TK_lambda' and ls.token ~= 'TK_curry'
+	if ls.token ~= '->' and ls.token ~= '~>'
 		do
 			if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')
 				var name = lex_str(ls)
 				args[#args+1] = ast.var_declare(@, name)
-			else if ls.token == 'TK_dots'
+			else if ls.token == '...'
 				ls.step()
 				ls.fs.varargs = true
 				args[#args + 1] = ast.expr_vararg(@)
 				break
 			else
-				err_instead(ls, "%s argument expected", ls.tostr('TK_lambda'))
+				err_instead(ls, "argument expected for %s", '->')
 		
 		until not lex_opt(ls, ',')
 
-	if ls.token == 'TK_lambda'
+	if ls.token == '->'
 		ls.step()
 		return false, args
-	else if ls.token == 'TK_curry'
+	else if ls.token == '~>'
 		if ls.fs.varargs
-			err_syntax(ls, "cannot curry varargs with ~>")
+			err_syntax(ls, "cannot curry variable arguments with ~>")
 		if #args < 2
 			err_syntax(ls, "at least 2 arguments needed with ~>")
 		ls.step()
 		return true, args
-	err_token(ls, "->")
+	err_token(ls, '->')
 
 
 -- Parse body of a function
@@ -659,7 +666,7 @@ parse_body = \ast, ls, line ->
 	ast.fscope_begin(@)
 	ls.fs.firstline = line
 	var curry, args = parse_params(ast, ls)
-	var body = parse_opt_block(ast, ls, line, 'TK_lambda')
+	var body = parse_opt_block(ast, ls, line, '->')
 	-- end of function
 	lex_opt(ls, ';')
 	ast.fscope_end(@)
@@ -674,12 +681,13 @@ var parse_chunk = \ast, ls ->
 	return ast.chunk(@, body, ls.chunkname, 0, lastline)
 
 
-var parse = \ast, ls ->
+var parse = \ls ->
+	var ast = syntree.New()
 	ls.step()
 	lex_opt(ls, 'TK_newline')
 	ls.fs = { varargs = false }
 	ast.fscope_begin(@)
-	var args = { ast.expr_vararg(@, ast) }
+	--var args = { ast.expr_vararg(@) }
 	var chunk = parse_chunk(ast, ls)
 	ast.fscope_end(@)
 	--lex_check(ls, 'TK_eof')
