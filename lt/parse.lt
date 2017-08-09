@@ -17,27 +17,34 @@ var is_keyword = \ls ->
 	if Keyword[str]
 		return str
 
+
 var err_syntax = \ls, em ->
 	ls.error(ls, "%s", em)
 
 
 var err_instead = \ls, em, ... ->
 	var msg = string.format(em, ...)
-	ls.error(ls, "%s instead of %s", msg, ls.value or ls.tostr(ls.token))
+	var text = ls.value
+	if text
+		text = "'" .. text .. "'"
+	ls.error(ls, "%s instead of %s", msg, text or ls.astext(ls.token)) --ls.tostr(ls.token)))
 
 
-var err_token = \ls, token ->
-	err_instead(ls, "%s expected", ls.tostr(token))
+var err_expect = \ls, token ->
+	err_instead(ls, "%s expected", ls.astext(token)) --ls.tostr(token))
 
 
 var err_symbol = \ls ->
-	var sym = ls.value or ls.tostr(ls.token)
+	var sym = ls.tostr(ls.token)
 	var replace = {end = "<dedent>", local = "`var`", function = "\\...->", elseif = "`else if`", repeat = "`do`"}
 	var rep = replace[sym]
 	if rep
 		ls.error(ls, "use %s instead of %s", rep, sym)
 	else
-		ls.error(ls, "unexpected %s", sym)
+		var text = ls.value
+		if text
+			text = "'" .. text .. "'"
+		ls.error(ls, "unexpected %s", text or ls.astext(ls.token))
 
 
 var lex_opt = \ls, tok ->
@@ -49,22 +56,22 @@ var lex_opt = \ls, tok ->
 
 var lex_check = \ls, tok ->
 	if ls.token ~= tok
-		err_token(ls, tok) 
+		err_expect(ls, tok) 
 	ls.step()
 
 
 var lex_match = \ls, what, who, line ->
 	if not lex_opt(ls, what)
 		if line == ls.line
-			err_token(ls, what)
+			err_expect(ls, what)
 		else
-			err_instead(ls, "%s expected to match %s at line %d", ls.tostr(what), ls.tostr(who), line)
+			err_instead(ls, "%s expected to match %s at line %d", ls.astext(what), ls.astext(who), line)
 
 
 var lex_str = \ls ->
 	var s
 	if ls.token ~= 'TK_name' and (LJ_52 or ls.token ~= 'TK_goto')
-		err_token(ls, 'TK_name')
+		err_expect(ls, 'TK_name')
 		-- no longer exiting, so cannot return nil
 		s = ls.tostr(ls.token)
 	else
@@ -173,7 +180,7 @@ expr_table = \ast, ls ->
 			break
 
 	if dented and not lex_dedent(ls)
-		err_instead(ls, "%s expected to match %s at line %d", ls.tostr('TK_dedent'), ls.tostr('TK_indent'), line)
+		err_instead(ls, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), line)
 	lex_match(ls, '}', '{', line)
 	return ast.expr_table(@, kvs, line)
 
@@ -209,7 +216,7 @@ expr_simple = \ast, ls ->
 			curry = ast.identifier(@, 'curry')
 			var identifier = ast.in_scope(@, curry)
 			if identifier ~= true
-				err_syntax(ls, identifier .. "() is required for ~>")
+				err_syntax(ls, "`" .. identifier .. "()` is required for `~>`")
 		
 			var cargs = { ast.literal(@, #args), lambda }
 			return ast.expr_function_call(@, curry, cargs, ls.line)
@@ -380,7 +387,7 @@ var parse_for = \ast, ls, line ->
 	else if ls.token == ',' or ls.token == 'TK_in'
 		stmt = parse_for_iter(ast, ls, varname)
 	else
-		err_instead(ls, "%s expected", "'=' or 'in'")
+		err_instead(ls, "%s expected", "`=` or `in`")
 
 	return stmt
 
@@ -409,7 +416,7 @@ parse_args = \ast, ls ->
 			break
 		
 	if dented and not lex_dedent(ls)
-		err_instead(ls, "%s expected to match %s at line %d", ls.tostr('TK_dedent'), ls.tostr('TK_indent'), line)
+		err_instead(ls, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), line)
 	lex_match(ls, ')', '(', line)
 
 	--if n > 0
@@ -596,7 +603,7 @@ var parse_block_stmts = \ast, ls ->
 		-- deliberately disallow multiple statement in one line
 		if stmted == ls.line
 			if ls.token ~= 'TK_eof' and ls.token ~= 'TK_dedent' and ls.next() ~= 'TK_eof'
-				err_instead(ls, "only one statement allowed per line. %s expected", ls.tostr('TK_newline'))
+				err_instead(ls, "only one statement allowed per line. %s expected", ls.astext('TK_newline'))
 
 	return body, firstline, ls.line
 
@@ -616,7 +623,7 @@ parse_opt_block = \ast, ls, line, match_token ->
 		body = parse_block(ast, ls, line)
 		--lex_match(ls, 'TK_dedent', match_token, line)
 		if not lex_dedent(ls)
-			err_instead(ls, "%s expected to end %s at line %d", ls.tostr('TK_dedent'), ls.tostr(match_token), line)
+			err_instead(ls, "%s expected to end %s at line %d", ls.astext('TK_dedent'), ls.astext(match_token), line)
 	else
 		if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
 			-- single statement
@@ -624,7 +631,7 @@ parse_opt_block = \ast, ls, line, match_token ->
 			body.firstline, body.lastline = line, ls.line
 
 		if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
-			err_instead(ls, "only one statement may stay near %s. %s expected", ls.tostr(match_token), ls.tostr('TK_newline'))
+			err_instead(ls, "only one statement may stay near %s. %s expected", ls.astext(match_token), ls.astext('TK_newline'))
 	return body
 
 
@@ -642,7 +649,7 @@ var parse_params = \ast, ls ->
 				args[#args + 1] = ast.expr_vararg(@)
 				break
 			else
-				err_instead(ls, "argument expected for %s", '->')
+				err_instead(ls, "argument expected for %s", ls.astext('->'))
 		
 		until not lex_opt(ls, ',')
 
@@ -651,12 +658,12 @@ var parse_params = \ast, ls ->
 		return false, args
 	else if ls.token == '~>'
 		if ls.fs.varargs
-			err_syntax(ls, "cannot curry variable arguments with ~>")
+			err_syntax(ls, "cannot curry variable arguments with `~>`")
 		if #args < 2
-			err_syntax(ls, "at least 2 arguments needed with ~>")
+			err_syntax(ls, "at least 2 arguments needed with `~>`")
 		ls.step()
 		return true, args
-	err_token(ls, '->')
+	err_expect(ls, '->')
 
 
 -- Parse body of a function

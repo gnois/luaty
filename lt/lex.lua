@@ -11,14 +11,18 @@ local END_OF_STREAM = -1
 local TokenSymbol = {TK_name = "identifier", TK_indent = "<indent>", TK_dedent = "<dedent>", TK_newline = "<newline>", TK_eof = "<eof>"}
 local IsNewLine = {["\n"] = true, ["\r"] = true}
 local IsEscape = {a = true, b = true, f = true, n = true, r = true, t = true, v = true}
-local token2sym = function(tok)
-    return TokenSymbol[tok]
-end
 local token2str = function(tok)
     if string.match(tok, "^TK_") then
         return string.sub(tok, 4)
     end
     return tok
+end
+local token2text = function(tok)
+    local t = TokenSymbol[tok]
+    if not t then
+        return "`" .. token2str(tok) .. "`"
+    end
+    return t
 end
 return function(read)
     local data, n, p = nil, 0, 0
@@ -50,11 +54,8 @@ return function(read)
                 return (string.gsub(tok, "%%.", function(p)
                     return "%" .. p
                 end))
-            elseif token2sym(token) then
-                return token2sym(token)
-            else
-                return string.format("`%s`", token2str(token))
             end
+            return token2text(token)
         end
     end
     local lex_error = function(token, em, ...)
@@ -520,7 +521,7 @@ return function(read)
         end
         return lookahead.token, lookahead.value
     end
-    local lexer = setmetatable(state, {__index = {tostr = token2str, step = step, next = next, error = parse_error, warnings = warnings}})
+    local lexer = setmetatable(state, {__index = {tostr = token2str, astext = token2text, step = step, next = next, error = parse_error, warnings = warnings}})
     nextchar()
     if ch == "\xef" and n >= 2 and char(0) == "\xbb" and char(1) == "\xbf" then
         n = n - 2

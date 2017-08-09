@@ -21,19 +21,27 @@ local err_syntax = function(ls, em)
 end
 local err_instead = function(ls, em, ...)
     local msg = string.format(em, ...)
-    ls.error(ls, "%s instead of %s", msg, ls.value or ls.tostr(ls.token))
+    local text = ls.value
+    if text then
+        text = "'" .. text .. "'"
+    end
+    ls.error(ls, "%s instead of %s", msg, text or ls.astext(ls.token))
 end
-local err_token = function(ls, token)
-    err_instead(ls, "%s expected", ls.tostr(token))
+local err_expect = function(ls, token)
+    err_instead(ls, "%s expected", ls.astext(token))
 end
 local err_symbol = function(ls)
-    local sym = ls.value or ls.tostr(ls.token)
+    local sym = ls.tostr(ls.token)
     local replace = {["end"] = "<dedent>", ["local"] = "`var`", ["function"] = "\\...->", ["elseif"] = "`else if`", ["repeat"] = "`do`"}
     local rep = replace[sym]
     if rep then
         ls.error(ls, "use %s instead of %s", rep, sym)
     else
-        ls.error(ls, "unexpected %s", sym)
+        local text = ls.value
+        if text then
+            text = "'" .. text .. "'"
+        end
+        ls.error(ls, "unexpected %s", text or ls.astext(ls.token))
     end
 end
 local lex_opt = function(ls, tok)
@@ -45,23 +53,23 @@ local lex_opt = function(ls, tok)
 end
 local lex_check = function(ls, tok)
     if ls.token ~= tok then
-        err_token(ls, tok)
+        err_expect(ls, tok)
     end
     ls.step()
 end
 local lex_match = function(ls, what, who, line)
     if not lex_opt(ls, what) then
         if line == ls.line then
-            err_token(ls, what)
+            err_expect(ls, what)
         else
-            err_instead(ls, "%s expected to match %s at line %d", ls.tostr(what), ls.tostr(who), line)
+            err_instead(ls, "%s expected to match %s at line %d", ls.astext(what), ls.astext(who), line)
         end
     end
 end
 local lex_str = function(ls)
     local s
     if ls.token ~= "TK_name" and (LJ_52 or ls.token ~= "TK_goto") then
-        err_token(ls, "TK_name")
+        err_expect(ls, "TK_name")
         s = ls.tostr(ls.token)
     else
         s = ls.value
@@ -166,7 +174,7 @@ expr_table = function(ast, ls)
         end
     end
     if dented and not lex_dedent(ls) then
-        err_instead(ls, "%s expected to match %s at line %d", ls.tostr("TK_dedent"), ls.tostr("TK_indent"), line)
+        err_instead(ls, "%s expected to match %s at line %d", ls.astext("TK_dedent"), ls.astext("TK_indent"), line)
     end
     lex_match(ls, "}", "{", line)
     return ast:expr_table(kvs, line)
@@ -203,7 +211,7 @@ expr_simple = function(ast, ls)
             curry = ast:identifier("curry")
             local identifier = ast:in_scope(curry)
             if identifier ~= true then
-                err_syntax(ls, identifier .. "() is required for ~>")
+                err_syntax(ls, "`" .. identifier .. "()` is required for `~>`")
             end
             local cargs = {ast:literal(#args), lambda}
             return ast:expr_function_call(curry, cargs, ls.line)
@@ -351,7 +359,7 @@ local parse_for = function(ast, ls, line)
     elseif ls.token == "," or ls.token == "TK_in" then
         stmt = parse_for_iter(ast, ls, varname)
     else
-        err_instead(ls, "%s expected", "'=' or 'in'")
+        err_instead(ls, "%s expected", "`=` or `in`")
     end
     return stmt
 end
@@ -380,7 +388,7 @@ parse_args = function(ast, ls)
         end
     end
     if dented and not lex_dedent(ls) then
-        err_instead(ls, "%s expected to match %s at line %d", ls.tostr("TK_dedent"), ls.tostr("TK_indent"), line)
+        err_instead(ls, "%s expected to match %s at line %d", ls.astext("TK_dedent"), ls.astext("TK_indent"), line)
     end
     lex_match(ls, ")", "(", line)
     return args, self1
@@ -548,7 +556,7 @@ local parse_block_stmts = function(ast, ls)
         lex_opt(ls, "TK_newline")
         if stmted == ls.line then
             if ls.token ~= "TK_eof" and ls.token ~= "TK_dedent" and ls.next() ~= "TK_eof" then
-                err_instead(ls, "only one statement allowed per line. %s expected", ls.tostr("TK_newline"))
+                err_instead(ls, "only one statement allowed per line. %s expected", ls.astext("TK_newline"))
             end
         end
     end
@@ -564,7 +572,7 @@ parse_opt_block = function(ast, ls, line, match_token)
     if lex_indent(ls) then
         body = parse_block(ast, ls, line)
         if not lex_dedent(ls) then
-            err_instead(ls, "%s expected to end %s at line %d", ls.tostr("TK_dedent"), ls.tostr(match_token), line)
+            err_instead(ls, "%s expected to end %s at line %d", ls.astext("TK_dedent"), ls.astext(match_token), line)
         end
     else
         if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token] then
@@ -572,7 +580,7 @@ parse_opt_block = function(ast, ls, line, match_token)
             body.firstline, body.lastline = line, ls.line
         end
         if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token] then
-            err_instead(ls, "only one statement may stay near %s. %s expected", ls.tostr(match_token), ls.tostr("TK_newline"))
+            err_instead(ls, "only one statement may stay near %s. %s expected", ls.astext(match_token), ls.astext("TK_newline"))
         end
     end
     return body
@@ -590,7 +598,7 @@ local parse_params = function(ast, ls)
                 args[#args + 1] = ast:expr_vararg()
                 break
             else
-                err_instead(ls, "argument expected for %s", "->")
+                err_instead(ls, "argument expected for %s", ls.astext("->"))
             end
         until not lex_opt(ls, ",")
     end
@@ -599,15 +607,15 @@ local parse_params = function(ast, ls)
         return false, args
     elseif ls.token == "~>" then
         if ls.fs.varargs then
-            err_syntax(ls, "cannot curry variable arguments with ~>")
+            err_syntax(ls, "cannot curry variable arguments with `~>`")
         end
         if #args < 2 then
-            err_syntax(ls, "at least 2 arguments needed with ~>")
+            err_syntax(ls, "at least 2 arguments needed with `~>`")
         end
         ls.step()
         return true, args
     end
-    err_token(ls, "->")
+    err_expect(ls, "->")
 end
 parse_body = function(ast, ls, line)
     local pfs = ls.fs

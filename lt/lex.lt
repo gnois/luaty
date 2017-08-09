@@ -11,14 +11,18 @@ var TokenSymbol = { TK_name = 'identifier', TK_indent = '<indent>', TK_dedent = 
 var IsNewLine = { ['\n'] = true, ['\r'] = true }
 var IsEscape = { a = true, b = true, f = true, n = true, r = true, t = true, v = true }
 
-var token2sym = \tok ->
-	return TokenSymbol[tok]
 
 var token2str = \tok ->
 	if string.match(tok, "^TK_")
 		return string.sub(tok, 4)
 	return tok
 
+
+var token2text = \tok ->
+	var t = TokenSymbol[tok]
+	if not t
+		return "`" .. token2str(tok) .. "`"
+	return t
 
 return \read ->
 
@@ -66,10 +70,7 @@ return \read ->
 				var tok = table.concat(buff)
 				-- replace % with %%, so as not to confuse string.format() later
 				return (string.gsub(tok, "%%.", \p -> return "%" .. p ))
-			else if token2sym(token)
-				return token2sym(token)
-			else
-				return string.format("`%s`", token2str(token))
+			return token2text(token)
 
 
 	var lex_error = \token, em, ... ->
@@ -534,6 +535,7 @@ return \read ->
 
 	var lexer = setmetatable(state, { __index = {
 		tostr = token2str
+		, astext = token2text
 		, step = step
 		, next = next
 		, error = parse_error
