@@ -176,6 +176,24 @@ expr_table = function(ast, ls)
     lex_match(ls, "}", "{", line)
     return ast:expr_table(kvs, line)
 end
+local expr_function = function(ast, ls)
+    local line = ls.line
+    if ls.token == "\\" then
+        ls.step()
+    end
+    local curry, args, body, proto = parse_body(ast, ls, line)
+    local lambda = ast:expr_function(args, body, proto)
+    if curry then
+        curry = ast:identifier("curry")
+        local identifier = ast:in_scope(curry)
+        if identifier ~= true then
+            err_syntax(ls, "`" .. identifier .. "()` is required for `~>`")
+        end
+        local cargs = {ast:literal(#args), lambda}
+        return ast:expr_function_call(curry, cargs, line)
+    end
+    return lambda
+end
 expr_simple = function(ast, ls)
     local tk, val = ls.token, ls.value
     local e
@@ -199,21 +217,7 @@ expr_simple = function(ast, ls)
     elseif tk == "{" then
         return expr_table(ast, ls)
     elseif tk == "\\" or tk == "->" or tk == "~>" then
-        if tk == "\\" then
-            ls.step()
-        end
-        local curry, args, body, proto = parse_body(ast, ls, ls.line)
-        local lambda = ast:expr_function(args, body, proto)
-        if curry then
-            curry = ast:identifier("curry")
-            local identifier = ast:in_scope(curry)
-            if identifier ~= true then
-                err_syntax(ls, "`" .. identifier .. "()` is required for `~>`")
-            end
-            local cargs = {ast:literal(#args), lambda}
-            return ast:expr_function_call(curry, cargs, ls.line)
-        end
-        return lambda
+        return expr_function(ast, ls)
     else
         return expr_primary(ast, ls)
     end
@@ -325,20 +329,17 @@ local parse_for_num = function(ast, ls, varname, line)
     else
         step = ast:literal(1)
     end
-    local v = ast:identifier(varname)
-    ast:var_declare(varname)
+    local v = ast:var_declare(varname)
     local body = parse_opt_block(ast, ls, line, "TK_for")
     ast:fscope_end()
     return ast:for_stmt(v, init, last, step, body, line, ls.line)
 end
 local parse_for_iter = function(ast, ls, indexname)
     ast:fscope_begin()
-    local vars = {ast:identifier(indexname)}
-    ast:var_declare(indexname)
+    local vars = {ast:var_declare(indexname)}
     while lex_opt(ls, ",") do
         indexname = lex_str(ls)
-        vars[#vars + 1] = ast:identifier(indexname)
-        ast:var_declare(indexname)
+        vars[#vars + 1] = ast:var_declare(indexname)
     end
     lex_check(ls, "TK_in")
     local line = ls.line

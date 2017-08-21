@@ -184,6 +184,24 @@ expr_table = \ast, ls ->
 	return ast.expr_table(@, kvs, line)
 
 
+var expr_function = \ast, ls ->
+	var line = ls.line
+	if ls.token == '\\'
+		ls.step()
+	var curry, args, body, proto = parse_body(ast, ls, line)
+	var lambda = ast.expr_function(@, args, body, proto)
+	if curry
+		curry = ast.identifier(@, 'curry')
+		var identifier = ast.in_scope(@, curry)
+		if identifier ~= true
+			err_syntax(ls, "`" .. identifier .. "()` is required for `~>`")
+
+		var cargs = { ast.literal(@, #args), lambda }
+		return ast.expr_function_call(@, curry, cargs, line)
+
+	return lambda
+  
+
 expr_simple = \ast, ls ->
 	var tk, val = ls.token, ls.value
 	var e
@@ -206,21 +224,7 @@ expr_simple = \ast, ls ->
 	else if tk == '{'
 		return expr_table(ast, ls)
 	else if tk == '\\' or tk == '->' or tk == '~>'
-		if tk == '\\'
-			ls.step()
-	
-		var curry, args, body, proto = parse_body(ast, ls, ls.line)
-		var lambda = ast.expr_function(@, args, body, proto)
-		if curry
-			curry = ast.identifier(@, 'curry')
-			var identifier = ast.in_scope(@, curry)
-			if identifier ~= true
-				err_syntax(ls, "`" .. identifier .. "()` is required for `~>`")
-		
-			var cargs = { ast.literal(@, #args), lambda }
-			return ast.expr_function_call(@, curry, cargs, ls.line)
-	
-		return lambda
+		return expr_function(ast, ls)
 	else
 		return expr_primary(ast, ls)
 
@@ -351,8 +355,7 @@ var parse_for_num = \ast, ls, varname, line ->
 	else
 		step = ast.literal(@, 1)
 
-	var v = ast.identifier(@, varname)
-	ast.var_declare(@, varname)  -- add to scope
+	var v = ast.var_declare(@, varname)  -- add to scope
 	var body = parse_opt_block(ast, ls, line, 'TK_for')
 	ast.fscope_end(@)
 	return ast.for_stmt(@, v, init, last, step, body, line, ls.line)
@@ -361,12 +364,10 @@ var parse_for_num = \ast, ls, varname, line ->
 -- Parse 'for' iterator.
 var parse_for_iter = \ast, ls, indexname ->
 	ast.fscope_begin(@)
-	var vars = { ast.identifier(@, indexname) }
-	ast.var_declare(@, indexname)
+	var vars = { ast.var_declare(@, indexname) }
 	while lex_opt(ls, ',')
 		indexname = lex_str(ls)
-		vars[#vars + 1] = ast.identifier(@, indexname)
-		ast.var_declare(@, indexname)
+		vars[#vars + 1] = ast.var_declare(@, indexname)
 
 	lex_check(ls, 'TK_in')
 	var line = ls.line

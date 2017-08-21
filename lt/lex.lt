@@ -213,18 +213,18 @@ return \read ->
 		--    inc_line() -- skip it
 		--
 		while true
-			var c = ch
-			if c == END_OF_STREAM
+			if ch == END_OF_STREAM
 				lex_error('TK_eof', (comment and "unfinished long comment" or "unfinished long string") .. " from line %d till", begin)
-			else if c == ']'
+				break
+			else if ch == ']'
 				if skip_sep() == sep
 					-- skip 2nd `]'
 					add_buffer(ch)
 					nextchar()
 					break
 			else
-				add_buffer(c)
-				if IsNewLine[c]
+				add_buffer(ch)
+				if IsNewLine[ch]
 					inc_line()
 				else
 					nextchar()
@@ -301,12 +301,13 @@ return \read ->
 		add_buffer(ch)
 		nextchar()
 		while ch ~= delim
-			var c = ch
-			if c == END_OF_STREAM
+			if ch == END_OF_STREAM
 				lex_error('TK_eof', "unfinished string")
-			else if IsNewLine[c]
+				break
+			else if IsNewLine[ch]
 				lex_error('TK_string', "unfinished string")
-			else if c == '\\'
+				break
+			else if ch == '\\'
 				read_escape_char()
 			else
 				add_buffer(ch)

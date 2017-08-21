@@ -186,18 +186,18 @@ return function(read)
         add_buffer(ch)
         nextchar()
         while true do
-            local c = ch
-            if c == END_OF_STREAM then
+            if ch == END_OF_STREAM then
                 lex_error("TK_eof", (comment and "unfinished long comment" or "unfinished long string") .. " from line %d till", begin)
-            elseif c == "]" then
+                break
+            elseif ch == "]" then
                 if skip_sep() == sep then
                     add_buffer(ch)
                     nextchar()
                     break
                 end
             else
-                add_buffer(c)
-                if IsNewLine[c] then
+                add_buffer(ch)
+                if IsNewLine[ch] then
                     inc_line()
                 else
                     nextchar()
@@ -275,12 +275,13 @@ return function(read)
         add_buffer(ch)
         nextchar()
         while ch ~= delim do
-            local c = ch
-            if c == END_OF_STREAM then
+            if ch == END_OF_STREAM then
                 lex_error("TK_eof", "unfinished string")
-            elseif IsNewLine[c] then
+                break
+            elseif IsNewLine[ch] then
                 lex_error("TK_string", "unfinished string")
-            elseif c == "\\" then
+                break
+            elseif ch == "\\" then
                 read_escape_char()
             else
                 add_buffer(ch)
