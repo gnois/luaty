@@ -166,7 +166,10 @@ expr_table = function(ast, ls)
         end
         kvs[#kvs + 1] = {val, key}
         dented = lex_opt_dent(ls, dented)
-        if not lex_opt(ls, ",") then
+        if ls.token == ";" then
+            err_instead(ls, "use %s", ls.astext(","))
+        end
+        if not lex_opt(ls, ",") and not lex_opt(ls, ";") then
             break
         end
     end
@@ -496,6 +499,9 @@ local parse_label = function(ast, ls)
     while true do
         if ls.token == "::" then
             parse_label(ast, ls)
+        elseif ls.token == ";" then
+            err_syntax(ls, "`;` is not needed")
+            ls.step()
         else
             break
         end
@@ -507,7 +513,8 @@ local parse_goto = function(ast, ls)
     local name = lex_str(ls)
     return ast:goto_stmt(name, line)
 end
-local parse_stmt = function(ast, ls)
+local parse_stmt
+parse_stmt = function(ast, ls)
     local line = ls.line
     local stmt
     if ls.token == "TK_if" then
@@ -530,6 +537,11 @@ local parse_stmt = function(ast, ls)
         ls.step()
         stmt = ast:break_stmt(line)
         return stmt, not LJ_52
+    elseif ls.token == ";" then
+        err_syntax(ls, "`;` is not needed")
+        ls.step()
+        lex_opt(ls, "TK_newline")
+        return parse_stmt(ast, ls)
     elseif ls.token == "::" then
         stmt = parse_label(ast, ls)
     elseif ls.token == "TK_goto" then
@@ -551,6 +563,10 @@ local parse_block = function(ast, ls)
         stmted = ls.line
         stmt, islast = parse_stmt(ast, ls)
         body[#body + 1] = stmt
+        if ls.token == ";" then
+            err_syntax(ls, "`;` is not needed")
+            ls.step()
+        end
         lex_opt(ls, "TK_newline")
         if stmted == ls.line then
             if ls.token ~= "TK_eof" and ls.token ~= "TK_dedent" and ls.next() ~= "TK_eof" then
@@ -573,6 +589,8 @@ parse_opt_block = function(ast, ls, line, match_token)
         end
         if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token] then
             err_instead(ls, "only one statement may stay near %s. %s expected", ls.astext(match_token), ls.astext("TK_newline"))
+        elseif EndOfFunction[ls.token] then
+            lex_opt(ls, ";")
         end
     end
     return body
@@ -616,7 +634,6 @@ parse_body = function(ast, ls, line)
     ls.fs.firstline = line
     local curry, args = parse_params(ast, ls)
     local body = parse_opt_block(ast, ls, line, "->")
-    lex_opt(ls, ";")
     ast:fscope_end()
     local proto = ls.fs
     ls.fs.lastline = ls.line

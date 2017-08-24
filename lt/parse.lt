@@ -175,7 +175,9 @@ expr_table = \ast, ls ->
 		kvs[#kvs + 1] = { val, key }  -- key can be nil
 
 		dented = lex_opt_dent(ls, dented)
-		if not lex_opt(ls, ',')
+		if ls.token == ';'
+			err_instead(ls, "use %s", ls.astext(','))
+		if not lex_opt(ls, ',') and not lex_opt(ls, ';')
 			break
 
 	if dented and not lex_dedent(ls)
@@ -532,8 +534,9 @@ var parse_label = \ast, ls ->
 	while true
 		if ls.token == '::'
 			parse_label(ast, ls)
-		--else if LJ_52 and ls.token == ';'
-		--    ls.step()
+		else if ls.token == ';' --and LJ_52
+			err_syntax(ls, "`;` is not needed")
+			ls.step()
 		else
 			break
 	return ast.label_stmt(@, name, ls.line)
@@ -547,7 +550,8 @@ var parse_goto = \ast, ls ->
 
 -- Parse a statement. Returns the statement itself and a boolean that tells if it
 -- must be the last one in a chunk.
-var parse_stmt = \ast, ls ->
+var parse_stmt
+parse_stmt = \ast, ls ->
 	var line = ls.line
 	var stmt
 	if ls.token == 'TK_if'
@@ -574,9 +578,11 @@ var parse_stmt = \ast, ls ->
 		ls.step()
 		stmt = ast.break_stmt(@, line)
 		return stmt, not LJ_52 -- Must be last in Lua 5.1.
-	--else if LJ_52 and ls.token == ';'
-	--    ls.step()
-	--    return parse_stmt(ast, ls)
+	else if ls.token == ';' --and LJ_52
+		err_syntax(ls, "`;` is not needed")
+		ls.step()
+		lex_opt(ls, 'TK_newline')
+		return parse_stmt(ast, ls)
 	else if ls.token == '::'
 		stmt = parse_label(ast, ls)
 	else if ls.token == 'TK_goto'
@@ -599,6 +605,9 @@ var parse_block = \ast, ls ->
 		stmted = ls.line
 		stmt, islast = parse_stmt(ast, ls)
 		body[#body + 1] = stmt
+		if ls.token == ';'
+			err_syntax(ls, "`;` is not needed")
+			ls.step()
 		lex_opt(ls, 'TK_newline')
 		-- deliberately disallow multiple statement in one line
 		if stmted == ls.line
@@ -623,6 +632,8 @@ parse_opt_block = \ast, ls, line, match_token ->
 
 		if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
 			err_instead(ls, "only one statement may stay near %s. %s expected", ls.astext(match_token), ls.astext('TK_newline'))
+		else if EndOfFunction[ls.token]
+			lex_opt(ls, ';')
 	return body
 
 
@@ -665,8 +676,6 @@ parse_body = \ast, ls, line ->
 	ls.fs.firstline = line
 	var curry, args = parse_params(ast, ls)
 	var body = parse_opt_block(ast, ls, line, '->')
-	-- end of function
-	lex_opt(ls, ';')
 	ast.fscope_end(@)
 	var proto = ls.fs
 	ls.fs.lastline = ls.line
