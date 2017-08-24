@@ -9,7 +9,7 @@ var EndOfFunction = { ['}'] = true, [')'] = true, [';'] = true, [','] = true} --
 var NewLine = { TK_newline = true }
 
 -- disallow multiple statement on one line
--- need to be in file scope coz parse_block_stmts() is recursive
+-- need to be in file scope coz parse_block() is recursive
 var stmted  -- keep the line number that we parsed
 
 var is_keyword = \ls ->
@@ -108,7 +108,7 @@ var lex_opt_dent = \ls, dented ->
 
 --- Expressions ------------------------------------------------
 var expr_primary, expr, expr_unop, expr_binop, expr_simple, expr_list, expr_table
-var parse_body, parse_args, parse_block, parse_opt_block
+var parse_body, parse_args, parse_opt_block
 
 var var_name = \ast, ls ->
 	var name = lex_str(ls)
@@ -591,7 +591,7 @@ var parse_stmt = \ast, ls ->
 	return stmt, false
 
 
-var parse_block_stmts = \ast, ls ->
+var parse_block = \ast, ls ->
 	var firstline = ls.line
 	var stmt, islast = nil, false
 	var body = {}
@@ -604,16 +604,7 @@ var parse_block_stmts = \ast, ls ->
 		if stmted == ls.line
 			if ls.token ~= 'TK_eof' and ls.token ~= 'TK_dedent' and ls.next() ~= 'TK_eof'
 				err_instead(ls, "only one statement allowed per line. %s expected", ls.astext('TK_newline'))
-
 	return body, firstline, ls.line
-
-
-parse_block = \ast, ls, firstline ->
-	--ast.fscope_begin(@)
-	var body = parse_block_stmts(ast, ls)
-	body.firstline, body.lastline = firstline, ls.line
-	--ast.fscope_end(@)
-	return body
 
 
 -- parse single or indented compound statement
@@ -628,7 +619,7 @@ parse_opt_block = \ast, ls, line, match_token ->
 		if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
 			-- single statement
 			body[1] = parse_stmt(ast, ls)
-			body.firstline, body.lastline = line, ls.line
+			--body.firstline, body.lastline = line, ls.line
 
 		if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
 			err_instead(ls, "only one statement may stay near %s. %s expected", ls.astext(match_token), ls.astext('TK_newline'))
@@ -683,11 +674,6 @@ parse_body = \ast, ls, line ->
 	return curry, args, body, proto
 
 
-var parse_chunk = \ast, ls ->
-	var body, firstline, lastline = parse_block_stmts(ast, ls)
-	return ast.chunk(@, body, ls.chunkname, 0, lastline)
-
-
 var parse = \ls ->
 	var ast = syntree.New()
 	ls.step()
@@ -695,13 +681,13 @@ var parse = \ls ->
 	ls.fs = { varargs = false }
 	ast.fscope_begin(@)
 	--var args = { ast.expr_vararg(@) }
-	var chunk = parse_chunk(ast, ls)
+	var block, _, lastline = parse_block(ast, ls)
 	ast.fscope_end(@)
 	--lex_check(ls, 'TK_eof')
 	-- give better message
 	if ls.token ~= 'TK_eof'
 		err_syntax(ls, "unexpected extra " .. ls.astext(ls.token))
-	return chunk
+	return ast.chunk(@, block, ls.chunkname, 0, lastline)
 
 
 return parse

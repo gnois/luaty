@@ -100,7 +100,7 @@ local lex_opt_dent = function(ls, dented)
     return dented
 end
 local expr_primary, expr, expr_unop, expr_binop, expr_simple, expr_list, expr_table
-local parse_body, parse_args, parse_block, parse_opt_block
+local parse_body, parse_args, parse_opt_block
 local var_name = function(ast, ls)
     local name = lex_str(ls)
     local vk = "var"
@@ -543,7 +543,7 @@ local parse_stmt = function(ast, ls)
     end
     return stmt, false
 end
-local parse_block_stmts = function(ast, ls)
+local parse_block = function(ast, ls)
     local firstline = ls.line
     local stmt, islast = nil, false
     local body = {}
@@ -560,11 +560,6 @@ local parse_block_stmts = function(ast, ls)
     end
     return body, firstline, ls.line
 end
-parse_block = function(ast, ls, firstline)
-    local body = parse_block_stmts(ast, ls)
-    body.firstline, body.lastline = firstline, ls.line
-    return body
-end
 parse_opt_block = function(ast, ls, line, match_token)
     local body = {}
     if lex_indent(ls) then
@@ -575,7 +570,6 @@ parse_opt_block = function(ast, ls, line, match_token)
     else
         if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token] then
             body[1] = parse_stmt(ast, ls)
-            body.firstline, body.lastline = line, ls.line
         end
         if not EndOfBlock[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token] then
             err_instead(ls, "only one statement may stay near %s. %s expected", ls.astext(match_token), ls.astext("TK_newline"))
@@ -629,21 +623,17 @@ parse_body = function(ast, ls, line)
     ls.fs = pfs
     return curry, args, body, proto
 end
-local parse_chunk = function(ast, ls)
-    local body, firstline, lastline = parse_block_stmts(ast, ls)
-    return ast:chunk(body, ls.chunkname, 0, lastline)
-end
 local parse = function(ls)
     local ast = syntree.New()
     ls.step()
     lex_opt(ls, "TK_newline")
     ls.fs = {varargs = false}
     ast:fscope_begin()
-    local chunk = parse_chunk(ast, ls)
+    local block, _, lastline = parse_block(ast, ls)
     ast:fscope_end()
     if ls.token ~= "TK_eof" then
         err_syntax(ls, "unexpected extra " .. ls.astext(ls.token))
     end
-    return chunk
+    return ast:chunk(block, ls.chunkname, 0, lastline)
 end
 return parse
