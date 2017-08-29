@@ -37,7 +37,7 @@ luajit run-test.lua
 Differences from Lua
 ---
 
-Most syntaxes of Lua are kept, so that if you know Lua, you already knew most of Luaty.
+Aside from being indent based, most syntaxes of Lua are kept, so that if you know Lua, you already knew most of Luaty.
 
 Here goes the differences:
 
