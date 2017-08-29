@@ -1,6 +1,4 @@
-# This is a note to myself on how to hand convert a Lua source file to Luaty source.
-
-## Use a text editor with Find and Replace
+# This is a general guide on how to hand convert a Lua source file to Luaty source using a text editor with Find and Replace.
 
 * `local` becomes `var`
 

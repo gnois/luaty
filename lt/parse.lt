@@ -41,7 +41,7 @@ var err_symbol = \ls ->
 	var replace = {end = "<dedent>", local = "`var`", function = "\\...->", elseif = "`else if`", repeat = "`do`"}
 	var rep = replace[sym]
 	if rep
-		ls.error(ls, "use %s instead of %s", rep, sym)
+		ls.error(ls, "use %s instead of '%s'", rep, sym)
 	else
 		ls.error(ls, "unexpected %s", as_val(ls) or ls.astext(ls.token))
 
@@ -143,10 +143,14 @@ expr_table = \ast, ls ->
 	lex_check(ls, '{')
 	while ls.token ~= '}'
 		dented = lex_opt_dent(ls, dented)
+		-- catch common mistake that mess everything later
+		if not dented and ls.token == 'TK_dedent'
+			err_symbol(ls)
+			ls.step()
+
 		-- in case the table ends immediately
 		if ls.token == '}'
 			break
-	
 		var key
 		if ls.token == '['
 			key = expr_bracket(ast, ls)
@@ -406,6 +410,11 @@ parse_args = \ast, ls ->
 	var args, n = {}, 0
 	while ls.token ~= ')'
 		dented = lex_opt_dent(ls, dented)
+		-- catch common mistake that mess everything later
+		if not dented and ls.token == 'TK_dedent'
+			err_symbol(ls)
+			ls.step()
+			
 		if ls.token == ')'
 			break
 		n = n + 1
@@ -486,23 +495,26 @@ var parse_while = \ast, ls, line ->
 	return ast.while_stmt(@, cond, body, line, lastline)
 
 
-var parse_if = \ast, ls, line ->
-	var tests, blocks = {}, {}
+var parse_then = \ast, ls, tests, line ->
 	ls.step()
 	tests[#tests+1] = expr(ast, ls)
+	if ls.token == 'TK_then'
+		err_syntax(ls, "`then` is not needed")
+		ls.step()
 	ast.fscope_begin(@)
-	blocks[1] = parse_opt_block(ast, ls, line, 'TK_if')
+	var block = parse_opt_block(ast, ls, line, 'TK_if')
 	ast.fscope_end(@)
+	return block
+
+var parse_if = \ast, ls, line ->
+	var tests, blocks = {}, {}
+	blocks[#blocks+1] = parse_then(ast, ls, tests, line)
 	var else_branch
 	while ls.token == 'TK_else' or NewLine[ls.token] and ls.next() == 'TK_else'
 		lex_opt(ls, 'TK_newline')
 		ls.step()
 		if ls.token == 'TK_if'
-			ls.step()
-			tests[#tests+1] = expr(ast, ls)
-			ast.fscope_begin(@)
-			blocks[#blocks+1] = parse_opt_block(ast, ls, ls.line, 'TK_if')
-			ast.fscope_end(@)
+			blocks[#blocks+1] = parse_then(ast, ls, tests, line)
 		else
 			ast.fscope_begin(@)
 			else_branch = parse_opt_block(ast, ls, ls.line, 'TK_else')
@@ -526,7 +538,8 @@ var parse_do = \ast, ls, line ->
 		return ast.do_stmt(@, body, line, lastline)
 
 
-var parse_label = \ast, ls ->
+var parse_label
+parse_label = \ast, ls ->
 	ls.step() -- Skip '::'.
 	var name = lex_str(ls)
 	lex_check(ls, '::')
@@ -556,19 +569,24 @@ parse_stmt = \ast, ls ->
 	var stmt
 	if ls.token == 'TK_if'
 		stmt = parse_if(ast, ls, line)
+	else if ls.token == 'TK_for'
+		stmt = parse_for(ast, ls, line)
 	else if ls.token == 'TK_while'
 		stmt = parse_while(ast, ls, line)
 	else if ls.token == 'TK_do'
 		stmt = parse_do(ast, ls, line)
-	else if ls.token == 'TK_for'
-		stmt = parse_for(ast, ls, line)
-	--else if ls.token == 'TK_repeat'
-	--    stmt = parse_repeat(ast, ls, line)
+	else if ls.token == 'TK_repeat'
+		err_symbol(ls)
+		stmt = parse_do(ast, ls, line)
 	--else if ls.token == 'TK_function'
-	--    stmt = parse_func(ast, ls, line)
+	--	stmt = parse_func(ast, ls, line)
 	else if ls.token == '->' or ls.token == '~>'
 		err_syntax(ls, "lambda must either be assigned or invoked")
 	else if ls.token == 'TK_name' and ls.value == 'var'
+		ls.step()
+		stmt = parse_var(ast, ls, line)
+	else if ls.token == 'TK_local'
+		err_symbol(ls)
 		ls.step()
 		stmt = parse_var(ast, ls, line)
 	else if ls.token == 'TK_return'
@@ -598,17 +616,22 @@ parse_stmt = \ast, ls ->
 
 
 var parse_block = \ast, ls ->
+	
+	var skip_common = \ls ->
+		if ls.token == ';' or ls.token == 'TK_end'
+			err_symbol(ls)
+			ls.step()
+		lex_opt(ls, 'TK_newline')
+	
 	var firstline = ls.line
 	var stmt, islast = nil, false
 	var body = {}
 	while not islast and not EndOfBlock[ls.token]
 		stmted = ls.line
+		skip_common(ls)
 		stmt, islast = parse_stmt(ast, ls)
 		body[#body + 1] = stmt
-		if ls.token == ';'
-			err_syntax(ls, "`;` is not needed")
-			ls.step()
-		lex_opt(ls, 'TK_newline')
+		skip_common(ls)
 		-- deliberately disallow multiple statement in one line
 		if stmted == ls.line
 			if ls.token ~= 'TK_eof' and ls.token ~= 'TK_dedent' and ls.next() ~= 'TK_eof'
@@ -651,7 +674,7 @@ var parse_params = \ast, ls ->
 				args[#args + 1] = ast.expr_vararg(@)
 				break
 			else
-				err_instead(ls, "argument expected for %s", ls.astext('->'))
+				err_instead(ls, "parameter expected for %s", ls.astext('->'))
 		
 		until not lex_opt(ls, ',')
 
@@ -660,9 +683,9 @@ var parse_params = \ast, ls ->
 		return false, args
 	else if ls.token == '~>'
 		if ls.fs.varargs
-			err_syntax(ls, "cannot curry variable arguments with `~>`")
+			err_syntax(ls, "cannot curry variadic parameters with `~>`")
 		if #args < 2
-			err_syntax(ls, "at least 2 arguments needed with `~>`")
+			err_syntax(ls, "at least 2 parameters needed with `~>`")
 		ls.step()
 		return true, args
 	err_expect(ls, '->')
@@ -689,11 +712,8 @@ var parse = \ls ->
 	lex_opt(ls, 'TK_newline')
 	ls.fs = { varargs = false }
 	ast.fscope_begin(@)
-	--var args = { ast.expr_vararg(@) }
 	var block, _, lastline = parse_block(ast, ls)
 	ast.fscope_end(@)
-	--lex_check(ls, 'TK_eof')
-	-- give better message
 	if ls.token ~= 'TK_eof'
 		err_syntax(ls, "unexpected extra " .. ls.astext(ls.token))
 	return ast.chunk(@, block, ls.chunkname, 0, lastline)

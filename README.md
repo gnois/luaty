@@ -6,11 +6,32 @@ The compiler itself is written in Luaty and compiled into Lua.
 
 Why Luaty
 ---
-Because there's not enough Lua code generators.
-
-Really, because I like all of Lua except some of its syntax, and wanted some safety.
+Because I love Lua, but wanted less syntax boilerplate and some safety checks.
 Luaty is just Lua with a syntactic skin that is likely more readable, shorter or safer.
 Its philosophy follows [*"There should be only one way to do it"*.](https://wiki.python.org/moin/TOOWTDI)
+
+
+Quick start
+---
+
+Luaty only requires LuaJIT to run. With LuaJIT in your path, clone this repo, and cd into it.
+
+To execute a Luaty source file, use
+```
+luajit lt.lua /path/to/source.lt
+```
+
+To compile a Luaty *source.lt* file to *dest.lua*, use
+```
+luajit lt.lua -c /path/to/source.lt dest.lua
+```
+The output file is optional, and defaults to *source.lua*
+
+
+To run tests in the [tests folder](https://github.com/gnois/luaty/tree/master/tests), use
+```
+luajit run-test.lua
+```
 
 
 Differences from Lua
@@ -118,28 +139,6 @@ var tbl = {
 ```
 
 
-Quick start
----
-
-1. Install LuaJIT
-2. Clone this repo, and cd into it
-
-To execute a Luaty source file, use
-```
-luajit lt.lua /path/to/source.lt
-```
-
-To compile a Luaty *source.lt* file to *dest.lua*, use
-```
-luajit lt.lua -c /path/to/source.lt dest.lua
-```
-The output file is optional, and defaults to *source.lua*
-
-
-To run tests in the [tests folder](https://github.com/gnois/luaty/tree/master/tests), use
-```
-luajit run-test.lua
-```
 
 
 
