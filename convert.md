@@ -27,11 +27,6 @@ Replace:
 Find: `do`
 Replace:
 
-* `Repeat` becomes `do`
-
-Find: `repeat`
-Replace: `do`
-
 
 
 ###Turn on regular expression Find

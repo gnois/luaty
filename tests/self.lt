@@ -14,6 +14,19 @@ self.x = \@, line ->
 
 assert(self.x() == 3)
 
+var adds = \t, v ->
+	return (t[1] or 1) + v
+
+self[1] = 10
+
+-- make sure normal function taking self still works
+self.emit = \@, val ->
+	var a = adds(self, val)
+	return a
+
+assert(self.emit(self, 10) == 20)
+assert(self.emit({3}, 10) == 13)
+
 
 -- string method
 assert(("hi").rep(@, 3) == "hihihi")

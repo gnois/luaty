@@ -1,6 +1,6 @@
 var foo = \n->
 	var i, sum = 1, 0
-	do
+	repeat
 		sum = sum + i*i
 		i = i + 1
 	until i > 10

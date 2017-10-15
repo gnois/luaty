@@ -17,7 +17,7 @@ local isletter = function(c)
     elseif b >= ASCII_A and b <= ASCII_Z then
         return true
     else
-        return c == "_"
+        return (c == "_")
     end
 end
 local isalnum = function(c)
@@ -29,7 +29,7 @@ local isalnum = function(c)
     elseif b >= ASCII_A and b <= ASCII_Z then
         return true
     else
-        return c == "_"
+        return (c == "_")
     end
 end
 local isdigit = function(c)
@@ -42,7 +42,7 @@ local isspace = function(c)
 end
 local build_int64 = function(str)
     local u = str[#str - 2]
-    local x = u == 117 and uint64(0) or int64(0)
+    local x = (u == 117 and uint64(0) or int64(0))
     local i = 1
     while str[i] >= ASCII_0 and str[i] <= ASCII_9 do
         x = 10 * x + (str[i] - ASCII_0)
@@ -61,7 +61,7 @@ local byte_to_hexdigit = function(b)
 end
 local build_hex64 = function(str)
     local u = str[#str - 2]
-    local x = u == 117 and uint64(0) or int64(0)
+    local x = (u == 117 and uint64(0) or int64(0))
     local i = 3
     while str[i] do
         local n = byte_to_hexdigit(str[i])

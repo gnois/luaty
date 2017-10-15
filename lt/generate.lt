@@ -420,7 +420,7 @@ var generate = \tree ->
 		var rule = StatementRule[node.kind]
 		if not rule error("cannot find a statement rule for " .. node.kind) 
 		rule(self, node)
-		if node.line @.line(@, node.line) 
+		if node.line @.line(@, node.line)
 
 
 	self.list_emit = \@, node_list ->

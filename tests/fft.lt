@@ -18,7 +18,7 @@ var fft_transform = \v, n, dir->
        return
     fft_bitreverse(v, n)
     var dual = 1
-    do
+    repeat
         var dual2 = 2*dual
         for i=1,2*n-1,2*dual2 
             var j = i+dual2

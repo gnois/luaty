@@ -431,7 +431,7 @@ return \read ->
 					if is.digit(ch) -- Numeric literal.
 						return 'TK_number', lex_number()
 
-					do
+					repeat
 						add_buffer(ch)
 						nextchar()
 					until not is.alnum(ch)
@@ -552,7 +552,7 @@ return \read ->
 
 	stack.push(0)
 	if ch == '#'
-		do
+		repeat
 			nextchar()
 			if ch == END_OF_STREAM return lexer
 		until IsNewLine[ch]

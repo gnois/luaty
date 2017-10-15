@@ -2,8 +2,7 @@
 
 1. Why is `function f(x)` statement not supported?
 
-Function statement is just a [syntactic sugar](https://www.lua.org/manual/5.1/manual.html#2.5.9) in Lua.
-It is not usable in every situation. Consider:
+Function statement is just a [syntactic sugar](https://www.lua.org/manual/5.1/manual.html#2.5.9) in Lua. It is not usable in every situation. Consider:
 
 ```
 local t = {
@@ -15,16 +14,16 @@ t['special-name'] = function(self, n)     -- function has to be expression, cann
 end
 
 ```
+
 Luaty prefers *only one way to do it* by allowing only function expression. Whenever a declaration is needed in Luaty, it always starts with
 ```
 var xxx = ....
 ```
 
 
+2. Why is `:` not supported? Explicitly specifying `@` or `self` is ugly.
 
-2. Why is `:` not supported? Explicitly specifying `@` or `self` is more verbose and ugly compared to Lua.
-
-While `:` is convenient, it is confusing for beginners like me when `self` is automagically defined in function definition. It doesn't stand out when glancing over code. 
+While `:` is convenient, it is confusing for beginners when `self` is automagically defined in function definition. 
 And it is again not usable in all cases. Consider:
 
 ```
@@ -41,16 +40,16 @@ t['special-name'](t, n)           -- cannot use `:`, t need to be specified expl
 
 
 ```
-Explicitly specifying self is the only way that works for all cases. It is only 2 more characters.
+Explicitly specifying self is the only way that works for all cases. It is only 2 more characters. It gets even better in Luaty.
 
-It gets even better. For case B, using `@` for invocation
+For case B, using `@` for invocation *just works*.
 ```
 t['special-name'](@, n)
 ```
-just works. In the Lua output, `t` will be evaluated only once, as specified by [the manual](https://www.lua.org/manual/5.1/manual.html#2.5.8).
+In the Lua output, `t` will be evaluated only once, as specified by [the manual](https://www.lua.org/manual/5.1/manual.html#2.5.8).
 
 
 
-3. Why is parenthesis needed when calling function with a table or a string? This has more keystrokes than Lua.
+3. Why is parenthesis needed when calling function with a table or a string? This makes DSL ugly.
 
 Again, when there are more than one arguments, explicit parenthesis is the only way that works.

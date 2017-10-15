@@ -1,5 +1,5 @@
-do
-	do
+repeat
+	repeat
 		do
 			print("multiline do until")
 	until true
@@ -8,4 +8,4 @@ until true
 do do do print("one line do")
 
 
-do do do print("one line do until") until true until true
+do repeat repeat print("one line do until") until true until true

@@ -13,18 +13,14 @@ local AST = {}
 AST.chunk = function(ast, body, chunkname, firstline, lastline)
     return build("Chunk", {body = body, chunkname = chunkname, firstline = firstline, lastline = lastline})
 end
-AST.expr_function = function(ast, args, body, proto)
-    return build("FunctionExpression", {body = body, params = args, vararg = proto.varargs, firstline = proto.firstline, lastline = proto.lastline})
+AST.expr_function = function(ast, args, body, vararg)
+    return build("FunctionExpression", {body = body, params = args, vararg = vararg})
 end
-AST.local_decl = function(ast, vlist, exps, line)
-    local ids = {}
-    for k = 1, #vlist do
-        ids[k] = ast:var_declare(vlist[k])
-    end
-    return build("LocalDeclaration", {names = ids, expressions = exps, line = line})
+AST.local_decl = function(ast, lhs, rhs, line)
+    return build("LocalDeclaration", {names = lhs, expressions = rhs, line = line})
 end
-AST.assignment_expr = function(ast, vars, exps, line)
-    return build("AssignmentExpression", {left = vars, right = exps, line = line})
+AST.assignment_expr = function(ast, lhs, rhs, line)
+    return build("AssignmentExpression", {left = lhs, right = rhs, line = line})
 end
 AST.expr_index = function(ast, v, index, line)
     return build("MemberExpression", {object = v, property = index, computed = true, line = line})
@@ -125,23 +121,14 @@ end
 AST.goto_stmt = function(ast, name, line)
     return build("GotoStatement", {label = name, line = line})
 end
-local new_scope = function(parent_scope)
-    return {vars = {}, parent = parent_scope}
-end
 AST.var_declare = function(ast, name, line)
     local id = ident(name, line)
-    ast.current.vars[name] = true
+    ast.scope.vars[name] = true
     return id
-end
-AST.fscope_begin = function(ast)
-    ast.current = new_scope(ast.current)
-end
-AST.fscope_end = function(ast)
-    ast.current = ast.current.parent
 end
 AST.in_scope = function(ast, v)
     if v.name then
-        local scope = ast.current
+        local scope = ast.scope
         while not scope.vars[v.name] do
             scope = scope.parent
             if not scope then
@@ -152,23 +139,14 @@ AST.in_scope = function(ast, v)
     end
     return v.name
 end
-AST.overwritten = function(ast, vars)
-    local n = #vars
-    for i = 1, n do
-        local v = vars[i]
-        for j = i + 1, n do
-            if vars[j] == v then
-                return v
-            end
+AST.overwritten = function(ast, v)
+    local scope = ast.scope
+    repeat
+        if scope.vars[v] then
+            return v
         end
-        local scope = ast.current
-        repeat
-            if scope.vars[v] then
-                return v
-            end
-            scope = scope.parent
-        until not scope
-    end
+        scope = scope.parent
+    until not scope
 end
 local same
 same = function(a, b)

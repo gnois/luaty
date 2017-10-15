@@ -11,20 +11,16 @@ var AST = {}
 AST.chunk = \ast, body, chunkname, firstline, lastline ->
 	return build("Chunk", { body = body, chunkname = chunkname, firstline = firstline, lastline = lastline })
 
-AST.expr_function = \ast, args, body, proto ->
-	return build("FunctionExpression", { body = body, params = args, vararg = proto.varargs, firstline = proto.firstline, lastline = proto.lastline })
+AST.expr_function = \ast, args, body, vararg ->
+	return build("FunctionExpression", { body = body, params = args, vararg = vararg })
 
 
-AST.local_decl = \ast, vlist, exps, line ->
-	var ids = {}
-	for k = 1, #vlist
-		ids[k] = ast.var_declare(@, vlist[k])
-	
-	return build("LocalDeclaration", { names = ids, expressions = exps, line = line })
+AST.local_decl = \ast, lhs, rhs, line ->
+	return build("LocalDeclaration", { names = lhs, expressions = rhs, line = line })
 
 
-AST.assignment_expr = \ast, vars, exps, line ->
-	return build("AssignmentExpression", { left = vars, right = exps, line = line })
+AST.assignment_expr = \ast, lhs, rhs, line ->
+	return build("AssignmentExpression", { left = lhs, right = rhs, line = line })
 
 
 AST.expr_index = \ast, v, index, line ->
@@ -158,32 +154,18 @@ AST.goto_stmt = \ast, name, line ->
 	return build("GotoStatement", { label = name, line = line })
 
 
-var new_scope = \parent_scope ->
-	return {
-		vars = {}
-		, parent = parent_scope
-	}
-
 
 AST.var_declare = \ast, name, line ->
 	var id = ident(name, line)
-	ast.current.vars[name] = true
+	ast.scope.vars[name] = true
 	return id
-
-
-AST.fscope_begin = \ast ->
-	ast.current = new_scope(ast.current)
-
-
-AST.fscope_end = \ast ->
-	ast.current = ast.current.parent
 
 
 
 ---- lint checks --------------------------------------
 AST.in_scope = \ast, v ->
 	if v.name
-		var scope = ast.current
+		var scope = ast.scope
 		while not scope.vars[v.name]
 			scope = scope.parent
 			if not scope
@@ -192,21 +174,14 @@ AST.in_scope = \ast, v ->
 	return v.name
 
 
-AST.overwritten = \ast, vars ->
-	var n = #vars
-	for i = 1, n
-		var v = vars[i]
-		for j = i+1, n
-			if vars[j] == v
-				return v
-
-		var scope = ast.current
-		-- shadowing var at parent scope is normal, but we want to be careful
-		do
-			if scope.vars[v]
-				return v
-			scope = scope.parent
-		until not scope
+-- shadowing var at parent scope is normal, but we are paranoid
+AST.overwritten = \ast, v ->
+	var scope = ast.scope
+	repeat
+		if scope.vars[v]
+			return v
+		scope = scope.parent
+	until not scope
 
 
 var same
@@ -250,7 +225,6 @@ same = \a, b ->
 
 
 AST.same = same
-
 
 return {
 	New = ->

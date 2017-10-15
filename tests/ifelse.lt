@@ -27,7 +27,7 @@ if odd(8) y = 1 else y = 2
 assert(y == 2)
 
 -- one lines if else if else
-if x == nil for y = 1, 10 do until true else if x == 0 assert(x) else if x assert(x) else assert(not x)
+if x == nil for y = 1, 10 repeat until true else if x == 0 assert(x) else if x assert(x) else assert(not x)
 --assert(y == 1)
 
 

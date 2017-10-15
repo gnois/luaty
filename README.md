@@ -6,7 +6,7 @@ The compiler itself is written in Luaty and compiled into Lua.
 
 Why Luaty
 ---
-Because I love Lua, but wanted less syntax boilerplate and some safety checks.
+Because it's a shame there are [so few](https://github.com/jashkenas/coffeescript/wiki/list-of-languages-that-compile-to-js) Lua code generators, yet Lua is one of the [fastest](http://wren.io/performance.html) dynamic language available today.
 Luaty is just Lua with a syntactic skin that is likely more readable, shorter or safer.
 Its philosophy follows [*"There should be only one way to do it"*.](https://wiki.python.org/moin/TOOWTDI)
 
@@ -41,11 +41,9 @@ Aside from being indent based, most syntaxes of Lua are kept, so that if you kno
 
 Here goes the differences:
 
-
 - Less or shorter keywords
   * no more `then`, `end`, `do`
   * `local` becomes `var`
-  * `repeat` becomes `do`
   * `elseif` becomes `else if`
   * `self` can be `@`
 

@@ -1,0 +1,26 @@
+
+var enter_block = \f, isloop ->
+	f.block = {
+		prev = f.block    -- link to outer scope
+		, isloop = isloop -- scope is a (breakable) loop
+	}
+
+var leave_block = \f ->
+	f.block = f.block.prev
+
+return {
+
+	enter_block = enter_block
+	, leave_block = leave_block
+
+	-- pf is enclosing function
+	, begin_func = \pf ->
+		var f = { parent = pf, vars = {} }
+		enter_block(f, false)
+		return f
+
+	, end_func = \f ->
+		leave_block(f)
+		return f.parent
+}
+
