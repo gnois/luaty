@@ -8,6 +8,8 @@ var LJ_52 = false
 var EndOfChunk = { TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true }
 var EndOfFunction = { ['}'] = true, [')'] = true, [';'] = true, [','] = true} -- `,` is to end function within a table
 var NewLine = { TK_newline = true }
+-- expr kind
+var Kind = { Expr = 1, Self = 2, Var = 3, Field = 4, Index = 5, Call = 6 }
 
 -- disallow multiple statement on one line
 -- need to be in file scope coz parse_chunk() is recursive
@@ -113,9 +115,9 @@ var parse_body, parse_args, parse_block, parse_opt_chunk
 
 var var_name = \ast, ls ->
 	var name = lex_str(ls)
-	var vk = 'var'
+	var vk = Kind.Var
 	if name == 'self' or name == '@'
-		vk = 'self'
+		vk = Kind.Self
 	return ast.identifier(@, name), vk
 
 
@@ -292,7 +294,7 @@ expr_primary = \ast, ls ->
 	if ls.token == '('
 		var line = ls.line
 		ls.step()
-		vk, v = 'expr', ast.expr_brackets(@, expr(ast, ls))
+		vk, v = Kind.Expr, ast.expr_brackets(@, expr(ast, ls))
 		lex_match(ls, ')', '(', line)
 	else --if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')    -- comment out coz err_symbol() will not quit, and v will be nil
 		v, vk = var_name(ast, ls)
@@ -303,18 +305,18 @@ expr_primary = \ast, ls ->
 	while true -- Parse multiple expression suffixes
 		var line = ls.line
 		if ls.token == '.'
-			vk, v, val, key = 'field', expr_field(ast, ls, v)
+			vk, v, val, key = Kind.Field, expr_field(ast, ls, v)
 		else if ls.token == '['
 			key = expr_bracket(ast, ls)
 			val = v
-			vk, v = 'index', ast.expr_index(@, val, key)
+			vk, v = Kind.Index, ast.expr_index(@, val, key)
 		else if ls.token == '(' -- or ls.token == 'TK_string' or ls.token == '{'
 			var args, self1 = parse_args(ast, ls)
-			if self1 and (vk == 'field' or vk == 'index')
+			if self1 and (vk == Kind.Field or vk == Kind.Index)
 				table.remove(args, 1)
-				if vk == 'field'
-					vk, v = 'call', ast.expr_method_call(@, val, key, args, line)
-				else if vk == 'index'
+				if vk == Kind.Field
+					vk, v = Kind.Call, ast.expr_method_call(@, val, key, args, line)
+				else if vk == Kind.Index
 					-- simulate a wrapped self method call
 					var nm = '_0'   -- lets hope we dont name clash
 					var obj = ast.identifier(@, nm)
@@ -326,9 +328,9 @@ expr_primary = \ast, ls ->
 						}, line)
 					}
 					var lambda = ast.expr_function(@, {}, body, { varargs = false })
-					vk, v = 'call', ast.expr_function_call(@, lambda, {}, line)
+					vk, v = Kind.Call, ast.expr_function_call(@, lambda, {}, line)
 			else
-				vk, v = 'call', ast.expr_function_call(@, v, args, line)
+				vk, v = Kind.Call, ast.expr_function_call(@, v, args, line)
 		else
 			break
 
@@ -420,7 +422,7 @@ parse_args = \ast, ls ->
 			break
 		n = n + 1
 		args[n], _, vk = expr(ast, ls)
-		if n == 1 and vk == 'self'
+		if n == 1 and vk == Kind.Self
 			self1 = true
 		
 		dented = lex_opt_dent(ls, dented)
@@ -439,7 +441,7 @@ parse_args = \ast, ls ->
 var parse_assignment
 parse_assignment = \ast, ls, vlist, v, vk ->
 	var line = ls.line
-	if vk ~= 'var' and vk ~= 'self' and vk ~= 'field' and vk ~= 'index'
+	if vk ~= Kind.Var and vk ~= Kind.Self and vk ~= Kind.Field and vk ~= Kind.Index
 		err_symbol(ls)
 
 	vlist[#vlist+1] = v
@@ -448,7 +450,7 @@ parse_assignment = \ast, ls, vlist, v, vk ->
 		return parse_assignment(ast, ls, vlist, n_var, n_vk)
 	else -- Parse RHS.
 		lex_check(ls, '=')
-		if (vk == 'var' or vk == 'self') 
+		if (vk == Kind.Var or vk == Kind.Self) 
 			var identifier = ast.in_scope(@, v)
 			if identifier ~= true
 				err_syntax(ls, "undeclared identifier `" .. identifier .. "`")
@@ -460,7 +462,7 @@ parse_assignment = \ast, ls, vlist, v, vk ->
 
 var parse_call_assign = \ast, ls ->
 	var v, vk = expr_primary(ast, ls)
-	if vk == 'call'
+	if vk == Kind.Call
 		return ast.new_statement_expr(@, v, ls.line)
 	else
 		var vlist = {}
@@ -595,8 +597,7 @@ parse_stmt = \ast, ls ->
 			stmt = parse_goto(ast, ls)
 		-- else fall thru
 		
-	-- If here 'stmt' is "nil" then ls.token didn't match any of the previous rules
-	-- Fall back to call/assign rule
+	-- is TK_name, must be function call or assignment
 	if not stmt
 		stmt = parse_call_assign(ast, ls)
 	return stmt, false

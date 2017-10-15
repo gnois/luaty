@@ -10,6 +10,7 @@ local LJ_52 = false
 local EndOfChunk = {TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true}
 local EndOfFunction = {["}"] = true, [")"] = true, [";"] = true, [","] = true}
 local NewLine = {TK_newline = true}
+local Kind = {Expr = 1, Self = 2, Var = 3, Field = 4, Index = 5, Call = 6}
 local stmted
 local is_keyword = function(ls)
     local str = ls.tostr(ls.token)
@@ -104,9 +105,9 @@ local expr_primary, expr, expr_unop, expr_binop, expr_simple, expr_list, expr_ta
 local parse_body, parse_args, parse_block, parse_opt_chunk
 local var_name = function(ast, ls)
     local name = lex_str(ls)
-    local vk = "var"
+    local vk = Kind.Var
     if name == "self" or name == "@" then
-        vk = "self"
+        vk = Kind.Self
     end
     return ast:identifier(name), vk
 end
@@ -277,7 +278,7 @@ expr_primary = function(ast, ls)
     if ls.token == "(" then
         local line = ls.line
         ls.step()
-        vk, v = "expr", ast:expr_brackets(expr(ast, ls))
+        vk, v = Kind.Expr, ast:expr_brackets(expr(ast, ls))
         lex_match(ls, ")", "(", line)
     else
         v, vk = var_name(ast, ls)
@@ -286,27 +287,27 @@ expr_primary = function(ast, ls)
     while true do
         local line = ls.line
         if ls.token == "." then
-            vk, v, val, key = "field", expr_field(ast, ls, v)
+            vk, v, val, key = Kind.Field, expr_field(ast, ls, v)
         elseif ls.token == "[" then
             key = expr_bracket(ast, ls)
             val = v
-            vk, v = "index", ast:expr_index(val, key)
+            vk, v = Kind.Index, ast:expr_index(val, key)
         elseif ls.token == "(" then
             local args, self1 = parse_args(ast, ls)
-            if self1 and (vk == "field" or vk == "index") then
+            if self1 and (vk == Kind.Field or vk == Kind.Index) then
                 table.remove(args, 1)
-                if vk == "field" then
-                    vk, v = "call", ast:expr_method_call(val, key, args, line)
-                elseif vk == "index" then
+                if vk == Kind.Field then
+                    vk, v = Kind.Call, ast:expr_method_call(val, key, args, line)
+                elseif vk == Kind.Index then
                     local nm = "_0"
                     local obj = ast:identifier(nm)
                     table.insert(args, 1, obj)
                     local body = {ast:local_decl({ast:var_declare(nm)}, {val}, line), ast:return_stmt({ast:expr_function_call(ast:expr_index(obj, key), args, line)}, line)}
                     local lambda = ast:expr_function({}, body, {varargs = false})
-                    vk, v = "call", ast:expr_function_call(lambda, {}, line)
+                    vk, v = Kind.Call, ast:expr_function_call(lambda, {}, line)
                 end
             else
-                vk, v = "call", ast:expr_function_call(v, args, line)
+                vk, v = Kind.Call, ast:expr_function_call(v, args, line)
             end
         else
             break
@@ -391,7 +392,7 @@ parse_args = function(ast, ls)
         end
         n = n + 1
         args[n], _, vk = expr(ast, ls)
-        if n == 1 and vk == "self" then
+        if n == 1 and vk == Kind.Self then
             self1 = true
         end
         dented = lex_opt_dent(ls, dented)
@@ -408,7 +409,7 @@ end
 local parse_assignment
 parse_assignment = function(ast, ls, vlist, v, vk)
     local line = ls.line
-    if vk ~= "var" and vk ~= "self" and vk ~= "field" and vk ~= "index" then
+    if vk ~= Kind.Var and vk ~= Kind.Self and vk ~= Kind.Field and vk ~= Kind.Index then
         err_symbol(ls)
     end
     vlist[#vlist + 1] = v
@@ -417,7 +418,7 @@ parse_assignment = function(ast, ls, vlist, v, vk)
         return parse_assignment(ast, ls, vlist, n_var, n_vk)
     else
         lex_check(ls, "=")
-        if vk == "var" or vk == "self" then
+        if vk == Kind.Var or vk == Kind.Self then
             local identifier = ast:in_scope(v)
             if identifier ~= true then
                 err_syntax(ls, "undeclared identifier `" .. identifier .. "`")
@@ -429,7 +430,7 @@ parse_assignment = function(ast, ls, vlist, v, vk)
 end
 local parse_call_assign = function(ast, ls)
     local v, vk = expr_primary(ast, ls)
-    if vk == "call" then
+    if vk == Kind.Call then
         return ast:new_statement_expr(v, ls.line)
     else
         local vlist = {}
