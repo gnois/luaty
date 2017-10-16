@@ -1,3 +1,6 @@
+-- determine forward or back slash
+local slash = package.config:sub(1,1)
+
 -- ansi colors
 local color = {
     reset     = "\27[0m"
@@ -50,9 +53,49 @@ function show_error(result)
 end
 
 
+-- Window to support ANSI color
+
+if slash == '\\' then
+	local bit = require("bit")
+	local ffi = require("ffi")
+	local kernel32 = ffi.load("kernel32")
+
+	ffi.cdef([[
+		typedef long BOOL;
+		typedef void* HANDLE;
+		typedef uint32_t DWORD;
+		typedef DWORD* LPDWORD;
+		static const int STD_OUTPUT_HANDLE                  = ((DWORD)-11);
+		static const int ENABLE_VIRTUAL_TERMINAL_PROCESSING = ((DWORD)4);
+		HANDLE GetStdHandle(DWORD nStdHandle);
+		BOOL GetConsoleMode(HANDLE hConsoleHandle, LPDWORD lpMode);
+		BOOL SetConsoleMode(HANDLE hConsoleHandle, DWORD dwMode);
+		DWORD GetLastError(void);
+	]])
+
+	function enable_VT()
+		local handle = kernel32.GetStdHandle(kernel32.STD_OUTPUT_HANDLE)
+		local lpMode = ffi.new("DWORD[1]")
+		local res = kernel32.GetConsoleMode(handle, lpMode)
+		if res ~= 0 then
+			local mode = bit.bor(lpMode[0], kernel32.ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+			local res = kernel32.SetConsoleMode(handle, mode)
+			if res ~= 0 then
+				return true
+			end
+		end
+		return false
+	end
+	if not enable_VT() then
+		print('Unable to use ANSI colors, error ', GetLastError())
+	else
+		io.stderr:write(color.magenta, "Using ANSI colors\n", color.reset)
+	end
+end
+
+
 return {
-    -- determine forward or back slash
-    slash = package.config:sub(1,1)
+    slash = slash
     , color = color
     , usage = usage
     , scan = scan
