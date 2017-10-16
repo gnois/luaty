@@ -2,10 +2,10 @@
 -- Generated from chars.lt
 --
 
+local bit = require("bit")
 local ffi = require("ffi")
 local int64 = ffi.typeof("int64_t")
 local uint64 = ffi.typeof("uint64_t")
-local complex = ffi.typeof("complex")
 local ASCII_0, ASCII_9 = 48, 57
 local ASCII_a, ASCII_f, ASCII_z = 97, 102, 122
 local ASCII_A, ASCII_Z = 65, 90

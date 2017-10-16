@@ -2,9 +2,12 @@
 -- Generated from lex.lt
 --
 
+local bit = require("bit")
+local ffi = require("ffi")
 local chars = require("lt.chars")
 local stack = require("lt.stack")
 local Keyword = require("lt.reserved")
+local complex = ffi.typeof("complex")
 local is = chars.is
 local build = chars.build
 local END_OF_STREAM = -1
@@ -417,7 +420,7 @@ return function(read)
                     return "TK_name", s
                 elseif ch == "@" then
                     nextchar()
-                    return "TK_name", "self"
+                    return "TK_name", "@"
                 elseif ch == "[" then
                     local sep = skip_sep()
                     if sep >= 0 then
@@ -516,13 +519,13 @@ return function(read)
         end
         return state.token, state.value
     end
-    local next = function()
+    local preview = function()
         if lookahead.token == "TK_eof" then
             lookahead.token, lookahead.value = lex()
         end
         return lookahead.token, lookahead.value
     end
-    local lexer = setmetatable(state, {__index = {tostr = token2str, astext = token2text, step = step, next = next, error = parse_error, warnings = warnings}})
+    local lexer = setmetatable(state, {__index = {tostr = token2str, astext = token2text, step = step, next = preview, error = parse_error, warnings = warnings}})
     nextchar()
     if ch == "\xef" and n >= 2 and char(0) == "\xbb" and char(1) == "\xbf" then
         n = n - 2

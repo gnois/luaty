@@ -106,8 +106,11 @@ local parse_body, parse_args, parse_block, parse_opt_chunk
 local var_name = function(ast, ls)
     local name = lex_str(ls)
     local vk = Kind.Var
-    if name == "self" or name == "@" then
+    if name == "@" then
+        name = "self"
         vk = Kind.Self
+    elseif scope.declared(name) == 0 then
+        err_syntax(ls, "undeclared identifier `" .. name .. "`")
     end
     return ast:identifier(name), vk
 end
@@ -190,16 +193,14 @@ local expr_function = function(ast, ls)
     if ls.token == "\\" then
         ls.step()
     end
-    local curry, args, body = parse_body(ast, ls, line)
-    local lambda = ast:expr_function(args, body)
+    local curry, args, body, varargs = parse_body(ast, ls, line)
+    local lambda = ast:expr_function(args, body, varargs)
     if curry then
-        curry = ast:identifier("curry")
-        local identifier = ast:in_scope(curry)
-        if identifier ~= true then
-            err_syntax(ls, "`" .. identifier .. "()` is required for `~>`")
+        if scope.declared("curry") == 0 then
+            err_syntax(ls, "require('lib.curry') is needed to use `~>`")
         end
         local cargs = {ast:literal(#args), lambda}
-        return ast:expr_function_call(curry, cargs, line)
+        return ast:expr_function_call(ast:identifier("curry"), cargs, line)
     end
     return lambda
 end
@@ -302,8 +303,8 @@ expr_primary = function(ast, ls)
                     local nm = "_0"
                     local obj = ast:identifier(nm)
                     table.insert(args, 1, obj)
-                    local body = {ast:local_decl({ast:var_declare(nm)}, {val}, line), ast:return_stmt({ast:expr_function_call(ast:expr_index(obj, key), args, line)}, line)}
-                    local lambda = ast:expr_function({}, body, {varargs = false})
+                    local body = {ast:local_decl({obj}, {val}, line), ast:return_stmt({ast:expr_function_call(ast:expr_index(obj, key), args, line)}, line)}
+                    local lambda = ast:expr_function({}, body, false)
                     vk, v = Kind.Call, ast:expr_function_call(lambda, {}, line)
                 end
             else
@@ -338,17 +339,20 @@ local parse_for_num = function(ast, ls, varname, line)
         step = ast:literal(1)
     end
     scope.enter_block(ast.scope)
-    local v = ast:var_declare(varname)
+    local v = ast:identifier(varname)
+    scope.declare(varname)
     local body = parse_block(ast, ls, line, "TK_for")
     scope.leave_block(ast.scope)
     return ast:for_stmt(v, init, last, step, body, line, ls.line)
 end
 local parse_for_iter = function(ast, ls, indexname)
     scope.enter_block(ast.scope)
-    local vars = {ast:var_declare(indexname)}
+    local vars = {ast:identifier(indexname)}
+    scope.declare(indexname)
     while lex_opt(ls, ",") do
         indexname = lex_str(ls)
-        vars[#vars + 1] = ast:var_declare(indexname)
+        vars[#vars + 1] = ast:identifier(indexname)
+        scope.declare(indexname)
     end
     lex_check(ls, "TK_in")
     local line = ls.line
@@ -380,7 +384,7 @@ parse_args = function(ast, ls)
     end
     local dented = false
     local self1, vk = false
-    local args, n = {}, 0
+    local args, n, _ = {}, 0
     while ls.token ~= ")" do
         dented = lex_opt_dent(ls, dented)
         if not dented and ls.token == "TK_dedent" then
@@ -418,12 +422,6 @@ parse_assignment = function(ast, ls, vlist, v, vk)
         return parse_assignment(ast, ls, vlist, n_var, n_vk)
     else
         lex_check(ls, "=")
-        if vk == Kind.Var or vk == Kind.Self then
-            local identifier = ast:in_scope(v)
-            if identifier ~= true then
-                err_syntax(ls, "undeclared identifier `" .. identifier .. "`")
-            end
-        end
         local exps = expr_list(ast, ls, #vlist)
         return ast:assignment_expr(vlist, exps, line)
     end
@@ -442,8 +440,21 @@ local parse_var = function(ast, ls)
     local lhs = {}
     repeat
         local name = lex_str(ls)
-        local v = ast:var_declare(name)
-        lhs[#lhs + 1] = v
+        if name == "@" then
+            name = "self"
+        end
+        local dec = scope.declared(name)
+        if dec ~= 0 then
+            local which
+            if dec == -1 then
+                which = "global"
+            else
+                which = "previous"
+            end
+            err_syntax(ls, "shadowing " .. which .. " variable `" .. name .. "`")
+        end
+        scope.declare(name)
+        lhs[#lhs + 1] = ast:identifier(name)
     until not lex_opt(ls, ",")
     local rhs
     if lex_opt(ls, "=") then
@@ -615,7 +626,11 @@ local parse_params = function(ast, ls)
         repeat
             if ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
                 local name = lex_str(ls)
-                args[#args + 1] = ast:var_declare(name)
+                if name == "@" then
+                    name = "self"
+                end
+                scope.declare(name)
+                args[#args + 1] = ast:identifier(name)
             elseif ls.token == "..." then
                 ls.step()
                 ast.scope.varargs = true

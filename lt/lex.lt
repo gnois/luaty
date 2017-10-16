@@ -1,7 +1,10 @@
+var bit = require("bit")
+var ffi = require("ffi")
 var chars = require("lt.chars")
 var stack = require("lt.stack")
 var Keyword = require("lt.reserved")
 
+var complex = ffi.typeof('complex')
 var is = chars.is
 var build = chars.build
 
@@ -443,7 +446,7 @@ return \read ->
 					return 'TK_name', s
 				else if ch == '@'
 					nextchar()
-					return 'TK_name', 'self'
+					return 'TK_name', '@'
 				else if ch == '['
 					var sep = skip_sep()
 					if sep >= 0
@@ -528,7 +531,7 @@ return \read ->
 			lookahead.token = 'TK_eof'
 		return state.token, state.value
 
-	var next = ->
+	var preview = ->
 		if lookahead.token == 'TK_eof'
 			lookahead.token, lookahead.value = lex()
 		return lookahead.token, lookahead.value
@@ -538,7 +541,7 @@ return \read ->
 		tostr = token2str
 		, astext = token2text
 		, step = step
-		, next = next
+		, next = preview
 		, error = parse_error
 		, warnings = warnings
 	}})

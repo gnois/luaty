@@ -32,10 +32,10 @@ end
 AST.literal = function(ast, val, line)
     return build("Literal", {value = val, line = line})
 end
-AST.numberliteral = function(ast, val)
+AST.numberliteral = function(ast, val, line)
     return build("NumberLiteral", {value = val, line = line})
 end
-AST.longstrliteral = function(ast, txt)
+AST.longstrliteral = function(ast, txt, line)
     return build("LongStringLiteral", {text = txt, line = line})
 end
 AST.expr_vararg = function(ast)
@@ -120,33 +120,6 @@ AST.for_iter_stmt = function(ast, vars, exps, body, line, lastline)
 end
 AST.goto_stmt = function(ast, name, line)
     return build("GotoStatement", {label = name, line = line})
-end
-AST.var_declare = function(ast, name, line)
-    local id = ident(name, line)
-    ast.scope.vars[name] = true
-    return id
-end
-AST.in_scope = function(ast, v)
-    if v.name then
-        local scope = ast.scope
-        while not scope.vars[v.name] do
-            scope = scope.parent
-            if not scope then
-                return v.name
-            end
-        end
-        return true
-    end
-    return v.name
-end
-AST.overwritten = function(ast, v)
-    local scope = ast.scope
-    repeat
-        if scope.vars[v] then
-            return v
-        end
-        scope = scope.parent
-    until not scope
 end
 local same
 same = function(a, b)

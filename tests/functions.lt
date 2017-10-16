@@ -24,7 +24,7 @@ arg = 6
 fn()
 assert(arg == 6)
 
-
+var g, h
 -- immediately invoked function in table
 var tbl = {8, 4
 ,   7, 

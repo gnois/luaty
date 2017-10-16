@@ -1,3 +1,5 @@
+var bit = require("bit")
+
 -- Priorities for each binary operator.
 -- (left priority) * 256 + (right priority)
 -- modulus is your friend

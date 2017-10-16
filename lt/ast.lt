@@ -36,11 +36,11 @@ AST.literal = \ast, val, line ->
 	return build("Literal", { value = val, line = line })
 
 
-AST.numberliteral = \ast, val ->
+AST.numberliteral = \ast, val, line ->
 	return build("NumberLiteral", { value = val, line = line })
 
 
-AST.longstrliteral = \ast, txt ->
+AST.longstrliteral = \ast, txt, line ->
 	return build("LongStringLiteral", { text = txt, line = line })
 
 
@@ -153,35 +153,6 @@ AST.for_iter_stmt = \ast, vars, exps, body, line, lastline ->
 AST.goto_stmt = \ast, name, line ->
 	return build("GotoStatement", { label = name, line = line })
 
-
-
-AST.var_declare = \ast, name, line ->
-	var id = ident(name, line)
-	ast.scope.vars[name] = true
-	return id
-
-
-
----- lint checks --------------------------------------
-AST.in_scope = \ast, v ->
-	if v.name
-		var scope = ast.scope
-		while not scope.vars[v.name]
-			scope = scope.parent
-			if not scope
-				return v.name
-		return true
-	return v.name
-
-
--- shadowing var at parent scope is normal, but we are paranoid
-AST.overwritten = \ast, v ->
-	var scope = ast.scope
-	repeat
-		if scope.vars[v]
-			return v
-		scope = scope.parent
-	until not scope
 
 
 var same

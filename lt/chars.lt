@@ -1,7 +1,7 @@
+var bit = require("bit")
 var ffi = require("ffi")
 var int64 = ffi.typeof('int64_t')
 var uint64 = ffi.typeof('uint64_t')
-var complex = ffi.typeof('complex')
 
 var ASCII_0, ASCII_9 = 48, 57
 var ASCII_a, ASCII_f, ASCII_z = 97, 102, 122

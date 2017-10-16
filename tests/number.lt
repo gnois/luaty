@@ -16,7 +16,7 @@ var xe = 2.35e-6
 var ie = 35e-6
 var kk = 23455ULL
 --  FIX ME!!
---var z = 4i
+var z = 4i
 var h = 0x456354
 var hf = 0x456354p-06
 print(o, xe, ie, kk, z, h, hf)
@@ -31,11 +31,11 @@ print(0xA34CD34FF09ull)
 
 
 var bar = \a->
-    var x = 1/0
-    var y = 0/1
-    var w = a/0
-    var z = 0/a
-    return x, y, w, z
+    var p = 1/0
+    var q = 0/1
+    var r = a/0
+    var s = 0/a
+    return p, q, r, s
 
 assert(inc.fmt(4, bar(7)) == "inf 0 inf 0")
 

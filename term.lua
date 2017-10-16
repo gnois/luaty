@@ -53,8 +53,7 @@ function show_error(result)
 end
 
 
--- Window to support ANSI color
-
+-- Window to support ANSI color, may not work on all Windows version
 if slash == '\\' then
 	local bit = require("bit")
 	local ffi = require("ffi")
@@ -87,9 +86,10 @@ if slash == '\\' then
 		return false
 	end
 	if not enable_VT() then
-		print('Unable to use ANSI colors, error ', GetLastError())
+		print('Possibly no ANSI colors support, error', kernel32.GetLastError())
 	else
-		io.stderr:write(color.magenta, "Using ANSI colors\n", color.reset)
+		-- success!
+		--io.stderr:write(color.magenta, "Using ANSI colors\n", color.reset)
 	end
 end
 

@@ -16,7 +16,7 @@ var DerivedClass = \base, derived->
 	var @ = BaseClass(base)
 	@.public = derived
 
-	-- overrride base foo()
+	-- override base foo()
 	var foo_ = @.foo
 	@.foo = ->
 		return private + @.public + foo_()

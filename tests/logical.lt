@@ -84,11 +84,3 @@ var nim = \x, y->
     return a
 
 print(nim(3, 7), nim(7, 3))
-
----
-var pi = 3.14
-
-if jit and jit.status 
-    print("JIT!")
-
-print(pi)
