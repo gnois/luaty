@@ -52,12 +52,13 @@ return \read ->
 		, token = 'TK_eof'
 		, value = nil
 	}
-	-- keeps all errors as {l(ine) = l, c(ol) = c, msg = msg}
+	-- keeps all warnings as {l(ine) = l, c(ol) = c, msg = msg, s(everity) = s}
+	-- severity < 10 means code can still be generated
 	var warnings = {}
 
 	var warn = \w ->
 		for i, m in ipairs(warnings)
-			if w.l == m.l -- and w.c == m.c and w.msg == m.msg
+			if w.l == m.l and w.s < m.s -- and w.c == m.c and w.msg == m.msg
 				return  -- skip same error
 			if w.l < m.l or (w.l == m.l and w.c < m.c)
 				-- insert
@@ -72,7 +73,7 @@ return \read ->
 			if token == 'TK_name' or token == 'TK_string' or token == 'TK_number'
 				var tok = table.concat(buff)
 				-- replace % with %%, so as not to confuse string.format() later
-				return (string.gsub(tok, "%%.", \p -> return "%" .. p ))
+				return (string.gsub(tok, "%%.", \pc -> return "%" .. pc))
 			return token2text(token)
 
 
@@ -90,14 +91,16 @@ return \read ->
 			msg = string.format(em, ...)
 			, l = state.line
 			, c = pos
+			, s = 11
 		})
 
 
-	var parse_error = \state, em, ... ->
+	var parse_error = \st, severe, em, ... ->
 		warn({
 			msg = string.format(em, ...)
-			, l = state.line
-			, c = state.prevpos
+			, l = st.line
+			, c = st.prevpos
+			, s = severe
 		})
 
 
@@ -121,15 +124,16 @@ return \read ->
 		ch = c
 		return c
 
-	var char = \n ->
-		var k = p + n
+	var char = \m ->
+		var k = p + m
 		return string.sub(data, k, k)
 
+	--[[
 	var skip = \len ->
 		n = n - len
 		p = p + len
-
-
+	]]
+	
 	var add_buffer = \c ->
 		bi = bi + 1
 		buff[bi] = c

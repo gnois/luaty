@@ -25,17 +25,17 @@ print(foo4(x, y), foo4(y, x))
 
 ---
 
-var foo = \x, y ->
-    if x < y and x == y 
-        return x
+var foo = \a, b ->
+    if a < b and a == b 
+        return a
     else
-        return y
+        return b
     
-var boo = \x, y->
-    if x < y or x == y 
-        return x
+var boo = \a, b->
+    if a < b or a == b 
+        return a
     else
-        return y
+        return b
     
 var p, q = 3, 7
 print(foo(p, q), foo(q, p))
@@ -79,8 +79,8 @@ var c, d = 7, 3
 print(las(c, d), las(d, c))
 
 ---
-var nim = \x, y->
-    var a = (x < y) and (x*x < y*y)
-    return a
+var nim = \a, b->
+    var hh = (a < b) and (a*a < b*b)
+    return hh
 
 print(nim(3, 7), nim(7, 3))

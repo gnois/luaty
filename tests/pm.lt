@@ -7,7 +7,7 @@ var f = \s, p->
 
 
 var f1 = \s, p->
-  p = string.gsub(p, "%%([0-9])", \s-> return "%" .. (s+1))
+  p = string.gsub(p, "%%([0-9])", \k-> return "%" .. (k+1))
   p = string.gsub(p, "^(^?)", "%1()", 1)
   p = string.gsub(p, "($?)$", "()%1", 1)
   var t = {string.match(s, p)}
@@ -144,7 +144,7 @@ do
   assert(_G.a=="roberto" and _G.roberto=="a")
 
 
-var ff = \a,b-> return string.gsub(a,'.',b)
+var ff = \m,n-> return string.gsub(m,'.',n)
 assert(string.gsub("trocar tudo em |teste|b| é |beleza|al|", "|([^|]*)|([^|]*)|", ff) == "trocar tudo em bbbbb é alalalalalal")
 
 var dostring = \s-> return loadstring(s)() or ""
@@ -157,15 +157,15 @@ assert(x == ' assim vai para ALO')
 
 t = {}
 var s = 'a alo jose  joao'
-var r = string.gsub(s, '()(%w+)()', \a,w,b ->
-      assert(string.len(w) == b-a)
-      t[a] = b-a
+var r = string.gsub(s, '()(%w+)()', \aa,w,bb ->
+      assert(string.len(w) == bb-aa)
+      t[aa] = bb-aa
 )
 assert(s == r and t[1] == 1 and t[3] == 3 and t[7] == 4 and t[13] == 4)
 
 
-var isbalanced = \s ->
-  return string.find(string.gsub(s, "%b()", ""), "[()]") == nil
+var isbalanced = \z ->
+  return string.find(string.gsub(z, "%b()", ""), "[()]") == nil
 
 
 assert(isbalanced("(9 ((8))(\0) 7) \0\0 a b ()(c)() a"))
@@ -210,8 +210,8 @@ assert(string.find(a, '^a-.?$'))
 
 -- deep nest of gsubs
 var rev
-rev = \s->
-  return string.gsub(s, "(.)(.+)", \c,s1 -> return rev(s1)..c)
+rev = \z->
+  return string.gsub(z, "(.)(.+)", \cc,s1 -> return rev(s1)..cc)
 
 
 x = string.rep('012345', 10)
@@ -227,7 +227,7 @@ assert(string.gsub("alo alo", "((.)(.?))", {al="AA", o=false}) == "AAo AAo")
 assert(string.gsub("alo alo", "().", {2,5,6}) == "256 alo")
 
 t = {}
-setmetatable(t, {__index = \t,s -> return string.upper(s)})
+setmetatable(t, {__index = \tt,ss -> return string.upper(ss)})
 assert(string.gsub("a alo b hi", "%w%w+", t) == "a ALO b HI")
 
 
@@ -278,8 +278,8 @@ var k = string.match(" alo aalo allo", "%f[%S](.-%f[%s].-%f[%S])")
 assert(k == 'alo ')
 
 a = {1, 5, 9, 14, 17,}
-for k in string.gmatch("alo alo th02 is 1hat", "()%f[%w%d]")
-  assert(table.remove(a, 1) == k)
+for kk in string.gmatch("alo alo th02 is 1hat", "()%f[%w%d]")
+  assert(table.remove(a, 1) == kk)
 
 assert(table.getn(a) == 0)
 

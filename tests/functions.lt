@@ -19,7 +19,7 @@ assert(t.bar(4) == 5)
 
 -- empty function
 var arg
-var fn = \arg->
+var fn = \args ->
 arg = 6
 fn()
 assert(arg == 6)
@@ -28,7 +28,7 @@ var g, h
 -- immediately invoked function in table
 var tbl = {8, 4
 ,   7, 
-    g, h, (\a, b-> return a, b)('a', 'b'), 
+    g, h, (\p, q-> return p, q)('a', 'b'), 
 3}
 eq(7, tbl, {8, 4, 7, nil, nil, 'a', 3})
 
@@ -45,7 +45,7 @@ var fact
 
 -- immediately invoked one lined function
 var foo
-(\x -> if x == 1 foo = \x-> return x, x*x else foo = \x-> return x)(1)
+(\x -> if x == 1 foo = \y-> return y, y*y else foo = \y-> return y)(1)
 
 eq(2, {3, 9}, {foo(3)})
 
@@ -69,7 +69,7 @@ eq(3, {pcall(\x-> return x;, 10)}, {true, 10, nil})
 
 
 -- function returning function returning function
-var rr = \b -> return -> return -> return not b, -> return b
+var rr = \v -> return -> return -> return not v, -> return v
 assert(rr(true)()() == false)
 var _, r = rr(false)()()
 assert(r() == false)

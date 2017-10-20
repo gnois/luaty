@@ -4,13 +4,10 @@ var top = ->
 	return stack[#stack]
 
 var push = \input ->
-	stack[#stack + 1] = input
+	table.insert(stack, input)
 
 var pop = ->
-	if #stack > 0
-		var out = top
-		stack[#stack] = nil
-		return top
+	return table.remove(stack)
 
 return {
 	top = top

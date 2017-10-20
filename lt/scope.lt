@@ -42,62 +42,81 @@ var builtins = {
 }
 
 
--- variable stacks during parse
-var vstack = {}
-var vtop = 0
-
-var enter_block = \f, isloop ->
-	f.block = {
-		prev = f.block    -- link to outer scope
-		, vstart = vtop   -- points to the vstack index when entering block
-		, isloop = isloop -- scope is a (breakable) loop
-	}
-
-var leave_block = \f ->
-	-- pop the vstack
-	vtop = f.block.vstart
-	assert(vtop >= 0)
-	f.block = f.block.prev
-
-
--- pf is enclosing function
-var begin_func = \pf ->
-	var f = { parent = pf }
-	enter_block(f, false)
-	return f
-
-
-var end_func = \f ->
-	leave_block(f)
-	return f.parent
-
-
-
-var declare = \name, type ->
-	vtop = vtop + 1
-	vstack[vtop] = { name = name, type = type }
-	return vtop
-
-
-var declared = \name ->
-	if builtins[name]
-		return -1
-	for i = vtop, 1, -1
-		if vstack[i].name == name
-			return 1
-	return 0
-
-
-
-return {
-
-	enter_block = enter_block
-	, leave_block = leave_block
-	
-	, begin_func = begin_func
-	, end_func = end_func
-
-	, declare = declare
-	, declared = declared
+var unused = {
+	_ = true
+	, __ = true
+	, ___ = true
 }
+
+return \err ->
+
+	-- variable stacks during parse
+	var vstack = {}
+	var vtop = 1
+
+	var enter_block = \f, isloop ->
+		f.block = {
+			prev = f.block    -- link to outer scope
+			, vstart = vtop   -- points to the vstack index when entering block
+			, isloop = isloop -- scope is a (breakable) loop
+		}
+
+	var leave_block = \f ->
+		var vstart = f.block.vstart
+		for n = vstart, vtop - 1
+			if not unused[vstack[n].name] and not vstack[n].used
+				err("unused variable `" .. vstack[n].name .. "` declared on line " .. vstack[n].line)
+		-- pop the vstack
+		vtop = vstart
+		assert(vtop >= 1)
+		f.block = f.block.prev
+		
+
+	-- pf is enclosing function
+	var begin_func = \pf ->
+		var f = { parent = pf, block = nil }
+		enter_block(f, false)
+		return f
+
+
+	var end_func = \f ->
+		leave_block(f)
+		return f.parent
+
+
+	var declare = \name, vtype, line ->
+		vstack[vtop] = { name = name, type = vtype, used = false, line = line }
+		vtop = vtop + 1
+		return vtop
+
+
+	var declare_label = \name, line ->
+		vstack[vtop] = { label = name, used = false, line = line }
+		vtop = vtop + 1
+		return vtop
+
+
+	var declared = \name ->
+		for i = vtop - 1, 1, -1
+			if vstack[i].name == name
+				vstack[i].used = true
+				return 1
+		if builtins[name]
+			return -1
+		return 0
+
+
+
+	return {
+
+		enter_block = enter_block
+		, leave_block = leave_block
+		
+		, begin_func = begin_func
+		, end_func = end_func
+
+		, declared = declared
+		, declare = declare
+		, declare_label = declare_label
+	}
 

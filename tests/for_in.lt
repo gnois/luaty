@@ -18,7 +18,7 @@ var squares_iter= \ ls, i ->
 
 var foo= \ ls -> 
 	var s, ssq = 0, 0
-	for i, v, vsq in (\ ls ->return squares_iter, ls, 0)(ls)
+	for i, v, vsq in (\ l ->return squares_iter, l, 0)(ls)
 		s = s + v
 		ssq = ssq + vsq
 	

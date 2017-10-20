@@ -60,16 +60,16 @@ for k, v in pairs(files) do
     if #v > 0 and string.sub(v, -string.len('.lt'))=='.lt' then
         print('\n' .. v .. ':')
         filename = folder .. slash .. v
-        local ok, result = compile.file(filename)
-        if not ok then
-            term.show_error(result)
+        local code, errs = compile.file(filename)
+        if not code then
+            term.show_error(errs)
             failed()
         end
         if run then
-            local fn = assert(loadstring(result))
+            local fn = assert(loadstring(code))
             fn()
         else
-            print(result)
+            print(code)
         end
     end
 end
@@ -84,7 +84,8 @@ for k, v in pairs(files) do
     if #v > 0 and string.sub(v, -string.len('.lt'))=='.lt' then
         print('\n' .. v .. ':')
         filename = folder .. slash .. v
-        if compile.file(filename) then
+        local code, errs = compile.file(filename)
+        if #errs == 0 then
             failed()
         end
     end

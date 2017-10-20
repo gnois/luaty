@@ -7,13 +7,9 @@ local top = function()
     return stack[#stack]
 end
 local push = function(input)
-    stack[#stack + 1] = input
+    table.insert(stack, input)
 end
 local pop = function()
-    if #stack > 0 then
-        local out = top
-        stack[#stack] = nil
-        return top
-    end
+    return table.remove(stack)
 end
 return {top = top, push = push, pop = pop}

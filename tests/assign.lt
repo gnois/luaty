@@ -2,9 +2,11 @@
 
 do
 	var a, b, c = \... -> return, 3, 8
+	assert(type(a) == 'function')
 	assert(b + c == 11)
 
 	var w, x, y = \... -> return, 30, 90
+	assert(type(w) == 'function')
 	assert(x + y == 120)
 
 	var j = \... -> return 4, 6, ...
@@ -17,12 +19,14 @@ do
 	var a, b, c = -> var d, e, f = 2, ->
 		return -> return d, e, f;, d, e, f
 	, 5;, 9, 4
+	assert(type(a) == 'function')
 	assert(b + c == 13)
 
 
 	var x, y, z = ->
 		return 4
 	, -> return 1,3;, 7
+	assert(type(x) == 'function')
 	assert(y() == 1)
 	assert(z == 7)
 
@@ -30,6 +34,7 @@ do
 do
 	var a, b, c = -> var d, e, f = 2, \... -> return -> return 7, 5
 	(-> return 9)()
+	assert(type(a) == 'function')
 	assert(b == nil)
 
 do

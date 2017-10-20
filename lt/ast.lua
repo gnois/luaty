@@ -10,45 +10,45 @@ local ident = function(name, line)
     return build("Identifier", {name = name, line = line})
 end
 local AST = {}
-AST.chunk = function(ast, body, chunkname, firstline, lastline)
+AST.chunk = function(body, chunkname, firstline, lastline)
     return build("Chunk", {body = body, chunkname = chunkname, firstline = firstline, lastline = lastline})
 end
-AST.expr_function = function(ast, args, body, vararg)
+AST.expr_function = function(args, body, vararg)
     return build("FunctionExpression", {body = body, params = args, vararg = vararg})
 end
-AST.local_decl = function(ast, lhs, rhs, line)
+AST.local_decl = function(lhs, rhs, line)
     return build("LocalDeclaration", {names = lhs, expressions = rhs, line = line})
 end
-AST.assignment_expr = function(ast, lhs, rhs, line)
+AST.assignment_expr = function(lhs, rhs, line)
     return build("AssignmentExpression", {left = lhs, right = rhs, line = line})
 end
-AST.expr_index = function(ast, v, index, line)
+AST.expr_index = function(v, index, line)
     return build("MemberExpression", {object = v, property = index, computed = true, line = line})
 end
-AST.expr_property = function(ast, v, prop, line)
+AST.expr_property = function(v, prop, line)
     local index = ident(prop, line)
     return build("MemberExpression", {object = v, property = index, computed = false, line = line})
 end
-AST.literal = function(ast, val, line)
+AST.literal = function(val, line)
     return build("Literal", {value = val, line = line})
 end
-AST.numberliteral = function(ast, val, line)
+AST.numberliteral = function(val, line)
     return build("NumberLiteral", {value = val, line = line})
 end
-AST.longstrliteral = function(ast, txt, line)
+AST.longstrliteral = function(txt, line)
     return build("LongStringLiteral", {text = txt, line = line})
 end
-AST.expr_vararg = function(ast)
+AST.expr_vararg = function()
     return build("Vararg", {})
 end
-AST.expr_brackets = function(ast, expr)
+AST.expr_brackets = function(expr)
     expr.bracketed = true
     return expr
 end
-AST.expr_table = function(ast, keyvals, line)
+AST.expr_table = function(keyvals, line)
     return build("Table", {keyvals = keyvals, line = line})
 end
-AST.expr_unop = function(ast, op, v, line)
+AST.expr_unop = function(op, v, line)
     return build("UnaryExpression", {operator = op, argument = v, line = line})
 end
 local concat_append = function(ts, node)
@@ -61,7 +61,7 @@ local concat_append = function(ts, node)
         ts[n + 1] = node
     end
 end
-AST.expr_binop = function(ast, op, expa, expb, line)
+AST.expr_binop = function(op, expa, expb, line)
     local binop_body = (op ~= ".." and {operator = op, left = expa, right = expb, line = line})
     if binop_body then
         if op == "and" or op == "or" then
@@ -76,49 +76,49 @@ AST.expr_binop = function(ast, op, expa, expb, line)
         return build("ConcatenateExpression", {terms = terms, line = expa.line})
     end
 end
-AST.identifier = function(ast, name, line)
+AST.identifier = function(name, line)
     return ident(name, line)
 end
-AST.expr_method_call = function(ast, v, key, args, line)
+AST.expr_method_call = function(v, key, args, line)
     local m = ident(key, line)
     return build("SendExpression", {receiver = v, method = m, arguments = args, line = line})
 end
-AST.expr_function_call = function(ast, v, args, line)
+AST.expr_function_call = function(v, args, line)
     return build("CallExpression", {callee = v, arguments = args, line = line})
 end
-AST.return_stmt = function(ast, exps, line)
+AST.return_stmt = function(exps, line)
     return build("ReturnStatement", {arguments = exps, line = line})
 end
-AST.break_stmt = function(ast, line)
+AST.break_stmt = function(line)
     return build("BreakStatement", {line = line})
 end
-AST.label_stmt = function(ast, name, line)
+AST.label_stmt = function(name, line)
     return build("LabelStatement", {label = name, line = line})
 end
-AST.new_statement_expr = function(ast, expr, line)
+AST.new_statement_expr = function(expr, line)
     return build("ExpressionStatement", {expression = expr, line = line})
 end
-AST.if_stmt = function(ast, tests, cons, else_branch, line)
+AST.if_stmt = function(tests, cons, else_branch, line)
     return build("IfStatement", {tests = tests, cons = cons, alternate = else_branch, line = line})
 end
-AST.do_stmt = function(ast, body, line, lastline)
+AST.do_stmt = function(body, line, lastline)
     return build("DoStatement", {body = body, line = line, lastline = lastline})
 end
-AST.while_stmt = function(ast, test, body, line, lastline)
+AST.while_stmt = function(test, body, line, lastline)
     return build("WhileStatement", {test = test, body = body, line = line, lastline = lastline})
 end
-AST.repeat_stmt = function(ast, test, body, line, lastline)
+AST.repeat_stmt = function(test, body, line, lastline)
     return build("RepeatStatement", {test = test, body = body, line = line, lastline = lastline})
 end
-AST.for_stmt = function(ast, variable, init, last, step, body, line, lastline)
+AST.for_stmt = function(variable, init, last, step, body, line, lastline)
     local for_init = build("ForInit", {id = variable, value = init, line = line})
     return build("ForStatement", {init = for_init, last = last, step = step, body = body, line = line, lastline = lastline})
 end
-AST.for_iter_stmt = function(ast, vars, exps, body, line, lastline)
+AST.for_iter_stmt = function(vars, exps, body, line, lastline)
     local names = build("ForNames", {names = vars, line = line})
     return build("ForInStatement", {namelist = names, explist = exps, body = body, line = line, lastline = lastline})
 end
-AST.goto_stmt = function(ast, name, line)
+AST.goto_stmt = function(name, line)
     return build("GotoStatement", {label = name, line = line})
 end
 local same
@@ -165,6 +165,4 @@ same = function(a, b)
     return false
 end
 AST.same = same
-return {New = function()
-    return setmetatable({}, {__index = AST})
-end}
+return AST

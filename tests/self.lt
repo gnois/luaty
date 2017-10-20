@@ -1,31 +1,30 @@
--- self is not keyword
+var se = {}
 
-var self = {}
-
-self.q = \@ ->
+se.q = \@ ->
 
 
-assert(self.q() == nil)
+assert(se.q() == nil)
 
-self.x = \@, line ->
+se.x = \@, line ->
 	var a = 1
 	var b = 2
 	return a + b
 
-assert(self.x() == 3)
+assert(se.x() == 3)
 
 var adds = \t, v ->
 	return (t[1] or 1) + v
 
-self[1] = 10
+se[1] = 10
 
 -- make sure normal function taking self still works
-self.emit = \@, val ->
+se.emit = \@, val ->
 	var a = adds(self, val)
 	return a
 
-assert(self.emit(self, 10) == 20)
-assert(self.emit({3}, 10) == 13)
+assert(se.emit(se, 10) == 20)
+assert(se.emit(@, 10) == 20)
+assert(se.emit({3}, 10) == 13)
 
 
 -- string method
@@ -67,3 +66,7 @@ print(ret_t()['h-a'](@, 10) == 20)
 
 var boo = { value = 7, compute= \self, i-> return self.value*i+1 }
 print(boo.compute(@, 3) + boo.compute(@, 7))
+
+
+-- self is not keyword
+var self = 8

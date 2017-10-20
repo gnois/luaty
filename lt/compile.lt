@@ -8,9 +8,13 @@ var generate = require('lt.generate')
 var compile = \reader, options ->
 	var lexer = lex(reader)
 	var tree = parse(lexer)
-	if #lexer.warnings == 0
-		return true, generate(tree)
-	return false, lexer.warnings
+	var out = true
+	for _, w in ipairs(lexer.warnings)
+		if w.s >= 10
+			out = nil
+	if out
+		out = generate(tree)
+	return out, lexer.warnings
 
 
 return {

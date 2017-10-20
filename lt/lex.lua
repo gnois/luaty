@@ -40,7 +40,7 @@ return function(read)
     local warnings = {}
     local warn = function(w)
         for i, m in ipairs(warnings) do
-            if w.l == m.l then
+            if w.l == m.l and w.s < m.s then
                 return 
             end
             if w.l < m.l or w.l == m.l and w.c < m.c then
@@ -54,8 +54,8 @@ return function(read)
         if token then
             if token == "TK_name" or token == "TK_string" or token == "TK_number" then
                 local tok = table.concat(buff)
-                return (string.gsub(tok, "%%.", function(p)
-                    return "%" .. p
+                return (string.gsub(tok, "%%.", function(pc)
+                    return "%" .. pc
                 end))
             end
             return token2text(token)
@@ -72,10 +72,10 @@ return function(read)
         else
             pos = state.pos - pos
         end
-        warn({msg = string.format(em, ...), l = state.line, c = pos})
+        warn({msg = string.format(em, ...), l = state.line, c = pos, s = 11})
     end
-    local parse_error = function(state, em, ...)
-        warn({msg = string.format(em, ...), l = state.line, c = state.prevpos})
+    local parse_error = function(st, severe, em, ...)
+        warn({msg = string.format(em, ...), l = st.line, c = st.prevpos, s = severe})
     end
     local popchar = function()
         local k = p
@@ -98,13 +98,9 @@ return function(read)
         ch = c
         return c
     end
-    local char = function(n)
-        local k = p + n
+    local char = function(m)
+        local k = p + m
         return string.sub(data, k, k)
-    end
-    local skip = function(len)
-        n = n - len
-        p = p + len
     end
     local add_buffer = function(c)
         bi = bi + 1

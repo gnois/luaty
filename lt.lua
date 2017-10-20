@@ -53,8 +53,9 @@ if not source and run then
         elseif #s == 0 then
             local str = table.concat(list, '\n')
             list = {}
-            local ok, code = compile.string(str)
-            if ok then
+            local code, errs = compile.string(str)
+            term.show_error(errs)
+            if code then
                 print(color.yellow .. code .. color.reset)
                 local fn, err = loadstring(code)
                 if err then -- Maybe it's an expression
@@ -68,8 +69,6 @@ if not source and run then
                 else
                     print(err)
                 end
-            else
-                term.show_error(code)
             end
         else
             list[#list + 1] = s
@@ -77,8 +76,10 @@ if not source and run then
     until false
 
 else
-    local ok, code = compile.file(source)
-    if ok then
+    local code, errs = compile.file(source)
+    --io.stderr:write(color.magenta, "Error compiling " .. source .. "\n", color.reset)
+    term.show_error(errs)
+    if code then
         if run then
             local fn = assert(loadstring(code))
             fn()
@@ -98,8 +99,5 @@ else
             f:write("--\n-- Generated from " .. basename .. "\n--\n\n")
             f:write(code)
         end
-    else
-        io.stderr:write(color.magenta, "Error compiling " .. source .. "\n", color.reset)
-        term.show_error(code)
     end
 end

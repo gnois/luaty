@@ -121,8 +121,8 @@ var html = {
 	["&"] = "&amp;"
 }
 	
-for k, v in pairs(html)
-	print(k .. ': ' .. v)
+for key, val in pairs(html)
+	print(key .. ': ' .. val)
    
 
 -- keyword as table keys

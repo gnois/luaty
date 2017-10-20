@@ -8,52 +8,52 @@ var ident = \name, line ->
 
 var AST = {}
 
-AST.chunk = \ast, body, chunkname, firstline, lastline ->
+AST.chunk = \body, chunkname, firstline, lastline ->
 	return build("Chunk", { body = body, chunkname = chunkname, firstline = firstline, lastline = lastline })
 
-AST.expr_function = \ast, args, body, vararg ->
+AST.expr_function = \args, body, vararg ->
 	return build("FunctionExpression", { body = body, params = args, vararg = vararg })
 
 
-AST.local_decl = \ast, lhs, rhs, line ->
+AST.local_decl = \lhs, rhs, line ->
 	return build("LocalDeclaration", { names = lhs, expressions = rhs, line = line })
 
 
-AST.assignment_expr = \ast, lhs, rhs, line ->
+AST.assignment_expr = \lhs, rhs, line ->
 	return build("AssignmentExpression", { left = lhs, right = rhs, line = line })
 
 
-AST.expr_index = \ast, v, index, line ->
+AST.expr_index = \v, index, line ->
 	return build("MemberExpression", { object = v, property = index, computed = true, line = line })
 
 
-AST.expr_property = \ast, v, prop, line ->
+AST.expr_property = \v, prop, line ->
 	var index = ident(prop, line)
 	return build("MemberExpression", { object = v, property = index, computed = false, line = line })
 
 
-AST.literal = \ast, val, line ->
+AST.literal = \val, line ->
 	return build("Literal", { value = val, line = line })
 
 
-AST.numberliteral = \ast, val, line ->
+AST.numberliteral = \val, line ->
 	return build("NumberLiteral", { value = val, line = line })
 
 
-AST.longstrliteral = \ast, txt, line ->
+AST.longstrliteral = \txt, line ->
 	return build("LongStringLiteral", { text = txt, line = line })
 
 
-AST.expr_vararg = \ast ->
+AST.expr_vararg = ->
 	return build("Vararg", {})
 
 
-AST.expr_brackets = \ast, expr ->
+AST.expr_brackets = \expr ->
 	expr.bracketed = true
 	return expr
 
 --[[
-AST.set_expr_last = \ast, expr ->
+AST.set_expr_last = \expr ->
 	if expr.bracketed
 		var k = expr.kind
 		if k == "CallExpression" or k == "SendExpression" or k == "Vararg"
@@ -63,11 +63,11 @@ AST.set_expr_last = \ast, expr ->
 		return expr
 ]]
 
-AST.expr_table = \ast, keyvals, line ->
+AST.expr_table = \keyvals, line ->
 	return build("Table", { keyvals = keyvals, line = line })
 
 
-AST.expr_unop = \ast, op, v, line ->
+AST.expr_unop = \op, v, line ->
 	return build("UnaryExpression", { operator = op, argument = v, line = line })
 
 
@@ -81,7 +81,7 @@ var concat_append = \ts, node ->
 	
 
 
-AST.expr_binop = \ast, op, expa, expb, line ->
+AST.expr_binop = \op, expa, expb, line ->
 	var binop_body = (op ~= '..' and { operator = op, left = expa, right = expb, line = line })
 	if binop_body
 		if op == 'and' or op == 'or'
@@ -96,61 +96,61 @@ AST.expr_binop = \ast, op, expa, expb, line ->
 	
 
 
-AST.identifier = \ast, name, line ->
+AST.identifier = \name, line ->
 	return ident(name, line)
 
 
-AST.expr_method_call = \ast, v, key, args, line ->
+AST.expr_method_call = \v, key, args, line ->
 	var m = ident(key, line)
 	return build("SendExpression", { receiver = v, method = m, arguments = args, line = line })
 
-AST.expr_function_call = \ast, v, args, line ->
+AST.expr_function_call = \v, args, line ->
 	return build("CallExpression", { callee = v, arguments = args, line = line })
 
 
-AST.return_stmt = \ast, exps, line ->
+AST.return_stmt = \exps, line ->
 	return build("ReturnStatement", { arguments = exps, line = line })
 
 
-AST.break_stmt = \ast, line ->
+AST.break_stmt = \line ->
 	return build("BreakStatement", { line = line })
 
 
-AST.label_stmt = \ast, name, line ->
+AST.label_stmt = \name, line ->
 	return build("LabelStatement", { label = name, line = line })
 
 
-AST.new_statement_expr = \ast, expr, line ->
+AST.new_statement_expr = \expr, line ->
 	return build("ExpressionStatement", { expression = expr, line = line })
 
 
-AST.if_stmt = \ast, tests, cons, else_branch, line ->
+AST.if_stmt = \tests, cons, else_branch, line ->
 	return build("IfStatement", { tests = tests, cons = cons, alternate = else_branch, line = line })
 
 
-AST.do_stmt = \ast, body, line, lastline ->
+AST.do_stmt = \body, line, lastline ->
 	return build("DoStatement", { body = body, line = line, lastline = lastline})
 
 
-AST.while_stmt = \ast, test, body, line, lastline ->
+AST.while_stmt = \test, body, line, lastline ->
 	return build("WhileStatement", { test = test, body = body, line = line, lastline = lastline })
 
 
-AST.repeat_stmt = \ast, test, body, line, lastline ->
+AST.repeat_stmt = \test, body, line, lastline ->
 	return build("RepeatStatement", { test = test, body = body, line = line, lastline = lastline })
 
 
-AST.for_stmt = \ast, variable, init, last, step, body, line, lastline ->
+AST.for_stmt = \variable, init, last, step, body, line, lastline ->
 	var for_init = build("ForInit", { id = variable, value = init, line = line })
 	return build("ForStatement", { init = for_init, last = last, step = step, body = body, line = line, lastline = lastline })
 
 
-AST.for_iter_stmt = \ast, vars, exps, body, line, lastline ->
+AST.for_iter_stmt = \vars, exps, body, line, lastline ->
 	var names = build("ForNames", { names = vars, line = line })
 	return build("ForInStatement", { namelist = names, explist = exps, body = body, line = line, lastline = lastline })
 
 
-AST.goto_stmt = \ast, name, line ->
+AST.goto_stmt = \name, line ->
 	return build("GotoStatement", { label = name, line = line })
 
 
@@ -197,8 +197,4 @@ same = \a, b ->
 
 AST.same = same
 
-return {
-	New = ->
-		return setmetatable({}, { __index = AST })
-}
-
+return AST
