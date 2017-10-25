@@ -2,7 +2,8 @@ var bit = require("bit")
 var ffi = require("ffi")
 var chars = require("lt.chars")
 var stack = require("lt.stack")
-var Keyword = require("lt.reserved")
+var reserved = require("lt.reserved")
+var Keyword = reserved.Keyword
 
 var complex = ffi.typeof('complex')
 var is = chars.is
@@ -58,8 +59,9 @@ return \read ->
 
 	var warn = \w ->
 		for i, m in ipairs(warnings)
+			-- skip errors at the same line with lower severity
 			if w.l == m.l and w.s < m.s -- and w.c == m.c and w.msg == m.msg
-				return  -- skip same error
+				return
 			if w.l < m.l or (w.l == m.l and w.c < m.c)
 				-- insert
 				table.insert(warnings, i, w)
@@ -443,8 +445,7 @@ return \read ->
 						nextchar()
 					until not is.alnum(ch)
 					var s = get_buffer(0, 0)
-					var reserved = Keyword[s]
-					if reserved
+					if Keyword[s]
 						return 'TK_' .. s
 				
 					return 'TK_name', s

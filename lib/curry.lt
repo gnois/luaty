@@ -1,5 +1,5 @@
 -- adapted from https://github.com/ramda/ramda
-return \len, f->
+return \length, fn->
     var curry
     curry = \len, parts, f->
         return \...->
@@ -17,4 +17,4 @@ return \len, f->
                 return f(unpack(comb))
             return \...->
                 return curry(len, comb, f)(...)
-    return curry(len, {}, f)
+    return curry(length, {}, fn)

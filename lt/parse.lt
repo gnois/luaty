@@ -1,9 +1,9 @@
 var ast = require("lt.ast")
+var operator = require("lt.operator")
+var reserved = require("lt.reserved")
 var scoping = require("lt.scope")
 var scope
-var operator = require("lt.operator")
-var Keyword = require("lt.reserved")
-
+var Keyword = reserved.Keyword
 var LJ_52 = false
 
 var EndOfChunk = { TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true }
@@ -116,11 +116,6 @@ var lex_opt_dent = \ls, dented ->
 var declare_var = \ls, name, vtype ->
 	if name == '@'
 		name = 'self'
-	var dec = scope.declared(name)
-	if dec ~= 0
-		var which = "previous"
-		if dec == -1 which = "global"
-		err_warn(ls, "shadowing " .. which .. " variable `" .. name .. "`")
 	scope.declare(name, vtype, ls.line)
 	return name
 
@@ -551,17 +546,22 @@ var parse_repeat = \fn, ls, line ->
 	return ast.repeat_stmt(cond, body, line, lastline)
 
 
-var parse_label
-parse_label = \fn, ls ->
+var parse_break = \fn, ls, line ->
+	ls.step()
+	return ast.break_stmt(line)
+
+
+var parse_label = \fn, ls, line ->
 	ls.step() -- Skip '::'
 	var name = lex_str(ls)
 	lex_check(ls, '::')
-	return ast.label_stmt(name, ls.line)
+	scope.dec_label(fn, name, line)
+	return ast.label_stmt(name, line)
 
 
-var parse_goto = \fn, ls ->
-	var line = ls.line
+var parse_goto = \fn, ls, line ->
 	var name = lex_str(ls)
+	scope.dec_goto(name, line)
 	return ast.goto_stmt(name, line)
 
 
@@ -596,15 +596,14 @@ parse_stmt = \fn, ls ->
 		stmt = parse_return(fn, ls, line)
 		return stmt, true -- Must be last
 	else if ls.token == 'TK_break'
-		ls.step()
-		stmt = ast.break_stmt(line)
+		stmt = parse_break(fn, ls, line)
 		return stmt, not LJ_52 -- Must be last in Lua 5.1
 	else if ls.token == '::'
-		stmt = parse_label(fn, ls)
+		stmt = parse_label(fn, ls, line)
 	else if ls.token == 'TK_goto'
 		if LJ_52 or ls.next() == 'TK_name'
 			ls.step()
-			stmt = parse_goto(fn, ls)
+			stmt = parse_goto(fn, ls, line)
 		-- else fall thru
 		
 	-- is TK_name, must be function call or assignment

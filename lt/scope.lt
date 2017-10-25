@@ -1,46 +1,5 @@
-var builtins = {
-	assert = true
-	, collectgarbage = true
-	, coroutine = true
-	, debug = true
-	, dofile = true
-	, error = true
-	, _G = true
-	, getfenv = true
-	, getmetatable = true
-	, io = true
-	, ipairs = true
-	, load = true
-	, loadfile = true
-	, loadstring = true
-	, math = true
-	, next = true
-	, os = true
-	, package = true
-	, pairs = true
-	, pcall = true
-	, print = true
-	, rawequal = true
-	, rawget = true
-	, rawlen = true
-	, rawset = true
-	, select = true
-	, setfenv = true
-	, setmetatable = true
-	, string = true
-	, table = true
-	, tonumber = true
-	, tostring = true
-	, type = true
-	, unpack = true
-	, _VERSION = true
-	, xpcall = true
-	, module = true
-	, require = true
-	-- LuaJIT
-	, jit = true
-}
-
+var reserved = require("lt.reserved")
+var Builtin = reserved.Builtin
 
 var unused = {
 	_ = true
@@ -55,17 +14,46 @@ return \err ->
 	var vtop = 1
 
 	var enter_block = \f, isloop ->
+		assert(f)
 		f.block = {
 			prev = f.block    -- link to outer scope
 			, vstart = vtop   -- points to the vstack index when entering block
 			, isloop = isloop -- scope is a (breakable) loop
 		}
 
+
 	var leave_block = \f ->
+		assert(f)
 		var vstart = f.block.vstart
+		
+		-- try match goto label
 		for n = vstart, vtop - 1
-			if not unused[vstack[n].name] and not vstack[n].used
-				err("unused variable `" .. vstack[n].name .. "` declared on line " .. vstack[n].line)
+			if vstack[n].goto
+				var g = vstack[n]
+				-- look for label up
+				for m = n - 1, vstart, -1
+					if vstack[m].label == g.goto
+						vstack[m].used = true
+						g.match = true
+						break
+				
+				-- look for adjacent label down
+				for m = n + 1, vtop - 1
+					if vstack[m].name
+						err("goto <" .. g.name .. "> jumps into the scope of variable " .. vstack[m].name .. " at line " .. vstack[m].line)
+					if vstack[m].label == g.goto
+						vstack[m].used = true
+						g.match = true
+						break
+		
+		for n = vstart, vtop - 1
+			var v = vstack[n]
+			if not v.used
+				if v.name and not unused[v.name]
+					err("unused variable `" .. v.name .. "` declared on line " .. v.line)
+				else if v.label
+					err("unused label <" .. v.label .. "> on line " .. v.line)
+			
 		-- pop the vstack
 		vtop = vstart
 		assert(vtop >= 1)
@@ -80,31 +68,61 @@ return \err ->
 
 
 	var end_func = \f ->
+		--[[var blk = f.block
+		while blk
+			for n = blk.vstart, vtop - 1
+			
+			blk = blk.prev
+	]]
 		leave_block(f)
 		return f.parent
 
 
+	var declared = \name ->
+		for i = vtop - 1, 1, -1
+			var v = vstack[i]
+			if v.name == name
+				v.used = true
+				return v.line
+		if Builtin[name]
+			return -1
+		return 0
+
+
 	var declare = \name, vtype, line ->
+		assert(name)
+		var ln = declared(name)
+		if ln ~= 0
+			var which = "previous"
+			if ln == -1
+				which = "global"
+			var msg = "shadowing " .. which .. " variable `" .. name .. "`"
+			if ln > 0
+				msg = msg .. " declared on line " .. ln
+			err(msg)
 		vstack[vtop] = { name = name, type = vtype, used = false, line = line }
 		vtop = vtop + 1
 		return vtop
 
 
-	var declare_label = \name, line ->
+	-- goto and label
+	var dec_label = \f, name, line ->
+		assert(f)
+		assert(name)
+		var vstart = f.block.vstart
+		for n = vstart, vtop - 1
+			if vstack[n].label == name
+				err("duplicate label <" .. name .. "> in the same scope on line " .. vstack[n].line .. " and " .. line)
+		
 		vstack[vtop] = { label = name, used = false, line = line }
 		vtop = vtop + 1
 		return vtop
-
-
-	var declared = \name ->
-		for i = vtop - 1, 1, -1
-			if vstack[i].name == name
-				vstack[i].used = true
-				return 1
-		if builtins[name]
-			return -1
-		return 0
-
+		
+	var dec_goto = \name, line ->
+		assert(name)
+		vstack[vtop] = { goto = name, match = false, line = line }
+		vtop = vtop + 1
+		return vtop
 
 
 	return {
@@ -117,6 +135,7 @@ return \err ->
 
 		, declared = declared
 		, declare = declare
-		, declare_label = declare_label
+		, dec_label = dec_label
+		, dec_goto = dec_goto
 	}
 

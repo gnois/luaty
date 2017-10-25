@@ -3,10 +3,11 @@
 --
 
 local ast = require("lt.ast")
+local operator = require("lt.operator")
+local reserved = require("lt.reserved")
 local scoping = require("lt.scope")
 local scope
-local operator = require("lt.operator")
-local Keyword = require("lt.reserved")
+local Keyword = reserved.Keyword
 local LJ_52 = false
 local EndOfChunk = {TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true}
 local EndOfFunction = {["}"] = true, [")"] = true, [";"] = true, [","] = true}
@@ -108,14 +109,6 @@ end
 local declare_var = function(ls, name, vtype)
     if name == "@" then
         name = "self"
-    end
-    local dec = scope.declared(name)
-    if dec ~= 0 then
-        local which = "previous"
-        if dec == -1 then
-            which = "global"
-        end
-        err_warn(ls, "shadowing " .. which .. " variable `" .. name .. "`")
     end
     scope.declare(name, vtype, ls.line)
     return name
@@ -521,16 +514,20 @@ local parse_repeat = function(fn, ls, line)
     scope.leave_block(fn)
     return ast.repeat_stmt(cond, body, line, lastline)
 end
-local parse_label
-parse_label = function(fn, ls)
+local parse_break = function(fn, ls, line)
+    ls.step()
+    return ast.break_stmt(line)
+end
+local parse_label = function(fn, ls, line)
     ls.step()
     local name = lex_str(ls)
     lex_check(ls, "::")
-    return ast.label_stmt(name, ls.line)
+    scope.dec_label(fn, name, line)
+    return ast.label_stmt(name, line)
 end
-local parse_goto = function(fn, ls)
-    local line = ls.line
+local parse_goto = function(fn, ls, line)
     local name = lex_str(ls)
+    scope.dec_goto(name, line)
     return ast.goto_stmt(name, line)
 end
 local parse_stmt
@@ -560,15 +557,14 @@ parse_stmt = function(fn, ls)
         stmt = parse_return(fn, ls, line)
         return stmt, true
     elseif ls.token == "TK_break" then
-        ls.step()
-        stmt = ast.break_stmt(line)
+        stmt = parse_break(fn, ls, line)
         return stmt, not LJ_52
     elseif ls.token == "::" then
-        stmt = parse_label(fn, ls)
+        stmt = parse_label(fn, ls, line)
     elseif ls.token == "TK_goto" then
         if LJ_52 or ls.next() == "TK_name" then
             ls.step()
-            stmt = parse_goto(fn, ls)
+            stmt = parse_goto(fn, ls, line)
         end
     end
     if not stmt then

@@ -1,43 +1,17 @@
 
-Luaty is another language with [off-side rule](https://en.wikipedia.org/wiki/Off-side_rule) that transcompiles into clean Lua.
-Its syntax is brief yet unambiguous, with a compiler that is relatively unforgiving.
-The compiler itself is written in Luaty and compiled into Lua.
-
-
-Why Luaty
----
-Because it's a shame there are [so few](https://github.com/jashkenas/coffeescript/wiki/list-of-languages-that-compile-to-js) Lua code generators, yet Lua is one of the [fastest](http://wren.io/performance.html) dynamic language available today.
-Luaty is just Lua with a syntactic skin that is likely more readable, shorter or safer.
+Luaty is Lua with [off-side rule](https://en.wikipedia.org/wiki/Off-side_rule) that transcompiles into clean Lua.
+It has shorter but unambiguous syntax, with a compiler that is relatively unforgiving.
 Its philosophy follows [*"There should be only one way to do it"*.](https://wiki.python.org/moin/TOOWTDI)
 
+Luaty stands for [Lua] with less [ty]ping. 
 
-Quick start
----
-
-Luaty only requires LuaJIT to run. With LuaJIT in your path, clone this repo, and cd into it.
-
-To execute a Luaty source file, use
-```
-luajit lt.lua /path/to/source.lt
-```
-
-To compile a Luaty *source.lt* file to *dest.lua*, use
-```
-luajit lt.lua -c /path/to/source.lt dest.lua
-```
-The output file is optional, and defaults to *source.lua*
-
-
-To run tests in the [tests folder](https://github.com/gnois/luaty/tree/master/tests), use
-```
-luajit run-test.lua
-```
+If you don't like to type `end`, `then`, `do`, and you prefer compile-time error to run-time error, then you'll probably like Luaty.
 
 
 Differences from Lua
 ---
 
-Aside from being indent based, most syntaxes of Lua are kept, so that if you know Lua, you already knew most of Luaty.
+Luaty has very few features. Aside from being indent based, most syntaxes of Lua are kept, so that if you know Lua, you already knew most of Luaty.
 
 Here goes the differences:
 
@@ -54,7 +28,7 @@ if not x
 
 ```
 
-- Consistency preferred over sugar, ironically
+- Consistency preferred over sugar
   * function definition is always a [lambda expression](https://www.lua.org/manual/5.1/manual.html#2.5.9) using  `->` or `\arg1, arg2, ... ->`
   * function call always require parenthesis
 
@@ -71,7 +45,7 @@ print('a')                          -- Ok, obviously
 ```
 
 - Explicit prefered over implicit
-  * colon `:` is not allowed in method definition or call. `self` or `@` has to be explicitly specified as the first lambda parameter
+  * colon `:` is not used. `@` specified as the first lambda parameter to mean `self`
 
 ```
 var obj = {
@@ -85,8 +59,8 @@ var obj = {
 var ret_o = -> return obj
 assert(ret_o()['long-name'](@, 10) == 20)   -- @ *just works*, better than `:`
 
-p(obj:foo(2))                               -- Error: ')' expected instead of ':'. This is valid in Lua
-assert(obj.foo(@, 2) == 6)                  -- Ok, specify @ explicitly. Compiles to obj:foo(2)
+p(obj:foo(2))                               -- Error: ')' expected instead of ':'
+assert(obj.foo(@, 2) == 6)                  -- Ok, compiles to obj:foo(2)
 
 ```
 
@@ -109,15 +83,42 @@ assert(z.if(z.goto)[2] == false)             -- Ditto
 
 
 
-Basic lint checks during compilation
+Quick start
 ---
 
-Although valid in Lua, Luaty compiler treats these as mistakes:
+The compiler itself is written in Luaty and compiled into Lua.
+It only requires LuaJIT to run. With LuaJIT in your path, clone this repo, and cd into it.
+
+To execute a Luaty source file, use
+```
+luajit lt.lua /path/to/source.lt
+```
+
+To compile a Luaty *source.lt* file to *dest.lua*, use
+```
+luajit lt.lua -c /path/to/source.lt dest.lua
+```
+The output file is optional, and defaults to *source.lua*
+
+
+To run tests in the [tests folder](https://github.com/gnois/luaty/tree/master/tests), use
+```
+luajit run-test.lua
+```
+
+
+
+Compilation
+---
+
+The compiler checks for the below when generating code.
+  * unused variables
   * assigning to undeclared (a.k.a global) variable
   * number of values on the right side of multiple assignment is more than the variables on the left side
   * shadowing variables in the parent or same scope
   * duplicate keys in a table
 
+For example:
 ```
 a = 1                     -- Error: undeclared identifier a
 
@@ -161,8 +162,8 @@ do                              -- Ok, multiple child statements are indented
 
 print((-> return 'a', 1)())     -- Ok, immediately invoked one lined lambda expression
 
-if x == nil for y = 1, 10 do until true else if x == 0 p(x) else if x p(x) else assert(not x)
-                                -- Ok, `do` is the sole children of `for`, which in turn is the sole children of `if`
+if x == nil for y = 1, 10 repeat until true else if x == 0 p(x) else if x p(x) else assert(not x)
+                -- Ok, `repeat` is the sole children of `for`, which in turn is the sole children of `if`
                                        
 
 
@@ -220,6 +221,7 @@ Todo
    a, b += 1, 3
    
    c, d ..= "la", "s"
+
 
 
 Acknowledgments

@@ -2,7 +2,7 @@
 -- Generated from curry.lt
 --
 
-return function(len, f)
+return function(length, fn)
     local curry
     curry = function(len, parts, f)
         return function(...)
@@ -26,5 +26,5 @@ return function(len, f)
             end
         end
     end
-    return curry(len, {}, f)
+    return curry(length, {}, fn)
 end

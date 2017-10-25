@@ -2,9 +2,10 @@
 -- Generated from generate.lt
 --
 
+local reserved = require("lt.reserved")
 local operator = require("lt.operator")
-local Keyword = require("lt.reserved")
 local chars = require("lt.chars")
+local Keyword = reserved.Keyword
 local strsub, format = string.sub, string.format
 local concat = table.concat
 local is = chars.is

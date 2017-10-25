@@ -6,7 +6,8 @@ local bit = require("bit")
 local ffi = require("ffi")
 local chars = require("lt.chars")
 local stack = require("lt.stack")
-local Keyword = require("lt.reserved")
+local reserved = require("lt.reserved")
+local Keyword = reserved.Keyword
 local complex = ffi.typeof("complex")
 local is = chars.is
 local build = chars.build
@@ -409,8 +410,7 @@ return function(read)
                         nextchar()
                     until not is.alnum(ch)
                     local s = get_buffer(0, 0)
-                    local reserved = Keyword[s]
-                    if reserved then
+                    if Keyword[s] then
                         return "TK_" .. s
                     end
                     return "TK_name", s
