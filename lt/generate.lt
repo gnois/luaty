@@ -1,6 +1,6 @@
-var reserved = require("lt.reserved")
-var operator = require("lt.operator")
-var chars = require("lt.chars")
+var reserved = require('lua.reserved')
+var operator = require('lua.operator')
+var chars = require('lua.chars')
 
 var Keyword = reserved.Keyword
 var strsub, format = string.sub, string.format

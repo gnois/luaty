@@ -2,7 +2,7 @@
 -- Generated from scope.lt
 --
 
-local reserved = require("lt.reserved")
+local reserved = require("lua.reserved")
 local Builtin = reserved.Builtin
 local unused = {_ = true, __ = true, ___ = true}
 return function(err)
@@ -98,6 +98,7 @@ return function(err)
         for n = vstart, vtop - 1 do
             if vstack[n].label == name then
                 err("duplicate label <" .. name .. "> in the same scope on line " .. vstack[n].line .. " and " .. line)
+                break
             end
         end
         vstack[vtop] = {label = name, used = false, line = line}

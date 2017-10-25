@@ -1,5 +1,5 @@
-var bit = require("bit")
-var ffi = require("ffi")
+var bit = require('bit')
+var ffi = require('ffi')
 var int64 = ffi.typeof('int64_t')
 var uint64 = ffi.typeof('uint64_t')
 

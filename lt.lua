@@ -1,5 +1,5 @@
 local term = require("term")
-local compile = require("lt.compile")
+local compile = require("lua.compile")
 local color = term.color
 
 function usage()
@@ -79,15 +79,16 @@ else
     local code, errs = compile.file(source)
     --io.stderr:write(color.magenta, "Error compiling " .. source .. "\n", color.reset)
     term.show_error(errs)
+    
+    local dest = paths[2] or string.gsub(paths[1], "%.lt", '.lua')
+    while dest == source do
+        dest = dest .. '.lua'
+    end
     if code then
         if run then
             local fn = assert(loadstring(code))
             fn()
         else
-            local dest = paths[2] or string.gsub(paths[1], "%.lt", '.lua')
-            while dest == source do
-                dest = dest .. '.lua'
-            end
             --print("Compiled " .. source .. " to " .. dest)
             local f, err = io.open(dest, 'wb')
             if not f then
@@ -98,6 +99,9 @@ else
             local basename = string.gsub(source, "(.*[/\\])(.*)", "%2")
             f:write("--\n-- Generated from " .. basename .. "\n--\n\n")
             f:write(code)
+            io.stderr:write(" >> " .. dest .. "\n")
         end
+    else
+        io.stderr:write(" Fail to generate " .. dest .. "\n")
     end
 end

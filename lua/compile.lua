@@ -2,10 +2,10 @@
 -- Generated from compile.lt
 --
 
-local read = require("lt.read")
-local lex = require("lt.lex")
-local parse = require("lt.parse")
-local generate = require("lt.generate")
+local read = require("lua.read")
+local lex = require("lua.lex")
+local parse = require("lua.parse")
+local generate = require("lua.generate")
 local compile = function(reader, options)
     local lexer = lex(reader)
     local tree = parse(lexer)

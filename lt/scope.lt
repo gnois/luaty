@@ -1,4 +1,4 @@
-var reserved = require("lt.reserved")
+var reserved = require('lua.reserved')
 var Builtin = reserved.Builtin
 
 var unused = {
@@ -113,6 +113,7 @@ return \err ->
 		for n = vstart, vtop - 1
 			if vstack[n].label == name
 				err("duplicate label <" .. name .. "> in the same scope on line " .. vstack[n].line .. " and " .. line)
+				break
 		
 		vstack[vtop] = { label = name, used = false, line = line }
 		vtop = vtop + 1

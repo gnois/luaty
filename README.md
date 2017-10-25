@@ -86,8 +86,9 @@ assert(z.if(z.goto)[2] == false)             -- Ditto
 Quick start
 ---
 
-The compiler itself is written in Luaty and compiled into Lua.
-It only requires LuaJIT to run. With LuaJIT in your path, clone this repo, and cd into it.
+The compiler itself is written in Luaty and compiled into Lua. It only requires LuaJIT to run. 
+
+With LuaJIT in your path, clone this repo, and cd into it.
 
 To execute a Luaty source file, use
 ```
@@ -108,10 +109,10 @@ luajit run-test.lua
 
 
 
-Compilation
+Linting
 ---
 
-The compiler checks for the below when generating code.
+Luaty has basic linting built in:
   * unused variables
   * assigning to undeclared (a.k.a global) variable
   * number of values on the right side of multiple assignment is more than the variables on the left side
@@ -208,19 +209,6 @@ assert(b == 7)                                  -- `;` used to disambiguate mult
 See the [tests folder](https://github.com/gnois/luaty/tree/master/tests) for more code examples.
 
 
-
-
-
-
-Todo
----
-* resolve ambiguous syntax (function call x new statement) since we are line sensitive
-* static type check
-* op assign with LHS and RHS count match
-   
-   a, b += 1, 3
-   
-   c, d ..= "la", "s"
 
 
 

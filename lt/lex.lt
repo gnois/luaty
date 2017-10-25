@@ -1,8 +1,8 @@
-var bit = require("bit")
-var ffi = require("ffi")
-var chars = require("lt.chars")
-var stack = require("lt.stack")
-var reserved = require("lt.reserved")
+var bit = require('bit')
+var ffi = require('ffi')
+var chars = require('lua.chars')
+var stack = require('lua.stack')
+var reserved = require('lua.reserved')
 var Keyword = reserved.Keyword
 
 var complex = ffi.typeof('complex')

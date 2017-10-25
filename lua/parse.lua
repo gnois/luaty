@@ -2,10 +2,10 @@
 -- Generated from parse.lt
 --
 
-local ast = require("lt.ast")
-local operator = require("lt.operator")
-local reserved = require("lt.reserved")
-local scoping = require("lt.scope")
+local ast = require("lua.st")
+local operator = require("lua.operator")
+local reserved = require("lua.reserved")
+local scoping = require("lua.scope")
 local scope
 local Keyword = reserved.Keyword
 local LJ_52 = false

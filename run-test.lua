@@ -1,5 +1,5 @@
 local term = require("term")
-local compile = require("lt.compile")
+local compile = require("lua.compile")
 
 local slash = term.slash
 local color = term.color

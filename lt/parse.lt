@@ -1,7 +1,7 @@
-var ast = require("lt.ast")
-var operator = require("lt.operator")
-var reserved = require("lt.reserved")
-var scoping = require("lt.scope")
+var ast = require('lua.st')
+var operator = require('lua.operator')
+var reserved = require('lua.reserved')
+var scoping = require('lua.scope')
 var scope
 var Keyword = reserved.Keyword
 var LJ_52 = false

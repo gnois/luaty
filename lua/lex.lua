@@ -4,9 +4,9 @@
 
 local bit = require("bit")
 local ffi = require("ffi")
-local chars = require("lt.chars")
-local stack = require("lt.stack")
-local reserved = require("lt.reserved")
+local chars = require("lua.chars")
+local stack = require("lua.stack")
+local reserved = require("lua.reserved")
 local Keyword = reserved.Keyword
 local complex = ffi.typeof("complex")
 local is = chars.is
