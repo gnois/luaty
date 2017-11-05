@@ -7,76 +7,14 @@ var unused = {
 	, ___ = true
 }
 
+
 return \err ->
 
 	-- variable stacks during parse
 	var vstack = {}
 	var vtop = 1
-
-	var enter_block = \f, isloop ->
-		assert(f)
-		f.block = {
-			prev = f.block    -- link to outer scope
-			, vstart = vtop   -- points to the vstack index when entering block
-			, isloop = isloop -- scope is a (breakable) loop
-		}
-
-
-	var leave_block = \f ->
-		assert(f)
-		var vstart = f.block.vstart
-		
-		-- try match goto label
-		for n = vstart, vtop - 1
-			if vstack[n].goto
-				var g = vstack[n]
-				-- look for label up
-				for m = n - 1, vstart, -1
-					if vstack[m].label == g.goto
-						vstack[m].used = true
-						g.match = true
-						break
-				
-				-- look for adjacent label down
-				for m = n + 1, vtop - 1
-					if vstack[m].name
-						err("goto <" .. g.name .. "> jumps into the scope of variable " .. vstack[m].name .. " at line " .. vstack[m].line)
-					if vstack[m].label == g.goto
-						vstack[m].used = true
-						g.match = true
-						break
-		
-		for n = vstart, vtop - 1
-			var v = vstack[n]
-			if not v.used
-				if v.name and not unused[v.name]
-					err("unused variable `" .. v.name .. "` declared on line " .. v.line)
-				else if v.label
-					err("unused label <" .. v.label .. "> on line " .. v.line)
-			
-		-- pop the vstack
-		vtop = vstart
-		assert(vtop >= 1)
-		f.block = f.block.prev
-		
-
-	-- pf is enclosing function
-	var begin_func = \pf ->
-		var f = { parent = pf, block = nil }
-		enter_block(f, false)
-		return f
-
-
-	var end_func = \f ->
-		--[[var blk = f.block
-		while blk
-			for n = blk.vstart, vtop - 1
-			
-			blk = blk.prev
-	]]
-		leave_block(f)
-		return f.parent
-
+	-- block pointer during parse
+	var bptr = nil
 
 	var declared = \name ->
 		for i = vtop - 1, 1, -1
@@ -88,8 +26,8 @@ return \err ->
 			return -1
 		return 0
 
-
-	var declare = \name, vtype, line ->
+	-- reports shadowing variable
+	var new_var = \name, vtype, line ->
 		assert(name)
 		var ln = declared(name)
 		if ln ~= 0
@@ -99,44 +37,165 @@ return \err ->
 			var msg = "shadowing " .. which .. " variable `" .. name .. "`"
 			if ln > 0
 				msg = msg .. " declared on line " .. ln
-			err(msg)
+			err(3, msg)
 		vstack[vtop] = { name = name, type = vtype, used = false, line = line }
 		vtop = vtop + 1
 		return vtop
 
 
+	var new_break = ->
+		-- report if not in loop
+
+
 	-- goto and label
-	var dec_label = \f, name, line ->
-		assert(f)
+	var new_label = \name, line ->
 		assert(name)
-		var vstart = f.block.vstart
-		for n = vstart, vtop - 1
-			if vstack[n].label == name
-				err("duplicate label <" .. name .. "> in the same scope on line " .. vstack[n].line .. " and " .. line)
-				break
+		if not bptr.golas
+			bptr.golas = {}
 		
-		vstack[vtop] = { label = name, used = false, line = line }
-		vtop = vtop + 1
-		return vtop
-		
-	var dec_goto = \name, line ->
+		-- report duplicate label in all scopes
+		var blk = bptr
+		while blk
+			if blk.golas
+				for _, gl in ipairs(blk.golas)
+					if gl.label == name
+						err(4, "duplicate label <" .. name .. "> in on line " .. gl.line .. " and " .. line)
+						break
+			blk = blk.outer
+
+		table.insert(bptr.golas, { label = name, used = false, line = line, vtop = vtop })
+	
+	
+	var new_goto = \name, line ->
 		assert(name)
-		vstack[vtop] = { goto = name, match = false, line = line }
-		vtop = vtop + 1
-		return vtop
+		if not bptr.golas
+			bptr.golas = {}
+		table.insert(bptr.golas, { go = name, match = false, line = line, vtop = vtop })
+		
+
+	var enter_block = \tag ->
+		--assert(tag) -- enforce later
+		var newb = {
+			tag = tag
+			, vstart = vtop    -- current stack pointer
+			, outer = bptr     -- point to outer block
+			, blocks = nil     -- child blocks in this block
+			, golas = nil      -- list of gotos and labels
+			
+		}
+		
+		-- add to outer
+		if bptr
+			if not bptr.blocks
+				bptr.blocks = {}
+			table.insert(bptr.blocks, newb)
+		bptr = newb
+
+	var leave_block = ->
+		-- report unused variables
+		for n = bptr.vstart, vtop - 1
+			var v = vstack[n]
+			if not v.used 
+				if not unused[v.name]
+					err(3, "unused variable `" .. v.name .. "` declared on line " .. v.line)
+	
+		
+		-- recursive check inner scope goto with this label
+		var test_goto
+		test_goto = \blocks, lbl ->
+			if blocks
+				for _, b in ipairs(blocks)
+					test_goto(b.blocks, lbl)
+					
+					if b.golas
+						for __, g in ipairs(b.golas)
+							if lbl.label == g.go
+								if lbl.vtop > b.vstart -- start of block
+									err(12, "goto <" .. g.go .. "> jumps into the scope of variable " .. vstack[lbl.vtop - 1].name .. " at line " .. vstack[lbl.vtop - 1].line)
+								lbl.used = true
+								g.match = true
+
+		-- check goto label in this scope
+		var golas = bptr.golas
+		if golas
+			for _, g in ipairs(golas)
+				if g.go
+					-- look for its label
+					for __, lbl in ipairs(golas)
+						if lbl.label == g.go
+							if lbl.vtop > g.vtop
+								err(12, "goto <" .. g.go .. "> jumps into the scope of variable " .. vstack[lbl.vtop - 1].name .. " at line " .. vstack[lbl.vtop - 1].line)
+							lbl.used = true
+							g.match = true
+
+			-- check inner blocks gotos with each label in this scope
+			for _, gl in ipairs(golas)
+				if gl.label
+					test_goto(bptr.blocks, gl)
+
+			-- report unused labels
+			for _, gl in ipairs(golas)
+				if gl.label and not gl.used
+					err(3, "unused label <" .. gl.label .. "> on line " .. gl.line)
+
+		-- pop the vstack
+		vtop = bptr.vstart
+		assert(vtop >= 1)
+		bptr = bptr.outer
+
+
+	var varargs = ->
+		assert(bptr)
+		assert(bptr.tag == 'Function')
+		bptr.varargs = true
+
+	
+	var is_varargs = ->
+		var blk = bptr
+		while blk.tag ~= 'Function'
+			blk = blk.outer
+		return bptr.varargs
+
+
+	-- functions are blocks
+	var begin_func = ->
+		enter_block('Function')
+
+
+	-- function block is thrown away when leaving scope
+	var end_func = ->
+		
+		var this = bptr
+		leave_block()
+		
+		-- report unmatched gotos
+		var unused_goto
+		unused_goto = \block ->
+			if block.golas
+				for __, gl in ipairs(block.golas)
+					if gl.go and not gl.match
+						err(12, "goto undefined label <" .. gl.go .. "> at line " .. gl.line)
+
+			if block.blocks
+				for _, b in ipairs(block.blocks)
+					unused_goto(b)
+
+		unused_goto(this)
+		
 
 
 	return {
-
-		enter_block = enter_block
+		begin_func = begin_func
+		, end_func = end_func
+		, enter_block = enter_block
 		, leave_block = leave_block
 		
-		, begin_func = begin_func
-		, end_func = end_func
-
+		, varargs = varargs
+		, is_varargs = is_varargs
+	
 		, declared = declared
-		, declare = declare
-		, dec_label = dec_label
-		, dec_goto = dec_goto
+		, new_var = new_var
+		, new_goto = new_goto
+		, new_label = new_label
+		, new_break = new_break
 	}
-

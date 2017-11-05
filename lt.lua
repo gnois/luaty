@@ -102,6 +102,10 @@ else
             io.stderr:write(" >> " .. dest .. "\n")
         end
     else
-        io.stderr:write(" Fail to generate " .. dest .. "\n")
+        if run then
+            io.stderr:write(" Fail to run " .. source .. "\n")
+        else
+            io.stderr:write(" Fail to generate " .. dest .. "\n")
+        end
     end
 end

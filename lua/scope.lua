@@ -8,58 +8,7 @@ local unused = {_ = true, __ = true, ___ = true}
 return function(err)
     local vstack = {}
     local vtop = 1
-    local enter_block = function(f, isloop)
-        assert(f)
-        f.block = {prev = f.block, vstart = vtop, isloop = isloop}
-    end
-    local leave_block = function(f)
-        assert(f)
-        local vstart = f.block.vstart
-        for n = vstart, vtop - 1 do
-            if vstack[n]["goto"] then
-                local g = vstack[n]
-                for m = n - 1, vstart, -1 do
-                    if vstack[m].label == g["goto"] then
-                        vstack[m].used = true
-                        g.match = true
-                        break
-                    end
-                end
-                for m = n + 1, vtop - 1 do
-                    if vstack[m].name then
-                        err("goto <" .. g.name .. "> jumps into the scope of variable " .. vstack[m].name .. " at line " .. vstack[m].line)
-                    end
-                    if vstack[m].label == g["goto"] then
-                        vstack[m].used = true
-                        g.match = true
-                        break
-                    end
-                end
-            end
-        end
-        for n = vstart, vtop - 1 do
-            local v = vstack[n]
-            if not v.used then
-                if v.name and not unused[v.name] then
-                    err("unused variable `" .. v.name .. "` declared on line " .. v.line)
-                elseif v.label then
-                    err("unused label <" .. v.label .. "> on line " .. v.line)
-                end
-            end
-        end
-        vtop = vstart
-        assert(vtop >= 1)
-        f.block = f.block.prev
-    end
-    local begin_func = function(pf)
-        local f = {parent = pf, block = nil}
-        enter_block(f, false)
-        return f
-    end
-    local end_func = function(f)
-        leave_block(f)
-        return f.parent
-    end
+    local bptr = nil
     local declared = function(name)
         for i = vtop - 1, 1, -1 do
             local v = vstack[i]
@@ -73,7 +22,7 @@ return function(err)
         end
         return 0
     end
-    local declare = function(name, vtype, line)
+    local new_var = function(name, vtype, line)
         assert(name)
         local ln = declared(name)
         if ln ~= 0 then
@@ -85,31 +34,142 @@ return function(err)
             if ln > 0 then
                 msg = msg .. " declared on line " .. ln
             end
-            err(msg)
+            err(3, msg)
         end
         vstack[vtop] = {name = name, type = vtype, used = false, line = line}
         vtop = vtop + 1
         return vtop
     end
-    local dec_label = function(f, name, line)
-        assert(f)
+    local new_break = function()
+    end
+    local new_label = function(name, line)
         assert(name)
-        local vstart = f.block.vstart
-        for n = vstart, vtop - 1 do
-            if vstack[n].label == name then
-                err("duplicate label <" .. name .. "> in the same scope on line " .. vstack[n].line .. " and " .. line)
-                break
+        if not bptr.golas then
+            bptr.golas = {}
+        end
+        local blk = bptr
+        while blk do
+            if blk.golas then
+                for _, gl in ipairs(blk.golas) do
+                    if gl.label == name then
+                        err(4, "duplicate label <" .. name .. "> in on line " .. gl.line .. " and " .. line)
+                        break
+                    end
+                end
+            end
+            blk = blk.outer
+        end
+        table.insert(bptr.golas, {label = name, used = false, line = line, vtop = vtop})
+    end
+    local new_goto = function(name, line)
+        assert(name)
+        if not bptr.golas then
+            bptr.golas = {}
+        end
+        table.insert(bptr.golas, {go = name, match = false, line = line, vtop = vtop})
+    end
+    local enter_block = function(tag)
+        local newb = {tag = tag, vstart = vtop, outer = bptr, blocks = nil, golas = nil}
+        if bptr then
+            if not bptr.blocks then
+                bptr.blocks = {}
+            end
+            table.insert(bptr.blocks, newb)
+        end
+        bptr = newb
+    end
+    local leave_block = function()
+        for n = bptr.vstart, vtop - 1 do
+            local v = vstack[n]
+            if not v.used then
+                if not unused[v.name] then
+                    err(3, "unused variable `" .. v.name .. "` declared on line " .. v.line)
+                end
             end
         end
-        vstack[vtop] = {label = name, used = false, line = line}
-        vtop = vtop + 1
-        return vtop
+        local test_goto
+        test_goto = function(blocks, lbl)
+            if blocks then
+                for _, b in ipairs(blocks) do
+                    test_goto(b.blocks, lbl)
+                    if b.golas then
+                        for __, g in ipairs(b.golas) do
+                            if lbl.label == g.go then
+                                if lbl.vtop > b.vstart then
+                                    err(12, "goto <" .. g.go .. "> jumps into the scope of variable " .. vstack[lbl.vtop - 1].name .. " at line " .. vstack[lbl.vtop - 1].line)
+                                end
+                                lbl.used = true
+                                g.match = true
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        local golas = bptr.golas
+        if golas then
+            for _, g in ipairs(golas) do
+                if g.go then
+                    for __, lbl in ipairs(golas) do
+                        if lbl.label == g.go then
+                            if lbl.vtop > g.vtop then
+                                err(12, "goto <" .. g.go .. "> jumps into the scope of variable " .. vstack[lbl.vtop - 1].name .. " at line " .. vstack[lbl.vtop - 1].line)
+                            end
+                            lbl.used = true
+                            g.match = true
+                        end
+                    end
+                end
+            end
+            for _, gl in ipairs(golas) do
+                if gl.label then
+                    test_goto(bptr.blocks, gl)
+                end
+            end
+            for _, gl in ipairs(golas) do
+                if gl.label and not gl.used then
+                    err(3, "unused label <" .. gl.label .. "> on line " .. gl.line)
+                end
+            end
+        end
+        vtop = bptr.vstart
+        assert(vtop >= 1)
+        bptr = bptr.outer
     end
-    local dec_goto = function(name, line)
-        assert(name)
-        vstack[vtop] = {["goto"] = name, match = false, line = line}
-        vtop = vtop + 1
-        return vtop
+    local varargs = function()
+        assert(bptr)
+        assert(bptr.tag == "Function")
+        bptr.varargs = true
     end
-    return {enter_block = enter_block, leave_block = leave_block, begin_func = begin_func, end_func = end_func, declared = declared, declare = declare, dec_label = dec_label, dec_goto = dec_goto}
+    local is_varargs = function()
+        local blk = bptr
+        while blk.tag ~= "Function" do
+            blk = blk.outer
+        end
+        return bptr.varargs
+    end
+    local begin_func = function()
+        enter_block("Function")
+    end
+    local end_func = function()
+        local this = bptr
+        leave_block()
+        local unused_goto
+        unused_goto = function(block)
+            if block.golas then
+                for __, gl in ipairs(block.golas) do
+                    if gl.go and not gl.match then
+                        err(12, "goto undefined label <" .. gl.go .. "> at line " .. gl.line)
+                    end
+                end
+            end
+            if block.blocks then
+                for _, b in ipairs(block.blocks) do
+                    unused_goto(b)
+                end
+            end
+        end
+        unused_goto(this)
+    end
+    return {begin_func = begin_func, end_func = end_func, enter_block = enter_block, leave_block = leave_block, varargs = varargs, is_varargs = is_varargs, declared = declared, new_var = new_var, new_goto = new_goto, new_label = new_label, new_break = new_break}
 end

@@ -4,11 +4,15 @@
 
 local read = require("lua.read")
 local lex = require("lua.lex")
+local scope = require("lua.scope")
 local parse = require("lua.parse")
 local generate = require("lua.generate")
 local compile = function(reader, options)
     local lexer = lex(reader)
-    local tree = parse(lexer)
+    local sc = scope(function(severe, msg)
+        lexer.error(lexer, severe, "%s", msg)
+    end)
+    local tree = parse(sc, lexer)
     local out = true
     for _, w in ipairs(lexer.warnings) do
         if w.s >= 10 then

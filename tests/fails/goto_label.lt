@@ -1,0 +1,14 @@
+goto a
+::b::
+
+do ::a::
+
+do
+	while true
+		goto c
+
+::c::
+goto d
+
+var dd = 10
+::d::

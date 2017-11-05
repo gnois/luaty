@@ -1,14 +1,16 @@
 var read = require('lua.read')
 var lex = require('lua.lex')
+var scope = require('lua.scope')
 var parse = require('lua.parse')
--- Take the AST tree and produce a string that can be passed to the function "loadstring".
 var generate = require('lua.generate')
 
 
 var compile = \reader, options ->
 	var lexer = lex(reader)
-	var tree = parse(lexer)
+	var sc = scope(\severe, msg -> lexer.error(lexer, severe, "%s", msg))
+	var tree = parse(sc, lexer)
 	var out = true
+	-- not generating if severity >= 10
 	for _, w in ipairs(lexer.warnings)
 		if w.s >= 10
 			out = nil

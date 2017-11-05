@@ -1,9 +1,8 @@
 
-Luaty is Lua with [off-side rule](https://en.wikipedia.org/wiki/Off-side_rule) that transcompiles into clean Lua.
-It has shorter but unambiguous syntax, with a compiler that is relatively unforgiving.
+Luaty is Lua with [off-side rule](https://en.wikipedia.org/wiki/Off-side_rule) and less syntax boilerplate that transcompiles into clean Lua.
 Its philosophy follows [*"There should be only one way to do it"*.](https://wiki.python.org/moin/TOOWTDI)
 
-Luaty stands for [Lua] with less [ty]ping. 
+Luaty stands for *[Lua] with less [ty]ping*. 
 
 If you don't like to type `end`, `then`, `do`, and you prefer compile-time error to run-time error, then you'll probably like Luaty.
 
@@ -112,7 +111,7 @@ luajit run-test.lua
 Linting
 ---
 
-Luaty has basic linting built in:
+Luaty has basic linting built in. When generating code, it checks for:
   * unused variables
   * assigning to undeclared (a.k.a global) variable
   * number of values on the right side of multiple assignment is more than the variables on the left side
