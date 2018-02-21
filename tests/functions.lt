@@ -74,4 +74,4 @@ assert(rr(true)()() == false)
 var _, r = rr(false)()()
 assert(r() == false)
 
-return ->
+return -> return -> return -> return ->

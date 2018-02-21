@@ -93,7 +93,7 @@ if slash == '\\' then
 		return false
 	end
 	if not enable_VT() then
-		print('Possibly no ANSI colors support, error', kernel32.GetLastError())
+		print('Possibly no ANSI colors support, error ' .. kernel32.GetLastError())
 	else
 		-- success!
 		--io.stderr:write(color.magenta, "Using ANSI colors\n", color.reset)

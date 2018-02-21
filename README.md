@@ -1,16 +1,17 @@
 
-Luaty is Lua with [off-side rule](https://en.wikipedia.org/wiki/Off-side_rule) and less syntax boilerplate that transcompiles into clean Lua.
+Luaty is Lua with [off-side rule](https://en.wikipedia.org/wiki/Off-side_rule) and less syntax boilerplate that transpiles into clean Lua.
+
 Its philosophy follows [*"There should be only one way to do it"*.](https://wiki.python.org/moin/TOOWTDI)
 
 Luaty stands for *[Lua] with less [ty]ping*. 
-
-If you don't like to type `end`, `then`, `do`, and you prefer compile-time error to run-time error, then you'll probably like Luaty.
+If you don't like to type `end`, `then`, `do`, or you prefer compile-time error to run-time error, then Luaty may work for you.
 
 
 Differences from Lua
 ---
 
-Luaty has very few features. Aside from being indent based, most syntaxes of Lua are kept, so that if you know Lua, you already knew most of Luaty.
+Aside from being indent based, Luaty has only a handful of features.
+Most syntaxes of Lua are kept, so that if you know Lua, you already knew most of Luaty.
 
 Here goes the differences:
 
@@ -24,7 +25,6 @@ Here goes the differences:
 var x = false               -- `var` compiles to `local`
 if not x
    print('nay')             -- `then` and `end` not needed
-
 ```
 
 - Consistency preferred over sugar
@@ -40,7 +40,6 @@ var f = -> print(3)                 -- Ok, lambda with assignment statement
 
 print 'a'                           -- Error: '=' expected instead of 'a'. This is valid in Lua
 print('a')                          -- Ok, obviously
-
 ```
 
 - Explicit prefered over implicit
@@ -60,7 +59,32 @@ assert(ret_o()['long-name'](@, 10) == 20)   -- @ *just works*, better than `:`
 
 p(obj:foo(2))                               -- Error: ')' expected instead of ':'
 assert(obj.foo(@, 2) == 6)                  -- Ok, compiles to obj:foo(2)
+```
 
+- basic linting that checks for
+  * unused variables
+  * unused labels
+  * assigning to undeclared (a.k.a global) variable
+  * number of values on the right side of multiple assignment is more than the variables on the left side
+  * shadowing variables in the parent or same scope
+  * duplicate keys in a table
+
+For example:
+```
+a = 1                     -- Error: undeclared identifier a
+
+var c, d = 1, 2, 4        -- Error: assigning 3 values to 2 variables
+
+var p = print
+var p = 'p'               -- Error: shadowing previous var p
+
+var f = \z->
+   var z = 10             -- Error: shadowing previous var z
+
+var tbl = {
+   x = 1
+   , x = 3                -- Error: duplicate key 'x' in table
+}
 ```
 
 - table keys can be keywords
@@ -77,8 +101,9 @@ var z = {
 assert(z.var == 7)                           -- Ok, z.var works as in Lua
 assert(11 == z.function + z.local)           -- Becomes z['function'] and z['local']
 assert(z.if(z.goto)[2] == false)             -- Ditto
-
 ```
+
+
 
 
 
@@ -108,38 +133,6 @@ luajit run-test.lua
 
 
 
-Linting
----
-
-Luaty has basic linting built in. When generating code, it checks for:
-  * unused variables
-  * assigning to undeclared (a.k.a global) variable
-  * number of values on the right side of multiple assignment is more than the variables on the left side
-  * shadowing variables in the parent or same scope
-  * duplicate keys in a table
-
-For example:
-```
-a = 1                     -- Error: undeclared identifier a
-
-var c, d = 1, 2, 4        -- Error: assigning 3 values to 2 variables
-
-var p = print
-var p = 'p'               -- Error: shadowing previous var p
-
-var f = \z->
-   var z = 10             -- Error: shadowing previous var z
-
-var tbl = {
-   x = 1
-   , x = 3                -- Error: duplicate key 'x' in table
-}
-
-```
-
-
-
-
 
 The indent (offside) rule
 ---
@@ -147,7 +140,7 @@ The indent (offside) rule
 1. Either tabs or spaces can be used, but not both in a single file, except for comments, which are ignored.
 2. Only one statement is allowed per line.
 
-3. Block statements such as `if`, `for`, `while`, `do` and lambda expression `->` can have child statement(s).
+3. Blocks such as `if`, `for`, `while`, `do` and lambda expression `->` can have child statement(s).
    - A single child statement may choose to stay at the same line as its parent
    - Multiple child statements should start at an indented newline
 ```
