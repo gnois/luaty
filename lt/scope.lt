@@ -154,7 +154,7 @@ return \err ->
 		var blk = bptr
 		while blk.tag ~= 'Function'
 			blk = blk.outer
-		return bptr.varargs
+		return blk.varargs
 
 
 	-- functions are blocks

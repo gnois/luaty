@@ -1,5 +1,8 @@
 var eq = require('tests.inc').eq
 
+-- top scope is a vararg function
+print(...)
+
 var multi = \...->
     return ...
 
@@ -31,3 +34,13 @@ var bar = \...->
 
 bar(unpack(x))
 
+
+var concat = \... ->
+    var tb = {}
+    var n = 1
+    for i = 1, select('#', ...)
+        var t = select(i, ...)
+        for j = 1, #t
+            tb[n] = t[j]
+            n = n + 1
+    return tb

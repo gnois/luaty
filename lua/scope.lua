@@ -146,7 +146,7 @@ return function(err)
         while blk.tag ~= "Function" do
             blk = blk.outer
         end
-        return bptr.varargs
+        return blk.varargs
     end
     local begin_func = function()
         enter_block("Function")
