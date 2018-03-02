@@ -2,7 +2,7 @@
 -- Generated from parse.lt
 --
 
-local ast = require("lua.st")
+local ast = require("lua.ast")
 local operator = require("lua.operator")
 local reserved = require("lua.reserved")
 local Keyword = reserved.Keyword
