@@ -5,30 +5,37 @@ local color = term.color
 function usage()
     term.usage([[
 Usage: 
-  luajit lt.lua [-c] [file.lt] [file.lua]
+  luajit lt.lua [-c] [src.lt] [dst.lua] [-d xvar]
   where:
-    -c   Write into file.lua without running
-         file.lua is optional
-  
+    -c        Transpile src.lt into dst.lua without running. dst.lua is optional, default to src.lua if omitted
+    -d xvar   Declares `xvar` to silent undeclared identifier warning
+    
   Running without parameters enters Read-Generate-Eval-Print loop
 ]])
 end
 
-local switches, paths = term.scan({...})
--- sanity
-for k, _ in pairs(switches) do
-    if k ~= 'c' then
-        usage()
+local run = true
+local paths = {}
+local decls = {}
+
+for s, p in term.scan({...}) do
+    print(s, ' - ', p)
+    if s == 'c' then
+        run = false
+        if p then
+            table.insert(paths, p)
+        end
+    elseif s == 'd' then
+        table.insert(decls, p)
+    else
+        if p then
+            table.insert(paths, p)
+        end
     end
 end
-if #paths > 2 then
-    usage()
-end
 
-local run = not switches['c']
-local source = paths[1]
 
-if not source and run then
+if run and not paths[1] then
     -- REPL
     -- https://stackoverflow.com/questions/20410082/why-does-the-lua-repl-require-you-to-prepend-an-equal-sign-in-order-to-get-a-val
     function print_results(...)
@@ -38,7 +45,7 @@ if not source and run then
         end
     end
     print("Luaty")
-    print("-- empty line to end block --\n")
+    print("-- empty line to transpile --\n")
     local list = {}
     repeat
         if #list > 0 then
@@ -48,7 +55,7 @@ if not source and run then
         end
         io.stdout:flush()
         local s = io.stdin:read()
-        if s == 'exit' then
+        if s == 'exit' or s == 'quit' then
             break
         elseif #s == 0 then
             local str = table.concat(list, '\n')
@@ -75,37 +82,43 @@ if not source and run then
         end
     until false
 
-else
-    local code, errs = compile.file(source)
-    --io.stderr:write(color.magenta, "Error compiling " .. source .. "\n", color.reset)
+elseif paths[1] then
+    local code, errs = compile.file(paths[1])
+    --io.stderr:write(color.magenta, "Error compiling " .. paths[1] .. "\n", color.reset)
     term.show_error(errs)
     
     local dest = paths[2] or string.gsub(paths[1], "%.lt", '.lua')
-    while dest == source do
+    while dest == paths[1] do
         dest = dest .. '.lua'
     end
     if code then
         if run then
+            -- should not have another filename
+            if paths[2] then
+                usage()
+            end
             local fn = assert(loadstring(code))
             fn()
         else
-            --print("Compiled " .. source .. " to " .. dest)
+            --print("Compiled " .. paths[1] .. " to " .. dest)
             local f, err = io.open(dest, 'wb')
             if not f then
                 error(err)
             end
             
             -- get the filename without path
-            local basename = string.gsub(source, "(.*[/\\])(.*)", "%2")
+            local basename = string.gsub(paths[1], "(.*[/\\])(.*)", "%2")
             f:write("--\n-- Generated from " .. basename .. "\n--\n\n")
             f:write(code)
             io.stderr:write(" >> " .. dest .. "\n")
         end
     else
         if run then
-            io.stderr:write(" Fail to run " .. source .. "\n")
+            io.stderr:write(" Fail to run " .. paths[1] .. "\n")
         else
             io.stderr:write(" Fail to generate " .. dest .. "\n")
         end
     end
+else
+    usage()
 end
