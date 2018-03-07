@@ -19,28 +19,36 @@ function usage(text)
     os.exit(1)
 end
 
-
--- parses command line. returns 2 tables
---   1. map of found switches 
---   2. array of non switch parameters
+-- parses command line
+-- yields switch and its matching parameter if any
 function scan(args)
-    local switches = {}
-    local paths, p = {}, 1
-
-    local k = 1
-    while args[k] do
-        local a = args[k]
-        local switch = string.sub(a, 1, 1)
-        if switch == "-" then
-            switches[string.sub(a, 2)] = true
-        else
-            paths[p] = a
-            p = p + 1
+    -- const
+    local yield = coroutine.yield
+    local null = ""
+    
+    return coroutine.wrap(function()
+        local switch = null
+        local k = 1
+        while args[k] do
+            local arg = args[k]
+            if "-" == string.sub(arg, 1, 1) then
+                -- previous loop had a switch
+                if switch ~= null then
+                    yield(switch)
+                end
+                switch = string.sub(arg, 2)
+            else
+                yield(switch, arg)
+                switch = null
+            end
+            k = k + 1
         end
-        k = k + 1
-    end
-    return switches, paths
+        if switch ~= null then
+            yield(switch)
+        end
+    end)
 end
+
 
 
 -- result is a table of lexer.warnings

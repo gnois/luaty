@@ -1,4 +1,4 @@
-var ast = require('lua.st')
+var ast = require('lua.ast')
 var operator = require('lua.operator')
 var reserved = require('lua.reserved')
 

@@ -1,5 +1,5 @@
 --
--- Generated from st.lt
+-- Generated from ast.lt
 --
 
 local build = function(kind, node)

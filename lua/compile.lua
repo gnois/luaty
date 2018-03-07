@@ -9,7 +9,7 @@ local parse = require("lua.parse")
 local generate = require("lua.generate")
 local compile = function(reader, options)
     local lexer = lex(reader)
-    local sc = scope(function(severe, msg)
+    local sc = scope(options.declares, function(severe, msg)
         lexer.error(lexer, severe, "%s", msg)
     end)
     local tree = parse(sc, lexer)
@@ -24,8 +24,8 @@ local compile = function(reader, options)
     end
     return out, lexer.warnings
 end
-return {string = function(src, filename, options)
-    return compile(read.string(src), filename or "stdin", options)
+return {string = function(src, options)
+    return compile(read.string(src), options or {})
 end, file = function(filename, options)
-    return compile(read.file(filename), filename or "stdin", options)
+    return compile(read.file(filename), options or {})
 end}

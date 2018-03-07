@@ -5,7 +5,7 @@
 local reserved = require("lua.reserved")
 local Builtin = reserved.Builtin
 local unused = {_ = true, __ = true, ___ = true}
-return function(err)
+return function(decls, err)
     local vstack = {}
     local vtop = 1
     local bptr = nil
@@ -18,6 +18,9 @@ return function(err)
             end
         end
         if Builtin[name] then
+            return -1
+        end
+        if decls and decls[name] then
             return -1
         end
         return 0

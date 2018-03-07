@@ -14,7 +14,7 @@ do
 	assert(#jt == 5)
 
 
--- this shows one statement per line rule is checked correctly
+-- semicolon to end multi return
 do
 	var a, b, c = -> var d, e, f = 2, ->
 		return -> return d, e, f;, d, e, f

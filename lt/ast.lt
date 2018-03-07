@@ -52,16 +52,6 @@ AST.expr_brackets = \expr ->
 	expr.bracketed = true
 	return expr
 
---[[
-AST.set_expr_last = \expr ->
-	if expr.bracketed
-		var k = expr.kind
-		if k == "CallExpression" or k == "SendExpression" or k == "Vararg"
-			expr.bracketed = nil
-		return build("ExpressionValue", { value = expr })
-	else
-		return expr
-]]
 
 AST.expr_table = \keyvals, line ->
 	return build("Table", { keyvals = keyvals, line = line })
