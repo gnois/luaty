@@ -4,20 +4,29 @@ local compile = require("lua.compile")
 local slash = term.slash
 local color = term.color
 
-local switches, paths = term.scan({...})
-if switches['h'] then 
-    term.usage(
-[[
+function usage(err)
+    local spec = [[
 luajit test.lua [-c] path
 where:
      path       The path of a directory
      -c         Compile to lua code only
      -h         Show help
-]])
+]]
+    term.usage(spec)
 end
 
-local run = not switches['c']
-local folder = paths[1]
+local run = true
+local folder
+
+for s, p in term.scan({...}) do
+    if s == 'c' then
+        run = false
+    elseif s == 'h' then
+        usage()
+    else
+        folder = p
+    end
+end
 
 if not folder then
     folder = '.' .. slash .. 'tests'

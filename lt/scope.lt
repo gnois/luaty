@@ -8,7 +8,7 @@ var unused = {
 }
 
 
-return \err ->
+return \decls, err ->
 
 	-- variable stacks during parse
 	var vstack = {}
@@ -23,6 +23,8 @@ return \err ->
 				v.used = true
 				return v.line
 		if Builtin[name]
+			return -1
+		if decls and decls[name]
 			return -1
 		return 0
 

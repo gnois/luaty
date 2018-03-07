@@ -2,8 +2,8 @@ local term = require("term")
 local compile = require("lua.compile")
 local color = term.color
 
-function usage()
-    term.usage([[
+function usage(err)
+    local spec = [[
 Usage: 
   luajit lt.lua [-c] [src.lt] [dst.lua] [-d xvar]
   where:
@@ -11,29 +11,40 @@ Usage:
     -d xvar   Declares `xvar` to silent undeclared identifier warning
     
   Running without parameters enters Read-Generate-Eval-Print loop
-]])
+]]
+    err = err or ''
+    err = err .. '\n' .. spec
+    term.usage(err)
 end
+
 
 local run = true
 local paths = {}
 local decls = {}
 
 for s, p in term.scan({...}) do
-    print(s, ' - ', p)
     if s == 'c' then
         run = false
         if p then
             table.insert(paths, p)
         end
     elseif s == 'd' then
-        table.insert(decls, p)
+        if p then
+            decls[p] = true
+        else
+            usage("Error: -d requires identifier")
+        end
     else
         if p then
             table.insert(paths, p)
+        elseif s ~= "" then
+            usage("Error: unknown switch -" .. s)
         end
     end
 end
-
+if #paths > 2 then
+    usage("Error: too many files given")
+end
 
 if run and not paths[1] then
     -- REPL
@@ -60,7 +71,7 @@ if run and not paths[1] then
         elseif #s == 0 then
             local str = table.concat(list, '\n')
             list = {}
-            local code, errs = compile.string(str)
+            local code, errs = compile.string(str, {declares = decls})
             term.show_error(errs)
             if code then
                 print(color.yellow .. code .. color.reset)
@@ -83,7 +94,7 @@ if run and not paths[1] then
     until false
 
 elseif paths[1] then
-    local code, errs = compile.file(paths[1])
+    local code, errs = compile.file(paths[1], {declares = decls})
     --io.stderr:write(color.magenta, "Error compiling " .. paths[1] .. "\n", color.reset)
     term.show_error(errs)
     
@@ -95,7 +106,7 @@ elseif paths[1] then
         if run then
             -- should not have another filename
             if paths[2] then
-                usage()
+                usage("Error: cannot run more than one file")
             end
             local fn = assert(loadstring(code))
             fn()
@@ -120,5 +131,5 @@ elseif paths[1] then
         end
     end
 else
-    usage()
+    usage("Error: no file given")
 end

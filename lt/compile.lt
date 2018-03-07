@@ -4,10 +4,15 @@ var scope = require('lua.scope')
 var parse = require('lua.parse')
 var generate = require('lua.generate')
 
-
+--[[
+ options = {
+    declares = {ngx = true, xvars = true, ...}
+    , silent = {...}
+ }
+-- ]]
 var compile = \reader, options ->
 	var lexer = lex(reader)
-	var sc = scope(\severe, msg -> lexer.error(lexer, severe, "%s", msg))
+	var sc = scope(options.declares, \severe, msg -> lexer.error(lexer, severe, "%s", msg))
 	var tree = parse(sc, lexer)
 	var out = true
 	-- not generating if severity >= 10
@@ -20,9 +25,9 @@ var compile = \reader, options ->
 
 
 return {
-	string = \src, filename, options ->
-		return compile(read.string(src), filename or "stdin", options)
+	string = \src, options ->
+		return compile(read.string(src), options or {})
 	
 	, file = \filename, options ->
-		return compile(read.file(filename), filename or "stdin", options)
+		return compile(read.file(filename), options or {})
 }

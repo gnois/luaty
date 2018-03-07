@@ -34,7 +34,7 @@ function scan(args)
             if "-" == string.sub(arg, 1, 1) then
                 -- previous loop had a switch
                 if switch ~= null then
-                    yield(switch, null)
+                    yield(switch)
                 end
                 switch = string.sub(arg, 2)
             else
@@ -44,7 +44,7 @@ function scan(args)
             k = k + 1
         end
         if switch ~= null then
-            yield(switch, null)
+            yield(switch)
         end
     end)
 end
