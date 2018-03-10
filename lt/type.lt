@@ -94,10 +94,11 @@ Type.keyed = \name ->
 
 Type.varargs = \node ->
 	node.varargs = true
+	return node
 
 Type.bracket = \node ->
 	node.bracket = true
-
+	return node
 
 Type.same = ast.same
 

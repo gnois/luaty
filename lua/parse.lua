@@ -122,14 +122,12 @@ local type_tbl = function(scope, ls)
         if ls.token == "}" then
             break
         end
-        local key = parse_type(scope, ls)
-        local val
+        local val = parse_type(scope, ls)
+        local key
         if ls.token == ":" then
             ls.step()
+            key = val
             val = parse_type(scope, ls)
-        else
-            val = key
-            key = nil
         end
         if key then
             for i = 1, #kvs do
@@ -284,7 +282,7 @@ end
 parse_type = function(scope, ls, varargs)
     local typ = type_binary(scope, ls, 0)
     if typ and varargs then
-        ty.varargs(typ)
+        return ty.varargs(typ)
     end
     return typ
 end

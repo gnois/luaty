@@ -75,9 +75,11 @@ Type.keyed = function(name)
 end
 Type.varargs = function(node)
     node.varargs = true
+    return node
 end
 Type.bracket = function(node)
     node.bracket = true
+    return node
 end
 Type.same = ast.same
 local subtype

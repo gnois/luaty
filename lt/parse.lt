@@ -136,14 +136,12 @@ var type_tbl = \scope, ls ->
 		-- in case the table ends immediately
 		if ls.token == '}'
 			break
-		var key = parse_type(scope, ls)
-		var val
+		var val = parse_type(scope, ls)
+		var key
 		if ls.token == ':'
 			ls.step()  -- skip ':'
+			key = val
 			val = parse_type(scope, ls)
-		else
-			val = key
-			key = nil
 			
 		if key
 			for i = 1, #kvs
@@ -296,7 +294,7 @@ type_binary = \scope, ls, limit ->
 parse_type = \scope, ls, varargs ->
 	var typ = type_binary(scope, ls, 0) -- Priority 0: parse whole type
 	if typ and varargs
-		ty.varargs(typ)
+		return ty.varargs(typ)
 	return typ
 
 --- Expressions ------------------------------------------------
