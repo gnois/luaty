@@ -95,12 +95,12 @@ var con = {
 	, ['a' .. s .. '0'] = 2
 }
 
---[[
+--`
 var cat = {
 	['b' .. s] = 7
 	, ['b' .. s] = 8   -- duplicate at pos 1 and 2
 }  
---]]
+--`
 
 var w = { pi = 3.14, ciao = 'hello', 1, list = {3, 7, 'boum'}, 4, 9}
 assert(#w.list == 3)

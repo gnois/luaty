@@ -1,0 +1,111 @@
+var ast = require('lua.ast')
+
+-- void is computed but not in syntax
+var Kinds = {
+	'Void'
+	, 'Nil'
+	, 'Any'
+	, 'Num'
+	, 'Str'
+	, 'Bool'
+	, 'Func'
+	, 'Tbl'
+	, 'Or'
+	, 'And'
+	, 'Not'
+	, 'Custom'
+	, 'Index'
+	, 'Keyed'
+}
+
+
+-- rest is ...
+var make = \kind, node ->
+	node.kind = kind
+	return node
+
+
+var is_type = \ty ->
+	if ty.kind
+		for _, k in ipairs(Kinds)
+			if k == ty.kind
+				return true
+	return false
+
+
+var Type = {}
+
+-- primitives
+Type.nil = ->
+	return make(Kinds[2], {})
+
+Type.any = ->
+	return make(Kinds[3], {})
+
+Type.num = ->
+	return make(Kinds[4], {})
+
+Type.str = ->
+	return make(Kinds[5], {})
+
+Type.bool = ->
+	return make(Kinds[6], {})
+
+
+Type.func = \params, returns ->
+	if params
+		for _, t in ipairs(params)
+			assert(is_type(t))
+	if returns
+		for _, t in ipairs(returns)
+			assert(is_type(t))
+	return make(Kinds[7], {params = params, returns = returns})
+
+
+Type.tbl = \kvs ->
+	return make(Kinds[8], {keyvals = kvs})
+
+-- complex
+Type.or = \left, right ->
+	assert(is_type(left))
+	assert(is_type(right))
+	return make(Kinds[9], {left = left, right = right})
+
+Type.and = \left, right ->
+	assert(is_type(left))
+	assert(is_type(right))
+	return make(Kinds[10], {left = left, right = right})
+
+Type.not = \ty ->
+	assert(is_type(ty))
+	return make(Kinds[11], {ty})
+
+Type.custom = \name ->
+	return make(Kinds[12], {name = name})
+
+Type.index = \obj, prop ->
+	return make(Kinds[13], {obj = obj, prop = prop})
+
+
+Type.keyed = \name ->
+	return make(Kinds[14], {name = name})
+
+
+
+Type.varargs = \node ->
+	node.varargs = true
+
+Type.bracket = \node ->
+	node.bracket = true
+
+
+Type.same = ast.same
+
+var subtype
+subtype = \parent, child ->
+	return false
+	
+Type.subtype = subtype
+
+
+return Type

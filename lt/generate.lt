@@ -59,9 +59,8 @@ ExpressionRule.Identifier = \@, node ->
 
 var escape = \s ->
 	var replace = {
-		['"'] = [[\"]], ['\a'] = [[\a]], ['\b'] = [[\b]], ['\f'] = [[\f]], ['\n'] = [[\n]], ['\r'] = [[\r]], ['\t'] = [[\t]], ['\v'] = [[\v]]
+		'"' = `\"`, '\a' = `\a`, '\b' = `\b`, '\f' = `\f`, '\n' = `\n`, '\r' = `\r`, '\t' = `\t`, '\v' = `\v`
 	}
-	-- \' is not needed since we quote with \"
 	return string.gsub(s, '["\a\b\f\n\r\t\v]', replace)
 
 
@@ -76,8 +75,18 @@ ExpressionRule.NumberLiteral = \@, node ->
 
 
 ExpressionRule.LongStringLiteral = \@, node ->
+	-- convert `` to [=[       meaning 2 backtick to 1 equal sign
+	var n, m = string.find(node.text, "^`+")
+	if n
+		var p, q = string.find(node.text,"`+$")
+		assert(q-p == m-n)
+		var eq = string.rep('=', m - n)
+		var begins = "["..eq.."["
+		var ends = "]"..eq.."]"
+		var text = string.sub(node.text, m+1, p-1)
+		return begins .. text .. ends, operator.ident_priority
+	-- keep the [=[ ]=] style
 	return node.text, operator.ident_priority
-
 
 ExpressionRule.MemberExpression = \@, node ->
 	var object, prio = @.expr_emit(@, node.object)
@@ -97,10 +106,10 @@ ExpressionRule.MemberExpression = \@, node ->
 ExpressionRule.Vararg = \@ ->
 	return "...", operator.ident_priority
 
---[[
+--``
 ExpressionRule.ExpressionValue = \@, node ->
 	return "(" .. @.expr_emit(@, node.value) .. ")"
-]]
+``
 
 ExpressionRule.BinaryExpression = \@, node ->
 	var oper = node.operator
@@ -182,7 +191,7 @@ ExpressionRule.SendExpression = \@, node ->
 	return exp, operator.ident_priority
 
 
---[[
+--``
 ExpressionRule.SendExpression = \@, node ->
 	var callee, prio = @.expr_emit(@, node.callee)
 	-- replace the last . with :
@@ -206,7 +215,7 @@ StatementRule.FunctionDeclaration = \@, node ->
 	@.add_section(@, header, node.body)
 	var child_proto = @.proto_leave(@)
 	self.proto.merge(@, child_proto)
---]]
+--``
 
 ExpressionRule.FunctionExpression = \@, node ->
 	@.proto_enter(@)

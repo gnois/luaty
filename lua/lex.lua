@@ -130,7 +130,7 @@ return function(read)
         state.line = state.line + 1
         state.pos = 1
     end
-    local skip_sep = function()
+    local add_eq = function()
         local count = 0
         local s = ch
         assert(s == "[" or s == "]")
@@ -142,6 +142,19 @@ return function(read)
             count = count + 1
         end
         return ch == s and count or -count - 1
+    end
+    local add_bquote = function()
+        local count = 1
+        local s = ch
+        assert(s == "`")
+        add_buffer(s)
+        nextchar()
+        while ch == "`" do
+            add_buffer(ch)
+            nextchar()
+            count = count + 1
+        end
+        return count
     end
     local lex_number = function()
         local lower = string.lower
@@ -190,12 +203,42 @@ return function(read)
                 lex_error("TK_eof", (comment and "unfinished long comment" or "unfinished long string") .. " from line %d till", begin)
                 break
             elseif ch == "]" then
-                if skip_sep() == sep then
+                if add_eq() == sep then
                     add_buffer(ch)
                     nextchar()
                     break
                 end
             else
+                add_buffer(ch)
+                if IsNewLine[ch] then
+                    inc_line()
+                else
+                    nextchar()
+                end
+            end
+        end
+        local delim = string.rep("=", sep)
+        local quote = string.rep("`", sep + 1)
+        lex_error(nil, "use " .. quote .. " as long string delimiter instead of [" .. delim .. "[ ... ]" .. delim .. "]")
+        return get_buffer(0, 0)
+    end
+    local read_long_bquote_string = function(sep, comment)
+        local begin = state.line
+        while true do
+            if ch == END_OF_STREAM then
+                lex_error("TK_eof", (comment and "unfinished long comment" or "unfinished long string") .. " from line %d till", begin)
+                break
+            elseif ch == "`" then
+                if add_bquote() == sep then
+                    break
+                end
+            else
+                if ch == "]" then
+                    if add_eq() + 1 == sep then
+                        local delim = string.rep("=", sep - 1)
+                        lex_error(nil, "long string delimiter conflict due to " .. ch .. delim .. ch .. "; please use more than " .. sep .. " backquote")
+                    end
+                end
                 add_buffer(ch)
                 if IsNewLine[ch] then
                     inc_line()
@@ -292,12 +335,6 @@ return function(read)
         nextchar()
         return get_buffer(1, 1)
     end
-    local skip_line = function()
-        while not IsNewLine[ch] and ch ~= END_OF_STREAM do
-            add_comment(ch)
-            nextchar()
-        end
-    end
     local tokenize = function()
         clear_buffer()
         if newline then
@@ -366,7 +403,7 @@ return function(read)
                     nextchar()
                     add_comment("--")
                     if ch == "[" then
-                        local sep = skip_sep()
+                        local sep = add_eq()
                         add_comment(table.concat(buff))
                         clear_buffer()
                         if sep >= 0 then
@@ -374,10 +411,23 @@ return function(read)
                             add_comment(table.concat(buff))
                             clear_buffer()
                         else
-                            skip_line()
+                            while not IsNewLine[ch] and ch ~= END_OF_STREAM do
+                                add_comment(ch)
+                                nextchar()
+                            end
                         end
+                    elseif ch == "`" then
+                        local sep = add_bquote()
+                        add_comment(table.concat(buff))
+                        clear_buffer()
+                        read_long_bquote_string(sep, true)
+                        add_comment(table.concat(buff))
+                        clear_buffer()
                     else
-                        skip_line()
+                        while not IsNewLine[ch] and ch ~= END_OF_STREAM do
+                            add_comment(ch)
+                            nextchar()
+                        end
                     end
                     return "TK_comment", get_comment()
                 elseif ch == ">" then
@@ -418,15 +468,19 @@ return function(read)
                     nextchar()
                     return "TK_name", "@"
                 elseif ch == "[" then
-                    local sep = skip_sep()
-                    if sep >= 0 then
+                    local sep = add_eq()
+                    if sep > 0 then
                         local str = read_long_string(sep)
                         return "TK_longstring", str
-                    elseif sep == -1 then
+                    elseif sep == 0 or sep == -1 then
                         return "["
                     else
-                        lex_error("TK_longstring", "long string delimiter error")
+                        lex_error(nil, "invalid long string delimiter")
                     end
+                elseif ch == "`" then
+                    local sep = add_bquote()
+                    local str = read_long_bquote_string(sep)
+                    return "TK_longstring", str
                 elseif ch == "=" then
                     nextchar()
                     if ch ~= "=" then

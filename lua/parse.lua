@@ -3,6 +3,7 @@
 --
 
 local ast = require("lua.ast")
+local ty = require("lua.type")
 local operator = require("lua.operator")
 local reserved = require("lua.reserved")
 local Keyword = reserved.Keyword
@@ -66,7 +67,9 @@ local lex_match = function(ls, what, who, line)
         else
             err_instead(ls, 10, "%s expected to match %s at line %d", ls.astext(what), ls.astext(who), line)
         end
+        return false
     end
+    return true
 end
 local lex_str = function(ls)
     local s
@@ -104,6 +107,189 @@ local lex_opt_dent = function(ls, dented)
     lex_opt(ls, "TK_newline")
     return dented
 end
+local parse_type, type_unary, type_binary, type_basic
+local type_tbl = function(scope, ls)
+    local line = ls.line
+    ls.step()
+    local kvs = {}
+    local dented = false
+    while ls.token ~= "}" do
+        dented = lex_opt_dent(ls, dented)
+        if not dented and ls.token == "TK_dedent" then
+            err_symbol(ls)
+            ls.step()
+        end
+        if ls.token == "}" then
+            break
+        end
+        local key = parse_type(scope, ls)
+        local val
+        if ls.token == ":" then
+            ls.step()
+            val = parse_type(scope, ls)
+        else
+            val = key
+            key = nil
+        end
+        if key then
+            for i = 1, #kvs do
+                local arr = kvs[i]
+                if ast.same(arr[2], key) then
+                    ls.error(ls, 10, "similar key type at position %i and %i in table type annotation", i, (#kvs + 1))
+                end
+            end
+        else
+            if not val then
+                err_instead(ls, 10, "type expected in table type annotation")
+            else
+                for i = 1, #kvs do
+                    local arr = kvs[i]
+                    if not arr[2] and ast.same(arr[1], val) then
+                        ls.error(ls, 10, "similar value type at position %i and %i in table type annotation", i, (#kvs + 1))
+                    end
+                end
+            end
+        end
+        kvs[#kvs + 1] = {val, key}
+        dented = lex_opt_dent(ls, dented)
+        if not lex_opt(ls, ",") then
+            break
+        end
+    end
+    if dented and not lex_dedent(ls) then
+        err_instead(ls, 10, "%s expected to match %s at line %d", ls.astext("TK_dedent"), ls.astext("TK_indent"), line)
+    end
+    lex_match(ls, "}", "{", line)
+    return ty.tbl(kvs)
+end
+local type_list = function(isparam, scope, ls)
+    local list = {}
+    if not (isparam and ls.token == "/" or ls.token == "]") then
+        repeat
+            if ls.token == "..." then
+                ls.step()
+                list[#list + 1] = parse_type(scope, ls, true)
+                break
+            else
+                list[#list + 1] = parse_type(scope, ls)
+            end
+        until not lex_opt(ls, ",")
+    end
+    return list
+end
+local type_func = function(scope, ls)
+    local line = ls.line
+    ls.step()
+    local params = type_list(true, scope, ls)
+    local returns
+    if ls.token == "/" then
+        ls.step()
+        returns = type_list(false, scope, ls)
+    end
+    lex_match(ls, "]", "[", line)
+    return ty.func(params, returns)
+end
+local type_prefix = function(scope, ls)
+    local typ
+    if ls.token == "TK_name" then
+        typ = ty.custom(ls.value)
+        ls.step()
+    elseif ls.token == "(" then
+        local line = ls.line
+        ls.step()
+        typ = ty.bracket(parse_type(scope, ls))
+        lex_match(ls, ")", "(", line)
+    else
+        return typ
+    end
+    while ls.token == "." do
+        ls.step()
+        if ls.token ~= "TK_name" then
+            break
+        end
+        typ = ty.index(typ, ls.value)
+        ls.step()
+    end
+    return typ
+end
+type_basic = function(scope, ls)
+    local typ
+    local val
+    if ls.token == "TK_name" then
+        val = ls.value
+    end
+    if val == "any" then
+        typ = ty.any()
+    elseif val == "num" or val == "number" then
+        typ = ty.num()
+        if val == "number" then
+            err_warn("use `num` instead of `number`")
+        end
+    elseif val == "str" or val == "string" then
+        typ = ty.str()
+        if val == "string" then
+            err_warn("use `str` instead of `string`")
+        end
+    elseif val == "bool" or val == "boolean" then
+        typ = ty.bool()
+        if val == "boolean" then
+            err_warn("use `bool` instead of `boolean`")
+        end
+    else
+        if ls.token == "TK_nil" then
+            typ = ty["nil"]()
+        else
+            if ls.token == "[" then
+                return type_func(scope, ls)
+            end
+            if ls.token == "{" then
+                return type_tbl(scope, ls)
+            end
+            return type_prefix(scope, ls)
+        end
+    end
+    ls.step()
+    return typ
+end
+type_unary = function(scope, ls)
+    local tk = ls.token
+    if tk == "!" then
+        ls.step()
+        local t = type_binary(scope, ls, operator.unary_priority)
+        return ty["not"](t)
+    else
+        return type_basic(scope, ls)
+    end
+end
+type_binary = function(scope, ls, limit)
+    local l = type_unary(scope, ls)
+    local op = ls.token
+    while operator.is_typeop(op) and operator.left_priority(op) > limit do
+        ls.step()
+        local r, nextop = type_binary(scope, ls, operator.right_priority(op))
+        if op == "?" then
+            l = ty["or"](l, ty["nil"]())
+        elseif op == "|" then
+            l = ty["or"](l, r)
+        elseif op == "&" then
+            l = ty["and"](l, r)
+        else
+            ls.error(ls, 10, "unexpected %s", as_val(ls) or ls.astext(ls.token))
+            break
+        end
+        op = nextop
+    end
+    return l, op
+end
+parse_type = function(scope, ls, varargs)
+    local typ = type_binary(scope, ls, 0)
+    if typ and varargs then
+        ty.varargs(typ)
+    end
+    return typ
+end
+local expr_primary, expr, expr_unop, expr_binop, expr_simple, expr_list, expr_table
+local parse_body, parse_args, parse_block, parse_opt_chunk
 local declare_var = function(scope, ls, name, vtype)
     if name == "@" then
         name = "self"
@@ -111,8 +297,6 @@ local declare_var = function(scope, ls, name, vtype)
     scope.new_var(name, vtype, ls.line)
     return name
 end
-local expr_primary, expr, expr_unop, expr_binop, expr_simple, expr_list, expr_table
-local parse_body, parse_args, parse_block, parse_opt_chunk
 local var_name = function(scope, ls)
     local name = lex_str(ls)
     local vk = Kind.Var
@@ -450,6 +634,7 @@ local parse_var = function(scope, ls)
     local lhs = {}
     repeat
         local name = lex_str(ls)
+        local typ = parse_type(scope, ls)
         name = declare_var(scope, ls, name, nil)
         lhs[#lhs + 1] = ast.identifier(name)
     until not lex_opt(ls, ",")
@@ -590,7 +775,7 @@ local parse_chunk = function(scope, ls)
         skip_ends()
         if stmted == ls.line then
             if ls.token ~= "TK_eof" and ls.token ~= "TK_dedent" and ls.next() ~= "TK_eof" then
-                err_instead(ls, 5, "only one statement allowed per line. %s expected", ls.astext("TK_newline"))
+                err_instead(ls, 5, "statement should end. %s expected", ls.astext("TK_newline"))
             end
         end
     end
@@ -608,7 +793,7 @@ parse_opt_chunk = function(scope, ls, line, match_token)
             body[1] = parse_stmt(scope, ls)
         end
         if not EndOfChunk[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token] then
-            err_instead(ls, 10, "only one statement may stay near %s. %s expected", ls.astext(match_token), ls.astext("TK_newline"))
+            err_instead(ls, 10, "statement should end near %s. %s expected", ls.astext(match_token), ls.astext("TK_newline"))
         elseif EndOfFunction[ls.token] then
             lex_opt(ls, ";")
         end
@@ -623,21 +808,32 @@ parse_block = function(scope, ls, line, match)
 end
 local parse_params = function(scope, ls)
     local params = {}
+    local rettyp = {}
     if ls.token ~= "->" and ls.token ~= "~>" then
         repeat
             if ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
                 local name = lex_str(ls)
+                local typ = parse_type(scope, ls)
                 name = declare_var(scope, ls, name, nil)
                 params[#params + 1] = ast.identifier(name)
             elseif ls.token == "..." then
                 ls.step()
+                local typ = parse_type(scope, ls, true)
                 scope.varargs()
                 params[#params + 1] = ast.expr_vararg()
+                if ls.next() ~= "/" then
+                    break
+                end
+            elseif ls.token == "/" then
+                ls.step()
+                repeat
+                    rettyp[#rettyp + 1] = parse_type(scope, ls)
+                until not lex_opt(ls, ",")
                 break
             else
                 err_instead(ls, 10, "parameter expected for %s", ls.astext("->"))
             end
-        until not lex_opt(ls, ",")
+        until not lex_opt(ls, ",") and ls.token ~= "/"
     end
     if ls.token == "->" then
         ls.step()

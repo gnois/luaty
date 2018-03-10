@@ -30,7 +30,7 @@ print(h)
 
 -- escape long string
 
-var html = [[
+var html = ``
 <!DOCTYPE HTML>
 <html lang="en">
 <head>
@@ -42,5 +42,6 @@ var html = [[
 </head>
 <body>
 </body></html>
-]]
+``
+print(html)
 

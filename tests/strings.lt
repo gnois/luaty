@@ -154,18 +154,18 @@ var trylocale = \w ->
 
 if not trylocale("collate")
   print("locale not supported")
-else--[[  fails locale in luajit??
+else--``  fails locale in luajit??
   assert("alo" < "álo" and "álo" < "amo")
-]]
+``
 
 if not trylocale("ctype")
   print("locale not supported")
-else--[[  fails locale in luajit??
+else--``  fails locale in luajit??
   assert(string.gsub("áéíóú", "%a", "x") == "xxxxx")
   assert(string.gsub("áÁéÉ", "%l", "x") == "xÁxÉ")
   assert(string.gsub("áÁéÉ", "%u", "x") == "áxéx")
   assert(string.upper("áÁé{xuxu}ção") == "ÁÁÉ{XUXU}ÇÃO")
-]]
+``
 
 os.setlocale("C")
 assert(os.setlocale() == 'C')

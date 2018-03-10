@@ -5,11 +5,10 @@ var bit = require('bit')
 -- modulus is your friend
 var binop = {
 	['+']  = 6 * 256 + 6, ['-']  = 6 * 256 + 6, ['*'] = 7 * 256 + 7, ['/'] = 7 * 256 + 7, ['%'] = 7 * 256 + 7,
-	['^']  = 10* 256 + 9, ['..'] = 5 * 256 + 4, -- POW CONCAT (right associative)
+	['^']  = 9 * 256 + 8, ['..'] = 5 * 256 + 4, -- POW CONCAT (right associative)
 	['=='] = 3 * 256 + 3, ['~='] = 3 * 256 + 3,
 	['<']  = 3 * 256 + 3, ['>='] = 3 * 256 + 3, ['>'] = 3 * 256 + 3, ['<='] = 3 * 256 + 3,
 	['and']= 2 * 256 + 2, ['or'] = 1 * 256 + 1
-	--['#']  = 8 * 256 + 8,
 }
 
 var unary_priority = 8
@@ -21,15 +20,33 @@ var ident_priority = 16
 var is_binop = \op ->
 	return binop[op]
 
-var left_priority = \op ->
-	return bit.rshift(binop[op], 8)
 
+-- Priority for type declaration operator
+-- (left priority) * 256 + (right priority)
+var typeop = {
+	['|']  = 1 * 256 + 1, ['&']  = 2 * 256 + 2,
+	['?']  = 2 * 256 + 2
+}
+
+
+var is_typeop = \op ->
+	return typeop[op]
+
+
+-- works for binop or typeop
+var left_priority = \op ->
+	var val = binop[op] or typeop[op]
+	return bit.rshift(val, 8)
+
+-- works for binop or typeop
 var right_priority = \op ->
-	return bit.band(binop[op], 0xff)
+	var val = binop[op] or typeop[op]
+	return bit.band(val, 0xff)
 
 
 return {
 	is_binop       = is_binop
+	, is_typeop    = is_typeop
 	, left_priority  = left_priority
 	, right_priority = right_priority
 	, unary_priority = unary_priority

@@ -65,6 +65,16 @@ ExpressionRule.NumberLiteral = function(self, node)
     return node.value, operator.ident_priority
 end
 ExpressionRule.LongStringLiteral = function(self, node)
+    local n, m = string.find(node.text, "^`+")
+    if n then
+        local p, q = string.find(node.text, "`+$")
+        assert(q - p == m - n)
+        local eq = string.rep("=", m - n)
+        local begins = "[" .. eq .. "["
+        local ends = "]" .. eq .. "]"
+        local text = string.sub(node.text, m + 1, p - 1)
+        return begins .. text .. ends, operator.ident_priority
+    end
     return node.text, operator.ident_priority
 end
 ExpressionRule.MemberExpression = function(self, node)

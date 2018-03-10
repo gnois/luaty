@@ -1,4 +1,7 @@
+-- Grammar spec refer to https://github.com/Microsoft/TypeScript/blob/master/doc/spec.md#38-specifying-types
+
 var ast = require('lua.ast')
+var ty = require('lua.type')
 var operator = require('lua.operator')
 var reserved = require('lua.reserved')
 
@@ -71,6 +74,8 @@ var lex_match = \ls, what, who, line ->
 			err_expect(ls, what)
 		else
 			err_instead(ls, 10, "%s expected to match %s at line %d", ls.astext(what), ls.astext(who), line)
+		return false
+	return true
 
 
 var lex_str = \ls ->
@@ -112,16 +117,199 @@ var lex_opt_dent = \ls, dented ->
 	return dented
 
 
+--- Type Declarations ------------------------------------------------
+var parse_type, type_unary, type_binary, type_basic 
+
+-- Only table type annotation can span multiple lines
+var type_tbl = \scope, ls ->
+	var line = ls.line
+	ls.step()  -- skip '{'
+	var kvs = {}
+	var dented = false
+	while ls.token ~= '}'
+		dented = lex_opt_dent(ls, dented)
+		-- catch common mistake that mess everything later
+		if not dented and ls.token == 'TK_dedent'
+			err_symbol(ls)
+			ls.step()
+
+		-- in case the table ends immediately
+		if ls.token == '}'
+			break
+		var key = parse_type(scope, ls)
+		var val
+		if ls.token == ':'
+			ls.step()  -- skip ':'
+			val = parse_type(scope, ls)
+		else
+			val = key
+			key = nil
+			
+		if key
+			for i = 1, #kvs
+				var arr = kvs[i]
+				if ast.same(arr[2], key)
+					ls.error(ls, 10, "similar key type at position %i and %i in table type annotation", i, (#kvs + 1))
+		else
+			if not val
+				err_instead(ls, 10, "type expected in table type annotation")
+			else
+				for i = 1, #kvs
+					var arr = kvs[i]
+					if not arr[2] and ast.same(arr[1], val)
+						ls.error(ls, 10, "similar value type at position %i and %i in table type annotation", i, (#kvs + 1))
+
+		kvs[#kvs + 1] = { val, key }  -- key can be nil
+
+		dented = lex_opt_dent(ls, dented)
+		if not lex_opt(ls, ',')
+			break
+
+	if dented and not lex_dedent(ls)
+		err_instead(ls, 10, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), line)
+	lex_match(ls, '}', '{', line)
+	return ty.tbl(kvs)
+
+
+var type_list = \isparam, scope, ls ->
+	var list = {}
+	if not (isparam and ls.token == '/' or ls.token == ']')
+		repeat
+			if ls.token == '...'
+				ls.step()
+				list[#list + 1] = parse_type(scope, ls, true)
+				break
+			else
+				list[#list+1] = parse_type(scope, ls)
+				--``
+				var which = "return"
+				if isparam
+					which = "parameter"
+				ls.error(ls, 10, "invalid %s type %s", which, ls.astext(ls.token))
+				``
+		until not lex_opt(ls, ',')
+	return list
+
+
+var type_func = \scope, ls ->
+	var line = ls.line
+	ls.step()  -- skip '['
+	var params = type_list(true, scope, ls)
+	var returns
+	if ls.token == '/'
+		ls.step()
+		returns = type_list(false, scope, ls)
+	
+	lex_match(ls, ']', '[', line)
+	return ty.func(params, returns)
+
+
+var type_prefix = \scope, ls ->
+	var typ
+	if ls.token == 'TK_name'
+		typ = ty.custom(ls.value)
+		ls.step()
+	else if ls.token == '('
+		var line = ls.line
+		ls.step()
+		typ = ty.bracket(parse_type(scope, ls))
+		lex_match(ls, ')', '(', line)
+	else
+		-- ls.error(ls, 10, "invalid type annotation %s", ls.astext(ls.token))
+		-- optional typing
+		return typ
+
+	-- Parse multiple type suffix
+	while ls.token == '.'  -- type name cannot have `-`, so no need to consider `[`
+		ls.step() 
+		if ls.token ~= 'TK_name'
+			break
+		typ = ty.index(typ, ls.value)
+		ls.step()  -- skip TK_name
+		
+	return typ
+
+
+type_basic = \scope, ls ->
+	var typ
+	var val
+	if ls.token == 'TK_name'
+		val = ls.value
+	
+	if val == 'any'
+		typ = ty.any()
+	else if val == 'num' or val == 'number'
+		typ = ty.num()
+		if val == 'number'
+			err_warn("use `num` instead of `number`")
+	else if val == 'str' or val == 'string'
+		typ = ty.str()
+		if val == 'string'
+			err_warn("use `str` instead of `string`")
+	else if val == 'bool' or val == 'boolean'
+		typ = ty.bool()
+		if val == 'boolean'
+			err_warn("use `bool` instead of `boolean`")
+	else
+		if ls.token == 'TK_nil'
+			typ = ty.nil()
+		else
+			if ls.token == '['
+				return type_func(scope, ls)
+			if ls.token == '{'
+				return type_tbl(scope, ls)
+			return type_prefix(scope, ls)
+
+	ls.step()
+	return typ
+
+
+type_unary = \scope, ls ->
+	var tk = ls.token
+	if tk == '!'
+		ls.step()
+		var t = type_binary(scope, ls, operator.unary_priority)
+		return ty.not(t)
+	else
+		return type_basic(scope, ls)
+
+
+type_binary = \scope, ls, limit ->
+	var l = type_unary(scope, ls)
+	var op = ls.token
+	while operator.is_typeop(op) and operator.left_priority(op) > limit
+		ls.step()
+		var r, nextop = type_binary(scope, ls, operator.right_priority(op))
+		if op == '?'
+			l = ty.or(l, ty.nil())
+		else if op == '|'
+			l = ty.or(l, r)
+		else if op == '&'
+			l = ty.and(l, r)
+		else
+			ls.error(ls, 10, "unexpected %s", as_val(ls) or ls.astext(ls.token))
+			break
+		op = nextop
+	return l, op
+
+
+parse_type = \scope, ls, varargs ->
+	var typ = type_binary(scope, ls, 0) -- Priority 0: parse whole type
+	if typ and varargs
+		ty.varargs(typ)
+	return typ
+
+--- Expressions ------------------------------------------------
+var expr_primary, expr, expr_unop, expr_binop, expr_simple, expr_list, expr_table
+var parse_body, parse_args, parse_block, parse_opt_chunk
+
+
 var declare_var = \scope, ls, name, vtype ->
 	if name == '@'
 		name = 'self'
 	scope.new_var(name, vtype, ls.line)
 	return name
 
-
---- Expressions ------------------------------------------------
-var expr_primary, expr, expr_unop, expr_binop, expr_simple, expr_list, expr_table
-var parse_body, parse_args, parse_block, parse_opt_chunk
 
 var var_name = \scope, ls ->
 	var name = lex_str(ls)
@@ -346,7 +534,6 @@ expr_primary = \scope, ls ->
 
 
 --- Statements ------------------------------------------------
-
 var parse_return = \scope, ls, line ->
 	ls.step() -- skip 'return'
 	ast.has_return = true
@@ -480,6 +667,7 @@ var parse_var = \scope, ls ->
 	var lhs = {}
 	repeat
 		var name = lex_str(ls)
+		var typ = parse_type(scope, ls)
 		name = declare_var(scope, ls, name, nil)
 		lhs[#lhs+1] = ast.identifier(name)
 	until not lex_opt(ls, ',')
@@ -633,7 +821,7 @@ var parse_chunk = \scope, ls ->
 		-- disallow multiple statement in one line
 		if stmted == ls.line
 			if ls.token ~= 'TK_eof' and ls.token ~= 'TK_dedent' and ls.next() ~= 'TK_eof'
-				err_instead(ls, 5, "only one statement allowed per line. %s expected", ls.astext('TK_newline'))
+				err_instead(ls, 5, "statement should end. %s expected", ls.astext('TK_newline'))
 	return body, firstline, ls.line
 
 
@@ -652,7 +840,7 @@ parse_opt_chunk = \scope, ls, line, match_token ->
 			--body.firstline, body.lastline = line, ls.line
 
 		if not EndOfChunk[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
-			err_instead(ls, 10, "only one statement may stay near %s. %s expected", ls.astext(match_token), ls.astext('TK_newline'))
+			err_instead(ls, 10, "statement should end near %s. %s expected", ls.astext(match_token), ls.astext('TK_newline'))
 		-- returning multiple values need ; if it stays with other expressions on the same line
 		else if EndOfFunction[ls.token]
 			lex_opt(ls, ';')
@@ -669,20 +857,30 @@ parse_block = \scope, ls, line, match ->
 -- Parse function definition parameters
 var parse_params = \scope, ls ->
 	var params = {}
+	var rettyp = {}
 	if ls.token ~= '->' and ls.token ~= '~>'
 		repeat
 			if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')
 				var name = lex_str(ls)
+				var typ = parse_type(scope, ls)
 				name = declare_var(scope, ls, name, nil)
 				params[#params+1] = ast.identifier(name)
 			else if ls.token == '...'
 				ls.step()
+				var typ = parse_type(scope, ls, true)
 				scope.varargs()
 				params[#params + 1] = ast.expr_vararg()
+				if ls.next() ~= '/'
+					break
+			else if ls.token == '/'
+				ls.step()  -- skip '/'
+				repeat
+					rettyp[#rettyp + 1] = parse_type(scope, ls)
+				until not lex_opt(ls, ',')
 				break
 			else
 				err_instead(ls, 10, "parameter expected for %s", ls.astext('->'))
-		until not lex_opt(ls, ',')
+		until not lex_opt(ls, ',') and ls.token ~= '/'
 
 	if ls.token == '->'
 		ls.step()
