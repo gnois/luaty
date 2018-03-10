@@ -19,12 +19,13 @@ Here goes the differences:
   * no more `then`, `end`, `do`
   * `local` becomes `var`
   * `elseif` becomes `else if`
+  * `[=[` and `]=]` deliminater becomes `\``, which can be repeated multiple times to avoid collision
   * `self` can be `@`
 
 ```
 var x = false               -- `var` compiles to `local`
 if not x
-   print('nay')             -- `then` and `end` not needed
+   print(`"nay"`)           -- `then` and `end` not needed, `"nay"` compiles to [["nay"]]
 ```
 
 - Consistency preferred over sugar

@@ -74,6 +74,8 @@ var lex_match = \ls, what, who, line ->
 			err_expect(ls, what)
 		else
 			err_instead(ls, 10, "%s expected to match %s at line %d", ls.astext(what), ls.astext(who), line)
+		return false
+	return true
 
 
 var lex_str = \ls ->
@@ -134,29 +136,28 @@ var type_tbl = \scope, ls ->
 		-- in case the table ends immediately
 		if ls.token == '}'
 			break
-		var key
-		if ls.next() == ':'
-			if ls.token == 'TK_name'
-				key = type_basic(scope, ls)
-			else if ls.token == 'TK_string'
-				key = ty.keyed(ls.value)
-				ls.step()
-			else
-				ls.error(ls, 10, "invalid table type annotation %s", ls.astext(ls.token))
+		var key = parse_type(scope, ls)
+		var val
+		if ls.token == ':'
 			ls.step()  -- skip ':'
+			val = parse_type(scope, ls)
+		else
+			val = key
+			key = nil
 			
-		var val = parse_type(scope, ls)
 		if key
 			for i = 1, #kvs
 				var arr = kvs[i]
 				if ast.same(arr[2], key)
 					ls.error(ls, 10, "similar key type at position %i and %i in table type annotation", i, (#kvs + 1))
 		else
-			for i = 1, #kvs
-				var arr = kvs[i]
-				if not arr[2] and ast.same(arr[1], val)
-					ls.error(ls, 10, "similar value type at position %i and %i in table type annotation", i, (#kvs + 1))
-
+			if not val
+				err_instead(ls, 10, "type expected in table type annotation")
+			else
+				for i = 1, #kvs
+					var arr = kvs[i]
+					if not arr[2] and ast.same(arr[1], val)
+						ls.error(ls, 10, "similar value type at position %i and %i in table type annotation", i, (#kvs + 1))
 
 		kvs[#kvs + 1] = { val, key }  -- key can be nil
 
@@ -174,17 +175,18 @@ var type_list = \isparam, scope, ls ->
 	var list = {}
 	if not (isparam and ls.token == '/' or ls.token == ']')
 		repeat
-			if ls.token == 'TK_name'
-				list[#list+1] = parse_type(scope, ls)
-			else if ls.token == '...'
+			if ls.token == '...'
 				ls.step()
-				list[#list + 1] = parse_type(scope, ls)
+				list[#list + 1] = parse_type(scope, ls, true)
 				break
 			else
+				list[#list+1] = parse_type(scope, ls)
+				--``
 				var which = "return"
 				if isparam
 					which = "parameter"
 				ls.error(ls, 10, "invalid %s type %s", which, ls.astext(ls.token))
+				``
 		until not lex_opt(ls, ',')
 	return list
 
@@ -204,49 +206,60 @@ var type_func = \scope, ls ->
 
 var type_prefix = \scope, ls ->
 	var typ
-	if ls.token == '('
+	if ls.token == 'TK_name'
+		typ = ty.custom(ls.value)
+		ls.step()
+	else if ls.token == '('
 		var line = ls.line
 		ls.step()
 		typ = ty.bracket(parse_type(scope, ls))
 		lex_match(ls, ')', '(', line)
-	else if ls.token == 'TK_name'
-		typ = ty.custom(ls.value)
-		ls.step()
 	else
 		-- ls.error(ls, 10, "invalid type annotation %s", ls.astext(ls.token))
 		-- optional typing
 		return typ
 
-	while ls.token == '.' -- Parse multiple type suffix
-		--var line = ls.line
-		ls.step()
-		if ls.token == 'TK_name'
-			typ = ty.index(typ, ls.value)
-		else
+	-- Parse multiple type suffix
+	while ls.token == '.'  -- type name cannot have `-`, so no need to consider `[`
+		ls.step() 
+		if ls.token ~= 'TK_name'
 			break
+		typ = ty.index(typ, ls.value)
+		ls.step()  -- skip TK_name
+		
 	return typ
 
 
 type_basic = \scope, ls ->
 	var typ
-	var val = ls.value
+	var val
+	if ls.token == 'TK_name'
+		val = ls.value
 	
 	if val == 'any'
 		typ = ty.any()
-	else if val == 'num'
+	else if val == 'num' or val == 'number'
 		typ = ty.num()
-	else if val == 'str'
+		if val == 'number'
+			err_warn("use `num` instead of `number`")
+	else if val == 'str' or val == 'string'
 		typ = ty.str()
-	else if val == 'bool'
+		if val == 'string'
+			err_warn("use `str` instead of `string`")
+	else if val == 'bool' or val == 'boolean'
 		typ = ty.bool()
-	else if ls.token == 'TK_nil'
-		typ = ty.nil()
+		if val == 'boolean'
+			err_warn("use `bool` instead of `boolean`")
 	else
-		if ls.token == '['
-			return type_func(scope, ls)
-		if ls.token == '{'
-			return type_tbl(scope, ls)
-		return type_prefix(scope, ls)
+		if ls.token == 'TK_nil'
+			typ = ty.nil()
+		else
+			if ls.token == '['
+				return type_func(scope, ls)
+			if ls.token == '{'
+				return type_tbl(scope, ls)
+			return type_prefix(scope, ls)
+
 	ls.step()
 	return typ
 
@@ -267,17 +280,22 @@ type_binary = \scope, ls, limit ->
 	while operator.is_typeop(op) and operator.left_priority(op) > limit
 		ls.step()
 		var r, nextop = type_binary(scope, ls, operator.right_priority(op))
-		if op == '|'
+		if op == '?'
+			l = ty.or(l, ty.nil())
+		else if op == '|'
 			l = ty.or(l, r)
-		else 
+		else if op == '&'
 			l = ty.and(l, r)
+		else
+			ls.error(ls, 10, "unexpected %s", as_val(ls) or ls.astext(ls.token))
+			break
 		op = nextop
 	return l, op
 
 
 parse_type = \scope, ls, varargs ->
 	var typ = type_binary(scope, ls, 0) -- Priority 0: parse whole type
-	if varargs
+	if typ and varargs
 		ty.varargs(typ)
 	return typ
 
@@ -849,7 +867,7 @@ var parse_params = \scope, ls ->
 				params[#params+1] = ast.identifier(name)
 			else if ls.token == '...'
 				ls.step()
-				var typ = parse_type(scope, ls)
+				var typ = parse_type(scope, ls, true)
 				scope.varargs()
 				params[#params + 1] = ast.expr_vararg()
 				if ls.next() ~= '/'

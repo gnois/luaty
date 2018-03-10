@@ -130,11 +130,11 @@ return \read ->
 		var k = p + m
 		return string.sub(data, k, k)
 
-	--[[
+	--`
 	var skip = \len ->
 		n = n - len
 		p = p + len
-	]]
+	--`
 	
 	var add_buffer = \c ->
 		bi = bi + 1
@@ -166,7 +166,7 @@ return \read ->
 		state.pos = 1
 
 
-	var skip_sep = ->
+	var add_eq = ->
 		var count = 0
 		var s = ch
 		assert(s == '[' or s == ']')
@@ -178,6 +178,18 @@ return \read ->
 			count = count + 1
 
 		return ch == s and count or (-count - 1)
+
+	var add_bquote = ->
+		var count = 1
+		var s = ch
+		assert(s == '`')
+		add_buffer(s)
+		nextchar()
+		while ch == '`'
+			add_buffer(ch)
+			nextchar()
+			count = count + 1
+		return count
 
 
 	var lex_number = ->
@@ -215,7 +227,7 @@ return \read ->
 
 	var read_long_string = \sep, comment ->
 		var begin = state.line
-		-- skip 2nd `['
+		-- skip 2nd [
 		add_buffer(ch)
 		nextchar()
 		--if IsNewLine[ch] -- string starts with a newline?
@@ -226,8 +238,8 @@ return \read ->
 				lex_error('TK_eof', (comment and "unfinished long comment" or "unfinished long string") .. " from line %d till", begin)
 				break
 			else if ch == ']'
-				if skip_sep() == sep
-					-- skip 2nd `]'
+				if add_eq() == sep
+					-- skip 2nd ]
 					add_buffer(ch)
 					nextchar()
 					break
@@ -237,12 +249,41 @@ return \read ->
 					inc_line()
 				else
 					nextchar()
+		
+		var delim = string.rep('=', sep)
+		var quote = string.rep('`', sep + 1)
+		lex_error(nil, "use " .. quote .. " as long string delimiter instead of [" .. delim .. "[ ... ]" .. delim .. "]")
 		--return get_buffer(2 + sep, 2 + sep)
 		return get_buffer(0, 0)
 
 
+	var read_long_bquote_string = \sep, comment ->
+		var begin = state.line
+		--if IsNewLine[ch] -- string starts with a newline?
+		--    inc_line() -- skip it
+		while true
+			if ch == END_OF_STREAM
+				lex_error('TK_eof', (comment and "unfinished long comment" or "unfinished long string") .. " from line %d till", begin)
+				break
+			else if ch == '`'
+				if add_bquote() == sep
+					break
+			else
+				if ch == ']'
+					if add_eq() + 1 == sep
+						var delim = string.rep('=', sep - 1)
+						lex_error(nil, "long string delimiter conflict due to " .. ch .. delim .. ch .. "; please use more than " .. sep .. " backquote")
 
-	-- this function works tightly with luacode-generator ExpressionRule:Literal
+				add_buffer(ch)
+				if IsNewLine[ch]
+					inc_line()
+				else
+					nextchar()
+		--return get_buffer(2 + sep, 2 + sep)
+		return get_buffer(0, 0)
+
+
+	-- this function works tightly with generator ExpressionRule:Literal
 	var read_escape_char = ->
 		var c = nextchar() -- Skip the '\\'.
 		var esc = IsEscape[c]
@@ -327,10 +368,6 @@ return \read ->
 		return get_buffer(1, 1)
 
 
-	var skip_line = ->
-		while not IsNewLine[ch] and ch ~= END_OF_STREAM
-			add_comment(ch)
-			nextchar()
 
 
 	var tokenize = ->
@@ -403,19 +440,28 @@ return \read ->
 					nextchar()
 					add_comment('--')
 					if ch == '['
-						var sep = skip_sep()
-						add_comment(table.concat(buff))  -- `skip_sep' may have changed buff
+						var sep = add_eq()
+						add_comment(table.concat(buff))  -- add_eq() may have changed buff
 						clear_buffer()
 						if sep >= 0
-							read_long_string(sep, true) -- long comment
-							add_comment(table.concat(buff))  -- `read_long_string' may have change buff
+							read_long_string(sep, true)
+							add_comment(table.concat(buff))  -- buff has been changed
 							clear_buffer()
 						else
-							skip_line()
-					
+							while not IsNewLine[ch] and ch ~= END_OF_STREAM
+								add_comment(ch)
+								nextchar()
+					else if ch == '`'
+						var sep = add_bquote()
+						add_comment(table.concat(buff))  -- add_bquote() may have changed buff
+						clear_buffer()
+						read_long_bquote_string(sep, true)
+						add_comment(table.concat(buff))  -- buff has been changed
+						clear_buffer()
 					else
-						skip_line()
-				
+						while not IsNewLine[ch] and ch ~= END_OF_STREAM
+							add_comment(ch)
+							nextchar()
 					return 'TK_comment', get_comment()
 				else if ch == '>'
 					nextchar()
@@ -453,15 +499,22 @@ return \read ->
 					nextchar()
 					return 'TK_name', '@'
 				else if ch == '['
-					var sep = skip_sep()
-					if sep >= 0
+					var sep = add_eq()
+					-- if [=..., we treat it as long string
+					if sep > 0
 						var str = read_long_string(sep)
 						return 'TK_longstring', str
-					else if sep == -1
+					-- [[ is no longer long string. we return [, [ one by one
+					else if sep == 0 or sep == -1
 						return '['
 					else
-						lex_error('TK_longstring', "long string delimiter error")
+						lex_error(nil, "invalid long string delimiter")
 				
+				else if ch == '`'
+					var sep = add_bquote()
+					var str = read_long_bquote_string(sep)
+					return 'TK_longstring', str
+
 				else if ch == '='
 					nextchar()
 					if ch ~= '=' return '='

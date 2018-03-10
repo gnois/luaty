@@ -24,7 +24,8 @@ var is_binop = \op ->
 -- Priority for type declaration operator
 -- (left priority) * 256 + (right priority)
 var typeop = {
-	['|']  = 1 * 256 + 1, ['&']  = 2 * 256 + 2
+	['|']  = 1 * 256 + 1, ['&']  = 2 * 256 + 2,
+	['?']  = 2 * 256 + 2
 }
 
 

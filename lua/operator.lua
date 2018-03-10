@@ -9,7 +9,7 @@ local ident_priority = 16
 local is_binop = function(op)
     return binop[op]
 end
-local typeop = {["|"] = 1 * 256 + 1, ["&"] = 2 * 256 + 2}
+local typeop = {["|"] = 1 * 256 + 1, ["&"] = 2 * 256 + 2, ["?"] = 2 * 256 + 2}
 local is_typeop = function(op)
     return typeop[op]
 end

@@ -32,7 +32,7 @@ var tbl = {8, 4
 3}
 eq(7, tbl, {8, 4, 7, nil, nil, 'a', 3})
 
---[[
+--`
 var fact
 (\n, accu->
 	if n <= 1 
@@ -41,7 +41,7 @@ var fact
 		return fact(n - 1, n * accu)
 		
 )(5, 1)
-]]
+`
 
 -- immediately invoked one lined function
 var foo
