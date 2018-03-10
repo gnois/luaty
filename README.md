@@ -19,7 +19,7 @@ Here goes the differences:
   * no more `then`, `end`, `do`
   * `local` becomes `var`
   * `elseif` becomes `else if`
-  * `[=[` and `]=]` deliminater becomes `\``, which can be repeated multiple times to avoid collision
+  * `[[` and `]]` are replaced with backquote \` which can be repeatable multiple times
   * `self` can be `@`
 
 ```
