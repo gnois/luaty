@@ -662,19 +662,26 @@ var parse_call_assign = \scope, ls ->
 
 var parse_var = \scope, ls ->
 	var line = ls.line
-	var lhs = {}
+	var names = {}
+
 	repeat
 		var name = lex_str(ls)
 		var typ = parse_type(scope, ls)
-		name = declare_var(scope, ls, name, nil)
-		lhs[#lhs+1] = ast.identifier(name)
+		names[#names+1] = name
 	until not lex_opt(ls, ',')
 
 	var rhs -- optional rhs
 	if lex_opt(ls, '=')
-		rhs = expr_list(scope, ls, #lhs)
+		rhs = expr_list(scope, ls, #names)
 	else
 		rhs = {}
+	
+	-- declare var in scope after expr
+	var lhs = {}
+	for _, name in ipairs(names)
+		name = declare_var(scope, ls, name, nil)
+		lhs[#lhs+1] = ast.identifier(name)
+
 	return ast.local_decl(lhs, rhs, line)
 
 

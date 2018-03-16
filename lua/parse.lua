@@ -629,18 +629,22 @@ local parse_call_assign = function(scope, ls)
 end
 local parse_var = function(scope, ls)
     local line = ls.line
-    local lhs = {}
+    local names = {}
     repeat
         local name = lex_str(ls)
         local typ = parse_type(scope, ls)
-        name = declare_var(scope, ls, name, nil)
-        lhs[#lhs + 1] = ast.identifier(name)
+        names[#names + 1] = name
     until not lex_opt(ls, ",")
     local rhs
     if lex_opt(ls, "=") then
-        rhs = expr_list(scope, ls, #lhs)
+        rhs = expr_list(scope, ls, #names)
     else
         rhs = {}
+    end
+    local lhs = {}
+    for _, name in ipairs(names) do
+        name = declare_var(scope, ls, name, nil)
+        lhs[#lhs + 1] = ast.identifier(name)
     end
     return ast.local_decl(lhs, rhs, line)
 end
