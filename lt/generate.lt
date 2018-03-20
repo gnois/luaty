@@ -6,401 +6,65 @@ var Keyword = reserved.Keyword
 var format = string.format
 var is = chars.is
 
-var StatementRule = {}
-var ExpressionRule = {}
-
-
-var is_string = \node ->
-	return node.kind == "Literal" and type(node.value) == "string"
-
-
-var is_const = \node, val ->
-	return node.kind == "Literal" and node.value == val
-
-
-var is_literal = \node ->
-	var k = node.kind
-	return (k == "Literal" or k == "Table")
-
-
-var string_is_ident = \str ->
-	var c = string.sub(str, 1, 1)
-	if c == '' or not is.letter(c)
-		return false
-
-	for k = 2, #str
-		c = string.sub(str, k, k)
-		if not is.letter(c) and not is.digit(c)
-			return false
-
-	return not Keyword[str]
-
-
-var comma_sep_list = \ls, f ->
-	var strls
-	if f
-		strls = {}
-		for k = 1, #ls
-			strls[k] = f(ls[k]) 
-	else
-		strls = ls
-
-	return table.concat(strls, ", ")
-
-
-var as_parameter = \node ->
-	return node.kind == "Vararg" and "..." or node.name
-
-
-ExpressionRule.Identifier = \@, node ->
-	return node.name, operator.ident_priority
-
-
-var escape = \s ->
-	var replace = {
-		'"' = `\"`, '\a' = `\a`, '\b' = `\b`, '\f' = `\f`, '\n' = `\n`, '\r' = `\r`, '\t' = `\t`, '\v' = `\v`
-	}
-	return string.gsub(s, '["\a\b\f\n\r\t\v]', replace)
-
-
-ExpressionRule.Literal = \@, node ->
-	var val = node.value
-	var str = type(val) == "string" and format('"%s"', escape(val)) or tostring(val)
-	return str, operator.ident_priority
-
-
-ExpressionRule.NumberLiteral = \@, node ->
-	return node.value, operator.ident_priority
-
-
-ExpressionRule.LongStringLiteral = \@, node ->
-	-- convert `` to [=[       meaning 2 backtick to 1 equal sign
-	var n, m = string.find(node.text, "^`+")
-	if n
-		var p, q = string.find(node.text,"`+$")
-		assert(q-p == m-n)
-		var eq = string.rep('=', m - n)
-		var begins = "["..eq.."["
-		var ends = "]"..eq.."]"
-		var text = string.sub(node.text, m+1, p-1)
-		return begins .. text .. ends, operator.ident_priority
-	-- keep the [=[ ]=] style
-	return node.text, operator.ident_priority
-
-ExpressionRule.MemberExpression = \@, node ->
-	var object, prio = @.expr_emit(@, node.object)
-	if prio < operator.ident_priority or is_literal(node.object)
-		object = "(" .. object .. ")"
-
-	var exp
-	if node.computed
-		var prop = @.expr_emit(@, node.property)
-		exp = format("%s[%s]", object, prop)
-	else
-		exp = format("%s.%s", object, node.property.name)
-
-	return exp, operator.ident_priority
-
-
-ExpressionRule.Vararg = \@ ->
-	return "...", operator.ident_priority
-
---``
-ExpressionRule.ExpressionValue = \@, node ->
-	return "(" .. @.expr_emit(@, node.value) .. ")"
-``
-
-ExpressionRule.BinaryExpression = \@, node ->
-	var oper = node.operator
-	var lprio = operator.left_priority(oper)
-	var rprio = operator.right_priority(oper)
-	var a, alprio, arprio = @.expr_emit(@, node.left)
-	var b, blprio, brprio = @.expr_emit(@, node.right)
-	if not arprio arprio = alprio 
-	if not brprio brprio = blprio 
-	var ap = arprio <  lprio and format("(%s)", a) or a
-	var bp = blprio <= rprio and format("(%s)", b) or b
-	return format("%s %s %s", ap, oper, bp), lprio, rprio
-
-
-ExpressionRule.UnaryExpression = \@, node ->
-	var arg, arg_prio = @.expr_emit(@, node.argument)
-	var op_prio = operator.unary_priority
-	if arg_prio < op_prio arg = format("(%s)", arg) 
-	var op = node.operator
-	if op == 'not' op = 'not ' 
-	return format("%s%s", op, arg), operator.unary_priority
-
-
-ExpressionRule.LogicalExpression = ExpressionRule.BinaryExpression
-
-ExpressionRule.ConcatenateExpression = \@, node ->
-	var ls = {}
-	var cat_prio = operator.left_priority("..")
-	for k = 1, #node.terms
-		var kprio
-		ls[k], kprio = @.expr_emit(@, node.terms[k])
-		if kprio < cat_prio ls[k] = format("(%s)", ls[k]) 
-
-	return table.concat(ls, " .. "), cat_prio
-
-
-ExpressionRule.Table = \@, node ->
-	var hash = {}
-	var last = #node.keyvals
-	for i = 1, last
-		var kv = node.keyvals[i]
-		var val = @.expr_emit(@, kv[1])
-		var key = kv[2]
-		if key
-			if is_string(key) and string_is_ident(key.value)
-				hash[i] = format("%s = %s", key.value, val)
-			else
-				hash[i] = format("[%s] = %s", @.expr_emit(@, key), val)
-		
-		else
-			if i == last and kv[1].bracketed
-				hash[i] = format("(%s)", val)
-			else
-				hash[i] = format("%s", val)
-
-	var content = ""
-	if #hash > 0
-		content = comma_sep_list(hash)
-
-	return "{" .. content .. "}", operator.ident_priority
-
-
-ExpressionRule.CallExpression = \@, node ->
-	var callee, prio = @.expr_emit(@, node.callee)
-	if prio < operator.ident_priority
-		callee = "(" .. callee .. ")"
-
-	var exp = format("%s(%s)", callee, @.expr_list(@, node.arguments))
-	return exp, operator.ident_priority
-
-
-ExpressionRule.SendExpression = \@, node ->
-	var receiver, prio = @.expr_emit(@, node.receiver)
-	if prio < operator.ident_priority or is_literal(node.receiver)
-		receiver = "(" .. receiver .. ")"
-
-	var method = node.method.name
-	var exp = format("%s:%s(%s)", receiver, method, @.expr_list(@, node.arguments))
-	return exp, operator.ident_priority
-
-
---``
-ExpressionRule.SendExpression = \@, node ->
-	var callee, prio = @.expr_emit(@, node.callee)
-	-- replace the last . with :
-	var dot = string.match(callee, ".*%.()")
-	var method = callee.sub(@, 1, dot-2) .. ':' .. callee.sub(@, dot)
-	if prio < operator.ident_priority or is_literal(node.callee)
-		method = "(" .. method .. ")"
-
-	var exp = format("%s(%s)", method, @.expr_list(@, node.arguments))
-	return exp, operator.ident_priority
-
-
-StatementRule.FunctionDeclaration = \@, node ->
-	@.proto_enter(@, 0)
-	var name = @.expr_emit(@, node.id)
-
-	var header = format("function %s(%s)", name, comma_sep_list(node.params, as_parameter))
-	if node.locald
-		header = "local " .. header
-
-	@.add_section(@, header, node.body)
-	var child_proto = @.proto_leave(@)
-	@.proto.merge(@, child_proto)
---``
-
-ExpressionRule.FunctionExpression = \@, node ->
-	@.proto_enter(@)
-	var header = format("function(%s)", comma_sep_list(node.params, as_parameter))
-	@.add_section(@, header, node.body)
-	var child_proto = @.proto_leave(@)
-	return child_proto.inline(@), 0
-
-
-StatementRule.CallExpression = \@, node ->
-	var line = @.expr_emit(@, node)
-	@.add_line(@, line)
-
-
-StatementRule.ForStatement = \@, node ->
-	var init = node.init
-	var istart = @.expr_emit(@, init.value)
-	var iend = @.expr_emit(@, node.last)
-	var header
-	if node.step and not is_const(node.step, 1)
-		var step = @.expr_emit(@, node.step)
-		header = format("for %s = %s, %s, %s do", init.id.name, istart, iend, step)
-	else
-		header = format("for %s = %s, %s do", init.id.name, istart, iend)
-
-	@.add_section(@, header, node.body)
-
-
-StatementRule.ForInStatement = \@, node ->
-	var vars = comma_sep_list(node.namelist.names, as_parameter)
-	var explist = @.expr_list(@, node.explist)
-	var header = format("for %s in %s do", vars, explist)
-	@.add_section(@, header, node.body)
-
-
-StatementRule.DoStatement = \@, node ->
-	@.add_section(@, "do", node.body)
-
-
-StatementRule.WhileStatement = \@, node ->
-	var test = @.expr_emit(@, node.test)
-	var header = format("while %s do", test)
-	@.add_section(@, header, node.body)
-
-
-StatementRule.RepeatStatement = \@, node ->
-	@.add_section(@, "repeat", node.body, true)
-	var test = @.expr_emit(@, node.test)
-	var until_line = format("until %s", test)
-	@.add_line(@, until_line)
-
-
-StatementRule.BreakStatement = \@ ->
-	@.add_line(@, "break")
-
-
-StatementRule.IfStatement = \@, node ->
-	var ncons = #node.tests
-	for i = 1, ncons
-		var header_tag = i == 1 and "if" or "elseif"
-		var test = @.expr_emit(@, node.tests[i])
-		var header = format("%s %s then", header_tag, test)
-		@.add_section(@, header, node.cons[i], true)
-
-	if node.alternate
-		@.add_section(@, "else", node.alternate, true)
-
-	@.add_line(@, "end")
-
-
-StatementRule.LocalDeclaration = \@, node ->
-	var line
-	var names = comma_sep_list(node.names, as_parameter)
-	if #node.expressions > 0
-		line = format("local %s = %s", names, @.expr_list(@, node.expressions))
-	else
-		line = format("local %s", names)
-
-	@.add_line(@, line)
-
-
-StatementRule.AssignmentExpression = \@, node ->
-	var line = format("%s = %s", @.expr_list(@, node.left), @.expr_list(@, node.right))
-	@.add_line(@, line)
-
-
-StatementRule.Chunk = \@, node ->
-	@.list_emit(@, node.body)
-
-
-StatementRule.ExpressionStatement = \@, node ->
-	var line = @.expr_emit(@, node.expression)
-	@.add_line(@, line)
-
-
-StatementRule.ReturnStatement = \@, node ->
-	var line = format("return %s", @.expr_list(@, node.arguments))
-	@.add_line(@, line)
-
-
-StatementRule.LabelStatement = \@, node ->
-	@.add_line(@, "::" .. node.label .. "::")
-
-
-StatementRule.GotoStatement = \@, node ->
-	@.add_line(@, "goto " .. node.label)
-
-
-var proto_inline = \proto ->
-	-- remove leading whitespaces from first line
-	if #proto.code > 0
-		proto.code[1] = string.gsub(proto.code[1], "^%s*", "")
-
-	return table.concat(proto.code, "\n")
-
-
-
-var proto_merge = \proto, child ->
-	for k = 1, #child.code
-		var line = child.code[k]
-		var indent_str = string.rep("    ", proto.indent)
-		proto.code[#proto.code + 1] = indent_str .. line
-
-
-
-var proto_new = \parent, indent ->
-	var ind = 0
-	if indent
-		ind = indent
-	else if parent
-		ind = parent.indent
-
-	var proto = { code = {}, indent = ind, parent = parent }
-	proto.inline = proto_inline
-	proto.merge = proto_merge
-	return proto
-
 
 var generate = \tree ->
+	
+	var StatementRule = {}
+	var ExpressionRule = {}
 
-	var @ = { line = 0 }
-	@.proto = proto_new()
-	@.chunkname = tree.chunkname
+	var proto = nil
 
-	@.proto_enter = \@, indent ->
-		@.proto = proto_new(@.proto, indent)
+	var proto_enter = \indent ->
+		var ind = 0
+		if indent
+			ind = indent
+		else if proto
+			ind = proto.indent
+		proto = { code = {}, indent = ind, parent = proto }
 
-	@.proto_leave = \@ ->
-		var proto = @.proto
-		@.proto = proto.parent
-		return proto
+	var proto_leave = ->
+		proto = proto.parent
+
+	var indent_more = ->
+		proto.indent = proto.indent + 1
+
+	var indent_less = ->
+		proto.indent = proto.indent - 1
+
+
+	var proto_inline = ->
+		-- remove leading whitespaces from first line
+		if #proto.code > 0
+			proto.code[1] = string.gsub(proto.code[1], "^%s*", "")
+		return table.concat(proto.code, "\n")
+
+	var proto_merge = \child ->
+		for k = 1, #child.code
+			var line = child.code[k]
+			var indent_str = string.rep("    ", proto.indent)
+			proto.code[#proto.code + 1] = indent_str .. line
+
+
+	var expr_emit = \node ->
+		var rule = ExpressionRule[node.kind]
+		if rule
+			return rule(node)
+		error("cannot find an expression rule for " .. node.kind) 
+
+	var emit = \node ->
+		var rule = StatementRule[node.kind]
+		if rule
+			return rule(node)
+		error("cannot find a statement rule for " .. node.kind) 
 
 
 	var to_expr = \node, bracket ->
-		var val = @.expr_emit(@, node)
+		var val = expr_emit(node)
 		if bracket
 			return "(" .. val .. ")"
 		return val
 
-
-	@.indent_more = \@ ->
-		var proto = @.proto
-		proto.indent = proto.indent + 1
-
-
-	@.indent_less = \@ ->
-		var proto = @.proto
-		proto.indent = proto.indent - 1
-
-
-	@.add_line = \@, line ->
-		var proto = @.proto
-		var indent = string.rep("    ", proto.indent)
-		proto.code[#proto.code + 1] = indent .. line
-
-
-	@.add_section = \@, header, body, omit_end ->
-		@.add_line(@, header)
-		@.indent_more(@)
-		@.list_emit(@, body)
-		@.indent_less(@)
-		if not omit_end
-			@.add_line(@, "end")
-	
-
-	@.expr_list = \@, exps ->
+	var expr_list = \exps ->
 		--return comma_sep_list(exps, to_expr)
 		var strls = {}
 		var last = #exps
@@ -409,28 +73,345 @@ var generate = \tree ->
 		return table.concat(strls, ", ")
 
 
-	@.expr_emit = \@, node ->
-		var rule = ExpressionRule[node.kind]
-		if rule
-			return rule(@, node)
-		error("cannot find an expression rule for " .. node.kind) 
-
-	@.emit = \@, node ->
-		var rule = StatementRule[node.kind]
-		if rule
-			return rule(@, node)
-		error("cannot find a statement rule for " .. node.kind) 
-
-
-	@.list_emit = \@, node_list ->
+	var list_emit = \node_list ->
 		for i = 1, #node_list
-			@.emit(@, node_list[i])
+			emit(node_list[i])
+
+
+	var add_line = \line ->
+		var indent = string.rep("    ", proto.indent)
+		proto.code[#proto.code + 1] = indent .. line
+
+
+	var add_section = \header, body, omit_end ->
+		add_line(header)
+		indent_more()
+		list_emit(body)
+		indent_less()
+		if not omit_end
+			add_line("end")
+
+
+	var is_string = \node ->
+		return node.kind == "Literal" and type(node.value) == "string"
+
+
+	var is_const = \node, val ->
+		return node.kind == "Literal" and node.value == val
+
+
+	var is_literal = \node ->
+		var k = node.kind
+		return (k == "Literal" or k == "Table")
+
+
+	var string_is_ident = \str ->
+		var c = string.sub(str, 1, 1)
+		if c == '' or not is.letter(c)
+			return false
+
+		for k = 2, #str
+			c = string.sub(str, k, k)
+			if not is.letter(c) and not is.digit(c)
+				return false
+
+		return not Keyword[str]
+
+
+	var comma_sep_list = \ls, f ->
+		var strls
+		if f
+			strls = {}
+			for k = 1, #ls
+				strls[k] = f(ls[k]) 
+		else
+			strls = ls
+
+		return table.concat(strls, ", ")
+
+
+	var as_parameter = \node ->
+		return node.kind == "Vararg" and "..." or node.name
+
+
+	ExpressionRule.Identifier = \node ->
+		return node.name, operator.ident_priority
+
+
+	var escape = \s ->
+		var replace = {
+			'"' = `\"`, '\a' = `\a`, '\b' = `\b`, '\f' = `\f`, '\n' = `\n`, '\r' = `\r`, '\t' = `\t`, '\v' = `\v`
+		}
+		return string.gsub(s, '["\a\b\f\n\r\t\v]', replace)
+
+
+	ExpressionRule.Literal = \node ->
+		var val = node.value
+		var str = type(val) == "string" and format('"%s"', escape(val)) or tostring(val)
+		return str, operator.ident_priority
+
+
+	ExpressionRule.NumberLiteral = \node ->
+		return node.value, operator.ident_priority
+
+
+	ExpressionRule.LongStringLiteral = \node ->
+		-- convert `` to [=[       meaning 2 backtick to 1 equal sign
+		var n, m = string.find(node.text, "^`+")
+		if n
+			var p, q = string.find(node.text,"`+$")
+			assert(q-p == m-n)
+			var eq = string.rep('=', m - n)
+			var begins = "["..eq.."["
+			var ends = "]"..eq.."]"
+			var text = string.sub(node.text, m+1, p-1)
+			return begins .. text .. ends, operator.ident_priority
+		-- keep the [=[ ]=] style
+		return node.text, operator.ident_priority
+
+	ExpressionRule.MemberExpression = \node ->
+		var object, prio = expr_emit(node.object)
+		if prio < operator.ident_priority or is_literal(node.object)
+			object = "(" .. object .. ")"
+
+		var exp
+		if node.computed
+			var prop = expr_emit(node.property)
+			exp = format("%s[%s]", object, prop)
+		else
+			exp = format("%s.%s", object, node.property.name)
+
+		return exp, operator.ident_priority
+
+
+	ExpressionRule.Vararg = ->
+		return "...", operator.ident_priority
+
+	--``
+	ExpressionRule.ExpressionValue = \node ->
+		return "(" .. expr_emit(node.value) .. ")"
+	``
+
+	ExpressionRule.BinaryExpression = \node ->
+		var oper = node.operator
+		var lprio = operator.left_priority(oper)
+		var rprio = operator.right_priority(oper)
+		var a, alprio, arprio = expr_emit(node.left)
+		var b, blprio, brprio = expr_emit(node.right)
+		if not arprio arprio = alprio 
+		if not brprio brprio = blprio 
+		var ap = arprio <  lprio and format("(%s)", a) or a
+		var bp = blprio <= rprio and format("(%s)", b) or b
+		return format("%s %s %s", ap, oper, bp), lprio, rprio
+
+
+	ExpressionRule.UnaryExpression = \node ->
+		var arg, arg_prio = expr_emit(node.argument)
+		var op_prio = operator.unary_priority
+		if arg_prio < op_prio arg = format("(%s)", arg) 
+		var op = node.operator
+		if op == 'not' op = 'not ' 
+		return format("%s%s", op, arg), operator.unary_priority
+
+
+	ExpressionRule.LogicalExpression = ExpressionRule.BinaryExpression
+
+	ExpressionRule.ConcatenateExpression = \node ->
+		var ls = {}
+		var cat_prio = operator.left_priority("..")
+		for k = 1, #node.terms
+			var kprio
+			ls[k], kprio = expr_emit(node.terms[k])
+			if kprio < cat_prio ls[k] = format("(%s)", ls[k]) 
+
+		return table.concat(ls, " .. "), cat_prio
+
+
+	ExpressionRule.Table = \node ->
+		var hash = {}
+		var last = #node.keyvals
+		for i = 1, last
+			var kv = node.keyvals[i]
+			var val = expr_emit(kv[1])
+			var key = kv[2]
+			if key
+				if is_string(key) and string_is_ident(key.value)
+					hash[i] = format("%s = %s", key.value, val)
+				else
+					hash[i] = format("[%s] = %s", expr_emit(key), val)
+			
+			else
+				if i == last and kv[1].bracketed
+					hash[i] = format("(%s)", val)
+				else
+					hash[i] = format("%s", val)
+
+		var content = ""
+		if #hash > 0
+			content = comma_sep_list(hash)
+
+		return "{" .. content .. "}", operator.ident_priority
+
+
+	ExpressionRule.CallExpression = \node ->
+		var callee, prio = expr_emit(node.callee)
+		if prio < operator.ident_priority
+			callee = "(" .. callee .. ")"
+
+		var exp = format("%s(%s)", callee, expr_list(node.arguments))
+		return exp, operator.ident_priority
+
+
+	ExpressionRule.SendExpression = \node ->
+		var receiver, prio = expr_emit(node.receiver)
+		if prio < operator.ident_priority or is_literal(node.receiver)
+			receiver = "(" .. receiver .. ")"
+
+		var method = node.method.name
+		var exp = format("%s:%s(%s)", receiver, method, expr_list(node.arguments))
+		return exp, operator.ident_priority
+
+
+	--``
+	ExpressionRule.SendExpression = \node ->
+		var callee, prio = expr_emit(node.callee)
+		-- replace the last . with :
+		var dot = string.match(callee, ".*%.()")
+		var method = callee.sub(@, 1, dot-2) .. ':' .. callee.sub(@, dot)
+		if prio < operator.ident_priority or is_literal(node.callee)
+			method = "(" .. method .. ")"
+
+		var exp = format("%s(%s)", method, expr_list(node.arguments))
+		return exp, operator.ident_priority
+
+
+	StatementRule.FunctionDeclaration = \node ->
+		proto_enter(0)
+		var name = expr_emit(node.id)
+
+		var header = format("function %s(%s)", name, comma_sep_list(node.params, as_parameter))
+		if node.locald
+			header = "local " .. header
+
+		add_section(header, node.body)
+		proto_leave()
+		proto_merge()
+	--``
+
+	ExpressionRule.FunctionExpression = \node ->
+		proto_enter()
+		var header = format("function(%s)", comma_sep_list(node.params, as_parameter))
+		add_section(header, node.body)
+		var code = proto_inline()
+		proto_leave()
+		return code, 0
+
+
+	StatementRule.CallExpression = \node ->
+		var line = expr_emit(node)
+		add_line(line)
+
+
+	StatementRule.ForStatement = \node ->
+		var init = node.init
+		var istart = expr_emit(init.value)
+		var iend = expr_emit(node.last)
+		var header
+		if node.step and not is_const(node.step, 1)
+			var step = expr_emit(node.step)
+			header = format("for %s = %s, %s, %s do", init.id.name, istart, iend, step)
+		else
+			header = format("for %s = %s, %s do", init.id.name, istart, iend)
+
+		add_section(header, node.body)
+
+
+	StatementRule.ForInStatement = \node ->
+		var vars = comma_sep_list(node.namelist.names, as_parameter)
+		var explist = expr_list(node.explist)
+		var header = format("for %s in %s do", vars, explist)
+		add_section(header, node.body)
+
+
+	StatementRule.DoStatement = \node ->
+		add_section("do", node.body)
+
+
+	StatementRule.WhileStatement = \node ->
+		var test = expr_emit(node.test)
+		var header = format("while %s do", test)
+		add_section(header, node.body)
+
+
+	StatementRule.RepeatStatement = \node ->
+		add_section("repeat", node.body, true)
+		var test = expr_emit(node.test)
+		var until_line = format("until %s", test)
+		add_line(until_line)
+
+
+	StatementRule.BreakStatement = ->
+		add_line("break")
+
+
+	StatementRule.IfStatement = \node ->
+		var ncons = #node.tests
+		for i = 1, ncons
+			var header_tag = i == 1 and "if" or "elseif"
+			var test = expr_emit(node.tests[i])
+			var header = format("%s %s then", header_tag, test)
+			add_section(header, node.cons[i], true)
+
+		if node.alternate
+			add_section("else", node.alternate, true)
+
+		add_line("end")
+
+
+	StatementRule.LocalDeclaration = \node ->
+		var line
+		var names = comma_sep_list(node.names, as_parameter)
+		if #node.expressions > 0
+			line = format("local %s = %s", names, expr_list(node.expressions))
+		else
+			line = format("local %s", names)
+
+		add_line(line)
+
+
+	StatementRule.AssignmentExpression = \node ->
+		var line = format("%s = %s", expr_list(node.left), expr_list(node.right))
+		add_line(line)
+
+
+	StatementRule.Chunk = \node ->
+		list_emit(node.body)
+
+
+	StatementRule.ExpressionStatement = \node ->
+		var line = expr_emit(node.expression)
+		add_line(line)
+
+
+	StatementRule.ReturnStatement = \node ->
+		var line = format("return %s", expr_list(node.arguments))
+		add_line(line)
+
+
+	StatementRule.LabelStatement = \node ->
+		add_line("::" .. node.label .. "::")
+
+
+	StatementRule.GotoStatement = \node ->
+		add_line("goto " .. node.label)
 	
-
-
-	@.emit(@, tree)
-
-	return @.proto_leave(@).inline(@)
+	
+	
+	proto_enter()
+	emit(tree)
+	var code = proto_inline()
+	proto_leave()
+	return code
 
 
 return generate
