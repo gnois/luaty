@@ -614,6 +614,7 @@ parse_args = \scope, ls ->
 	var self1 = false
 	var args, n = {}, 1
 	while ls.token ~= ')'
+
 		dented = lex_opt_dent(ls, dented)
 		-- catch common mistake that mess everything later
 		if not dented and ls.token == 'TK_dedent'
@@ -621,10 +622,18 @@ parse_args = \scope, ls ->
 			ls.step()
 		if ls.token == ')'
 			break
+		
+		-- check if the first arg is plain @
+		var collect = true
 		if n == 1 and ls.token == 'TK_name' and ls.value == '@'
-			self1 = true
-			ls.step()
-		else
+			-- this check follows the tokens inside the loop in expr_primary()
+			var nxt = ls.next()
+			if nxt ~= '.' and nxt ~= '[' and nxt ~= '('
+				self1 = true
+				ls.step()
+				collect = false
+
+		if collect
 			args[#args + 1] = expr(scope, ls)
 		n = n + 1
 		

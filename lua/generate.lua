@@ -6,8 +6,7 @@ local reserved = require("lua.reserved")
 local operator = require("lua.operator")
 local chars = require("lua.chars")
 local Keyword = reserved.Keyword
-local strsub, format = string.sub, string.format
-local concat = table.concat
+local format = string.format
 local is = chars.is
 local StatementRule = {}
 local ExpressionRule = {}
@@ -22,12 +21,12 @@ local is_literal = function(node)
     return (k == "Literal" or k == "Table")
 end
 local string_is_ident = function(str)
-    local c = strsub(str, 1, 1)
+    local c = string.sub(str, 1, 1)
     if c == "" or not is.letter(c) then
         return false
     end
     for k = 2, #str do
-        c = strsub(str, k, k)
+        c = string.sub(str, k, k)
         if not is.letter(c) and not is.digit(c) then
             return false
         end
@@ -44,7 +43,7 @@ local comma_sep_list = function(ls, f)
     else
         strls = ls
     end
-    return concat(strls, ", ")
+    return table.concat(strls, ", ")
 end
 local as_parameter = function(node)
     return node.kind == "Vararg" and "..." or node.name
@@ -133,7 +132,7 @@ ExpressionRule.ConcatenateExpression = function(self, node)
             ls[k] = format("(%s)", ls[k])
         end
     end
-    return concat(ls, " .. "), cat_prio
+    return table.concat(ls, " .. "), cat_prio
 end
 ExpressionRule.Table = function(self, node)
     local hash = {}
@@ -274,7 +273,7 @@ local proto_inline = function(proto)
     if #proto.code > 0 then
         proto.code[1] = string.gsub(proto.code[1], "^%s*", "")
     end
-    return concat(proto.code, "\n")
+    return table.concat(proto.code, "\n")
 end
 local proto_merge = function(proto, child)
     for k = 1, #child.code do
@@ -314,9 +313,6 @@ local generate = function(tree)
         end
         return val
     end
-    self.compile_code = function(self)
-        return concat(self.code, "\n")
-    end
     self.indent_more = function(self)
         local proto = self.proto
         proto.indent = proto.indent + 1
@@ -324,8 +320,6 @@ local generate = function(tree)
     self.indent_less = function(self)
         local proto = self.proto
         proto.indent = proto.indent - 1
-    end
-    self.line = function(self, line)
     end
     self.add_line = function(self, line)
         local proto = self.proto
@@ -341,30 +335,27 @@ local generate = function(tree)
             self:add_line("end")
         end
     end
-    self.expr_emit = function(self, node)
-        local rule = ExpressionRule[node.kind]
-        if not rule then
-            error("cannot find an expression rule for " .. node.kind)
-        end
-        return rule(self, node)
-    end
     self.expr_list = function(self, exps)
         local strls = {}
         local last = #exps
         for k = 1, last do
             strls[k] = to_expr(exps[k], k == last and exps[k].bracketed)
         end
-        return concat(strls, ", ")
+        return table.concat(strls, ", ")
+    end
+    self.expr_emit = function(self, node)
+        local rule = ExpressionRule[node.kind]
+        if rule then
+            return rule(self, node)
+        end
+        error("cannot find an expression rule for " .. node.kind)
     end
     self.emit = function(self, node)
         local rule = StatementRule[node.kind]
-        if not rule then
-            error("cannot find a statement rule for " .. node.kind)
+        if rule then
+            return rule(self, node)
         end
-        rule(self, node)
-        if node.line then
-            self:line(node.line)
-        end
+        error("cannot find a statement rule for " .. node.kind)
     end
     self.list_emit = function(self, node_list)
         for i = 1, #node_list do

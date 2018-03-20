@@ -18,22 +18,22 @@ var adds = \t, v ->
 se[1] = 10
 
 -- make sure normal function taking self still works
-se.emit = \@, val ->
+se.adder = \@, val ->
 	var a = adds(self, val)
 	return a
 
-assert(se.emit(se, 10) == 20)
-assert(se.emit(@, 10) == 20)
-assert(se.emit({3}, 10) == 13)
+assert(se.adder(se, 10) == 20)
+assert(se.adder(@, 10) == 20)
+assert(se.adder({3}, 10) == 13)
 
 -- reverse self and @
-se.emit2 = \self, val ->
+se.adder2 = \self, val ->
 	var a = adds(@, val)
 	return a
 
-assert(se.emit2(se, 10) == 20)
-assert(se.emit2(@, 10) == 20)
-assert(se.emit2({3}, 10) == 13)
+assert(se.adder2(se, 10) == 20)
+assert(se.adder2(@, 10) == 20)
+assert(se.adder2({3}, 10) == 13)
 
 
 -- string method
@@ -59,7 +59,26 @@ var inline = { value = 3.141592, foo = \@, i-> return i*@.value }
 print(inline.foo(@, 2))
 
 
--- @ should just works
+var mul = \x, y ->
+	return x * y
+
+var @ = { a = 7, b = 3 }
+@.any = \self ->
+	return mul(@.a, @.b)
+assert(@.any(@) == 21)
+
+var ani = \self ->
+	return mul(self.a, @.b)
+
+assert(ani(@) == 21)
+
+var ann = \self ->
+	return mul(@['a'], @["b"])
+
+assert(ann(@) == 21)
+
+
+-- @ should just work
 
 var t = {num = 10}
 t['h-a'] = \@, n ->

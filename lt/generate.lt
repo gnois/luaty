@@ -3,8 +3,7 @@ var operator = require('lua.operator')
 var chars = require('lua.chars')
 
 var Keyword = reserved.Keyword
-var strsub, format = string.sub, string.format
-var concat = table.concat
+var format = string.format
 var is = chars.is
 
 var StatementRule = {}
@@ -25,12 +24,12 @@ var is_literal = \node ->
 
 
 var string_is_ident = \str ->
-	var c = strsub(str, 1, 1)
+	var c = string.sub(str, 1, 1)
 	if c == '' or not is.letter(c)
 		return false
 
 	for k = 2, #str
-		c = strsub(str, k, k)
+		c = string.sub(str, k, k)
 		if not is.letter(c) and not is.digit(c)
 			return false
 
@@ -46,7 +45,7 @@ var comma_sep_list = \ls, f ->
 	else
 		strls = ls
 
-	return concat(strls, ", ")
+	return table.concat(strls, ", ")
 
 
 var as_parameter = \node ->
@@ -143,7 +142,7 @@ ExpressionRule.ConcatenateExpression = \@, node ->
 		ls[k], kprio = @.expr_emit(@, node.terms[k])
 		if kprio < cat_prio ls[k] = format("(%s)", ls[k]) 
 
-	return concat(ls, " .. "), cat_prio
+	return table.concat(ls, " .. "), cat_prio
 
 
 ExpressionRule.Table = \@, node ->
@@ -187,7 +186,7 @@ ExpressionRule.SendExpression = \@, node ->
 		receiver = "(" .. receiver .. ")"
 
 	var method = node.method.name
-	var exp = format("%s:%s(%s)", receiver, method, self.expr_list(@, node.arguments))
+	var exp = format("%s:%s(%s)", receiver, method, @.expr_list(@, node.arguments))
 	return exp, operator.ident_priority
 
 
@@ -214,7 +213,7 @@ StatementRule.FunctionDeclaration = \@, node ->
 
 	@.add_section(@, header, node.body)
 	var child_proto = @.proto_leave(@)
-	self.proto.merge(@, child_proto)
+	@.proto.merge(@, child_proto)
 --``
 
 ExpressionRule.FunctionExpression = \@, node ->
@@ -329,7 +328,7 @@ var proto_inline = \proto ->
 	if #proto.code > 0
 		proto.code[1] = string.gsub(proto.code[1], "^%s*", "")
 
-	return concat(proto.code, "\n")
+	return table.concat(proto.code, "\n")
 
 
 
@@ -356,17 +355,16 @@ var proto_new = \parent, indent ->
 
 var generate = \tree ->
 
-	var self = { line = 0 }
-	self.proto = proto_new()
-	self.chunkname = tree.chunkname
+	var @ = { line = 0 }
+	@.proto = proto_new()
+	@.chunkname = tree.chunkname
 
-	self.proto_enter = \@, indent ->
-		self.proto = proto_new(self.proto, indent)
+	@.proto_enter = \@, indent ->
+		@.proto = proto_new(@.proto, indent)
 
-
-	self.proto_leave = \@ ->
-		var proto = self.proto
-		self.proto = proto.parent
+	@.proto_leave = \@ ->
+		var proto = @.proto
+		@.proto = proto.parent
 		return proto
 
 
@@ -377,31 +375,23 @@ var generate = \tree ->
 		return val
 
 
-	self.compile_code = \@ ->
-		return concat(self.code, "\n")
-
-
-	self.indent_more = \@ ->
-		var proto = self.proto
+	@.indent_more = \@ ->
+		var proto = @.proto
 		proto.indent = proto.indent + 1
 
 
-	self.indent_less = \@ ->
-		var proto = self.proto
+	@.indent_less = \@ ->
+		var proto = @.proto
 		proto.indent = proto.indent - 1
 
 
-	self.line = \@, line ->
-	-- FIXME: ignored for the moment
-
-
-	self.add_line = \@, line ->
-		var proto = self.proto
+	@.add_line = \@, line ->
+		var proto = @.proto
 		var indent = string.rep("    ", proto.indent)
 		proto.code[#proto.code + 1] = indent .. line
 
 
-	self.add_section = \@, header, body, omit_end ->
+	@.add_section = \@, header, body, omit_end ->
 		@.add_line(@, header)
 		@.indent_more(@)
 		@.list_emit(@, body)
@@ -410,30 +400,29 @@ var generate = \tree ->
 			@.add_line(@, "end")
 	
 
-
-	self.expr_emit = \@, node ->
-		var rule = ExpressionRule[node.kind]
-		if not rule error("cannot find an expression rule for " .. node.kind) 
-		return rule(self, node)
-
-
-	self.expr_list = \@, exps ->
+	@.expr_list = \@, exps ->
 		--return comma_sep_list(exps, to_expr)
 		var strls = {}
 		var last = #exps
 		for k = 1, last
 			strls[k] = to_expr(exps[k], k == last and exps[k].bracketed)
-		return concat(strls, ", ")
+		return table.concat(strls, ", ")
 
 
-	self.emit = \@, node ->
+	@.expr_emit = \@, node ->
+		var rule = ExpressionRule[node.kind]
+		if rule
+			return rule(@, node)
+		error("cannot find an expression rule for " .. node.kind) 
+
+	@.emit = \@, node ->
 		var rule = StatementRule[node.kind]
-		if not rule error("cannot find a statement rule for " .. node.kind) 
-		rule(self, node)
-		if node.line @.line(@, node.line)
+		if rule
+			return rule(@, node)
+		error("cannot find a statement rule for " .. node.kind) 
 
 
-	self.list_emit = \@, node_list ->
+	@.list_emit = \@, node_list ->
 		for i = 1, #node_list
 			@.emit(@, node_list[i])
 	
