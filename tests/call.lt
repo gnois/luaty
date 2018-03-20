@@ -1,3 +1,5 @@
+var eq = require('tests.inc').eq
+
 -- free form call expression
 var p = print
 p()
@@ -43,3 +45,26 @@ p(
 	2
 	,3,
 4)
+
+
+
+var map = \fn, tbl ->
+	var res, r = {}, 1
+	for _, v in ipairs(tbl)
+		res[r] = fn(v)
+		r = r + 1
+	return res
+	
+eq(3, map(\v ->
+	return v + 10
+, {4,5,6}), {14,15,16})
+
+eq(3, map(\v ->	return v + 10;, {4,5,6}), {14,15,16})
+
+
+eq(3, map(\v ->
+	return v + 10
+, {4,5,6}),
+{14,15,16}
+)
+

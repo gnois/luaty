@@ -507,22 +507,27 @@ expr_primary = \scope, ls ->
 			vk, v = Kind.Index, ast.expr_index(val, key)
 		else if ls.token == '(' -- or ls.token == 'TK_string' or ls.token == '{'
 			var args, self1 = parse_args(scope, ls)
-			if self1 and (vk == Kind.Field or vk == Kind.Index)
-				if vk == Kind.Field
-					vk, v = Kind.Call, ast.expr_method_call(val, key, args, line)
-				else if vk == Kind.Index
-					-- simulate a wrapped self method call
-					var nm = '_0'   -- lets hope we dont name clash
-					var obj = ast.identifier(nm)
-					table.insert(args, 1, obj)
-					var body = {
-						ast.local_decl({obj}, {val}, line)
-						, ast.return_stmt({
-							ast.expr_function_call(ast.expr_index(obj, key), args, line)
-						}, line)
-					}
-					var lambda = ast.expr_function({}, body, false)
-					vk, v = Kind.Call, ast.expr_function_call(lambda, {}, line)
+			if self1
+				if vk == Kind.Field or vk == Kind.Index
+					if vk == Kind.Field
+						vk, v = Kind.Call, ast.expr_method_call(val, key, args, line)
+					else if vk == Kind.Index
+						-- simulate a wrapped self method call
+						var nm = '_0'   -- lets hope we dont name clash
+						var obj = ast.identifier(nm)
+						table.insert(args, 1, obj)
+						var body = {
+							ast.local_decl({obj}, {val}, line)
+							, ast.return_stmt({
+								ast.expr_function_call(ast.expr_index(obj, key), args, line)
+							}, line)
+						}
+						var lambda = ast.expr_function({}, body, false)
+						vk, v = Kind.Call, ast.expr_function_call(lambda, {}, line)
+				else
+					-- normal function, add back `self`
+					table.insert(args, 1, ast.identifier('self'))
+					vk, v = Kind.Call, ast.expr_function_call(v, args, line)
 			else
 				vk, v = Kind.Call, ast.expr_function_call(v, args, line)
 		else

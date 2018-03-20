@@ -26,6 +26,15 @@ assert(se.emit(se, 10) == 20)
 assert(se.emit(@, 10) == 20)
 assert(se.emit({3}, 10) == 13)
 
+-- reverse self and @
+se.emit2 = \self, val ->
+	var a = adds(@, val)
+	return a
+
+assert(se.emit2(se, 10) == 20)
+assert(se.emit2(@, 10) == 20)
+assert(se.emit2({3}, 10) == 13)
+
 
 -- string method
 assert(("hi").rep(@, 3) == "hihihi")
