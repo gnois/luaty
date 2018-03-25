@@ -1,9 +1,9 @@
 
-Luaty is Lua with [off-side rule](https://en.wikipedia.org/wiki/Off-side_rule) and less syntax boilerplate that transpiles into clean Lua.
-It stands for *[Lua] with less [ty]ping*. 
+Luaty mixes Lua's simplicity with Moonscript's brevity, sprinkled with some safety.
 
-If you don't like to type `end`, `then`, `do`, or you prefer compile-time error to run-time error, then Luaty may work for you.
+If [off-side syntax](https://en.wikipedia.org/wiki/Off-side_rule) is your thing, and you don't want to type `end`, `then`, `do`, or you prefer compile-time error to run-time error, then Luaty may work for you.
 
+Luaty stands for *[Lua] with less [ty]ping*.
 
 Differences from Lua
 ---
