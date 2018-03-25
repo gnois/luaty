@@ -1,9 +1,10 @@
 
 Luaty mixes Lua's simplicity with Moonscript's brevity, sprinkled with some safety.
 
-If [off-side syntax](https://en.wikipedia.org/wiki/Off-side_rule) is your thing, and you don't want to type `end`, `then`, `do`, or you prefer compile-time error to run-time error, then Luaty may work for you.
+If [off-side syntax](https://en.wikipedia.org/wiki/Off-side_rule) is your thing, and you don't like to type `end`, `then`, `do`, or you prefer compile-time to runtime error, then Luaty may work for you.
 
 Luaty stands for *[Lua] with less [ty]ping*.
+
 
 Differences from Lua
 ---
@@ -68,7 +69,6 @@ assert(obj.foo(@, 2) == 6)                  -- Ok, compiles to obj:foo(2)
   * shadowing variables in the parent or same scope
   * duplicate keys in a table
 
-For example:
 ```
 a = 1                     -- Error: undeclared identifier a
 
@@ -137,6 +137,7 @@ The indent (offside) rule
 ---
 
 1. Either tabs or spaces can be used as indent, but not both in a single file.
+
 2. Comments have no indent rule.
 
 3. Blocks such as `if`, `for`, `while`, `do` and lambda expression `->` can have child statement(s).
@@ -156,12 +157,10 @@ print((-> return 'a', 1)())     -- Ok, immediately invoked one lined lambda expr
 
 if x == nil for y = 1, 10 repeat until true else if x == 0 p(x) else if x p(x) else assert(not x)
                 -- Ok, `repeat` is the sole children of `for`, which in turn is the sole children of `if`
-                                       
-
 
 ```
 
-4. A long table constructor or function call can be indented, but the line having its closing brace/parenthesis must realign back to its starting indent level
+4. A table constructor or function call can be indented, but the line having its closing brace/parenthesis must realign back to its starting indent level
 ```
 var y = { 1
    ,
@@ -202,9 +201,7 @@ See the [tests folder](https://github.com/gnois/luaty/tree/master/tests) for mor
 
 
 
-
 Acknowledgments
 ---
 Luaty is modified from the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit).
 
-Its existence is inspired by [Moonscript](https://github.com/leafo/moonscript).
