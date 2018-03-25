@@ -1,9 +1,7 @@
 
 Luaty is Lua with [off-side rule](https://en.wikipedia.org/wiki/Off-side_rule) and less syntax boilerplate that transpiles into clean Lua.
+It stands for *[Lua] with less [ty]ping*. 
 
-Its philosophy follows [*"There should be only one way to do it"*.](https://wiki.python.org/moin/TOOWTDI)
-
-Luaty stands for *[Lua] with less [ty]ping*. 
 If you don't like to type `end`, `then`, `do`, or you prefer compile-time error to run-time error, then Luaty may work for you.
 
 
