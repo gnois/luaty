@@ -109,7 +109,7 @@ assert(z.if(z.goto)[2] == false)             -- Ditto
 Quick start
 ---
 
-The compiler itself is written in Luaty and compiled into Lua. It only requires LuaJIT to run. 
+Luaty only requires LuaJIT to run. 
 
 With LuaJIT in your path, clone this repo, and cd into it.
 
@@ -136,12 +136,12 @@ luajit run-test.lua
 The indent (offside) rule
 ---
 
-1. Either tabs or spaces can be used, but not both in a single file, except for comments, which are ignored.
-2. Only one statement is allowed per line.
+1. Either tabs or spaces can be used as indent, but not both in a single file.
+2. Comments have no indent rule.
 
 3. Blocks such as `if`, `for`, `while`, `do` and lambda expression `->` can have child statement(s).
    - A single child statement may choose to stay at the same line as its parent
-   - Multiple child statements should start at an indented newline
+   - Multiple child statements must start at an indented newline
 ```
 if true p(1)                    -- Ok, p(1) is the only child statement of `if`
 p(2)
@@ -161,7 +161,7 @@ if x == nil for y = 1, 10 repeat until true else if x == 0 p(x) else if x p(x) e
 
 ```
 
-4. An indent is allowed within table constructor/function call, but the line having its closing brace/parenthesis should realign back to its starting indent
+4. A long table constructor or function call can be indented, but the line having its closing brace/parenthesis must realign back to its starting indent level
 ```
 var y = { 1
    ,
@@ -175,12 +175,12 @@ var z = { 1
 print(
    1,
    2
-   , 3,
+   , 3,                  -- commas can be anywhere
 4, 5)                    -- Ok, last line realign back to `print(`
 
 ```
 
-5. To accomodate multiple assignment/return values, return statement in single lined functions should be ended using semicolon `;` to separate expressions of different scope
+5. The multi-valued return statement in single-lined functions could cause ambiguity in some cases. A semicolon `;` can be used to terminate single-lined function unambiguously
 ```
 print(pcall(\x-> return x, 10))                 -- multiple return values. Prints true, nil, 10
 
