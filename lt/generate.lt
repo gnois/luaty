@@ -1,16 +1,21 @@
+var Tag = require('lua.tag')
+
 var reserved = require('lua.reserved')
 var operator = require('lua.operator')
 var chars = require('lua.chars')
 
+var TStmt = Tag.Stmt
+var TExpr = Tag.Expr
 var Keyword = reserved.Keyword
 var format = string.format
+var concat = table.concat
 var is = chars.is
 
 
-var generate = \tree ->
+var generate = \stmts ->
 	
-	var StatementRule = {}
-	var ExpressionRule = {}
+	var Stmt = {}
+	var Expr = {}
 
 	var proto = nil
 
@@ -36,27 +41,24 @@ var generate = \tree ->
 		-- remove leading whitespaces from first line
 		if #proto.code > 0
 			proto.code[1] = string.gsub(proto.code[1], "^%s*", "")
-		return table.concat(proto.code, "\n")
+		return concat(proto.code, "\n")
 
-	var proto_merge = \child ->
-		for k = 1, #child.code
-			var line = child.code[k]
-			var indent_str = string.rep("    ", proto.indent)
-			proto.code[#proto.code + 1] = indent_str .. line
+	var emit = \node ->
+		var rule = Stmt[node.tag]
+		if rule
+			return rule(node)
+		error("cannot find a statement rule for " .. node.tag) 
+
+	var list_emit = \node_list ->
+		for i = 1, #node_list
+			emit(node_list[i])
 
 
 	var expr_emit = \node ->
-		var rule = ExpressionRule[node.kind]
+		var rule = Expr[node.tag]
 		if rule
 			return rule(node)
-		error("cannot find an expression rule for " .. node.kind) 
-
-	var emit = \node ->
-		var rule = StatementRule[node.kind]
-		if rule
-			return rule(node)
-		error("cannot find a statement rule for " .. node.kind) 
-
+		error("cannot find an expression rule for " .. node.tag) 
 
 	var to_expr = \node, bracket ->
 		var val = expr_emit(node)
@@ -65,18 +67,11 @@ var generate = \tree ->
 		return val
 
 	var expr_list = \exps ->
-		--return comma_sep_list(exps, to_expr)
 		var strls = {}
 		var last = #exps
 		for k = 1, last
 			strls[k] = to_expr(exps[k], k == last and exps[k].bracketed)
-		return table.concat(strls, ", ")
-
-
-	var list_emit = \node_list ->
-		for i = 1, #node_list
-			emit(node_list[i])
-
+		return concat(strls, ", ")
 
 	var add_line = \line ->
 		var indent = string.rep("    ", proto.indent)
@@ -92,50 +87,52 @@ var generate = \tree ->
 			add_line("end")
 
 
-	var is_string = \node ->
-		return node.kind == "Literal" and type(node.value) == "string"
-
-
-	var is_const = \node, val ->
-		return node.kind == "Literal" and node.value == val
-
-
-	var is_literal = \node ->
-		var k = node.kind
-		return (k == "Literal" or k == "Table")
-
-
-	var string_is_ident = \str ->
-		var c = string.sub(str, 1, 1)
-		if c == '' or not is.letter(c)
-			return false
-
-		for k = 2, #str
-			c = string.sub(str, k, k)
-			if not is.letter(c) and not is.digit(c)
+	---------------- Expressions -----
+	var is_plain_string = \node ->
+		if node.tag == TExpr.String and type(node.value) == "string"
+			var str = node.value
+			var c = string.sub(str, 1, 1)
+			if c == '' or not is.letter(c)
 				return false
 
-		return not Keyword[str]
+			for k = 2, #str
+				c = string.sub(str, k, k)
+				if not is.letter(c) and not is.digit(c)
+					return false
+
+			return not Keyword[str]
 
 
 	var comma_sep_list = \ls, f ->
-		var strls
+		var strls = ls
 		if f
 			strls = {}
 			for k = 1, #ls
 				strls[k] = f(ls[k]) 
-		else
-			strls = ls
-
-		return table.concat(strls, ", ")
+		return concat(strls, ", ")
 
 
 	var as_parameter = \node ->
-		return node.kind == "Vararg" and "..." or node.name
+		return node.tag == TExpr.Vararg and "..." or node.name
+
+	var priority = \val ->
+		return val, operator.ident_priority
 
 
-	ExpressionRule.Identifier = \node ->
-		return node.name, operator.ident_priority
+	Expr[TExpr.Id] = \node ->
+		return priority(node.name)
+
+	Expr[TExpr.Number] = \node ->
+		return priority(node.value)
+
+	Expr[TExpr.Bool] = \node ->
+		return priority(tostring(node.value))
+
+	Expr[TExpr.Nil] = ->
+		return priority("nil")
+
+	Expr[TExpr.Vararg] = ->
+		return priority("...")
 
 
 	var escape = \s ->
@@ -144,90 +141,33 @@ var generate = \tree ->
 		}
 		return string.gsub(s, '["\a\b\f\n\r\t\v]', replace)
 
-
-	ExpressionRule.Literal = \node ->
+	Expr[TExpr.String] = \node ->
 		var val = node.value
-		var str = type(val) == "string" and format('"%s"', escape(val)) or tostring(val)
-		return str, operator.ident_priority
-
-
-	ExpressionRule.NumberLiteral = \node ->
-		return node.value, operator.ident_priority
-
-
-	ExpressionRule.LongStringLiteral = \node ->
-		-- convert `` to [=[       meaning 2 backtick to 1 equal sign
-		var n, m = string.find(node.text, "^`+")
-		if n
-			var p, q = string.find(node.text,"`+$")
-			assert(q-p == m-n)
-			var eq = string.rep('=', m - n)
-			var begins = "["..eq.."["
-			var ends = "]"..eq.."]"
-			var text = string.sub(node.text, m+1, p-1)
-			return begins .. text .. ends, operator.ident_priority
-		-- keep the [=[ ]=] style
-		return node.text, operator.ident_priority
-
-	ExpressionRule.MemberExpression = \node ->
-		var object, prio = expr_emit(node.object)
-		if prio < operator.ident_priority or is_literal(node.object)
-			object = "(" .. object .. ")"
-
-		var exp
-		if node.computed
-			var prop = expr_emit(node.property)
-			exp = format("%s[%s]", object, prop)
+		var text = val
+		if node.long
+			-- convert `` to [=[       meaning 2 backtick to 1 equal sign
+			var n, m = string.find(val, "^`+")
+			if n
+				var p, q = string.find(val,"`+$")
+				assert(q-p == m-n)
+				var eq = string.rep('=', m - n)
+				var ls = { "[", eq, "[", string.sub(val, m+1, p-1), "]", eq, "]" }
+				text = priority(concat(ls))
 		else
-			exp = format("%s.%s", object, node.property.name)
-
-		return exp, operator.ident_priority
-
-
-	ExpressionRule.Vararg = ->
-		return "...", operator.ident_priority
-
-	--``
-	ExpressionRule.ExpressionValue = \node ->
-		return "(" .. expr_emit(node.value) .. ")"
-	``
-
-	ExpressionRule.BinaryExpression = \node ->
-		var oper = node.operator
-		var lprio = operator.left_priority(oper)
-		var rprio = operator.right_priority(oper)
-		var a, alprio, arprio = expr_emit(node.left)
-		var b, blprio, brprio = expr_emit(node.right)
-		if not arprio arprio = alprio 
-		if not brprio brprio = blprio 
-		var ap = arprio <  lprio and format("(%s)", a) or a
-		var bp = blprio <= rprio and format("(%s)", b) or b
-		return format("%s %s %s", ap, oper, bp), lprio, rprio
+			text = format('"%s"', escape(val))
+		return priority(text)
 
 
-	ExpressionRule.UnaryExpression = \node ->
-		var arg, arg_prio = expr_emit(node.argument)
-		var op_prio = operator.unary_priority
-		if arg_prio < op_prio arg = format("(%s)", arg) 
-		var op = node.operator
-		if op == 'not' op = 'not ' 
-		return format("%s%s", op, arg), operator.unary_priority
+	Expr[TExpr.Function] = \node ->
+		proto_enter()
+		var header = format("function(%s)", comma_sep_list(node.params, as_parameter))
+		add_section(header, node.body)
+		var code = proto_inline()
+		proto_leave()
+		return code, 0
 
 
-	ExpressionRule.LogicalExpression = ExpressionRule.BinaryExpression
-
-	ExpressionRule.ConcatenateExpression = \node ->
-		var ls = {}
-		var cat_prio = operator.left_priority("..")
-		for k = 1, #node.terms
-			var kprio
-			ls[k], kprio = expr_emit(node.terms[k])
-			if kprio < cat_prio ls[k] = format("(%s)", ls[k]) 
-
-		return table.concat(ls, " .. "), cat_prio
-
-
-	ExpressionRule.Table = \node ->
+	Expr[TExpr.Table] = \node ->
 		var hash = {}
 		var last = #node.keyvals
 		for i = 1, last
@@ -235,7 +175,7 @@ var generate = \tree ->
 			var val = expr_emit(kv[1])
 			var key = kv[2]
 			if key
-				if is_string(key) and string_is_ident(key.value)
+				if is_plain_string(key)
 					hash[i] = format("%s = %s", key.value, val)
 				else
 					hash[i] = format("[%s] = %s", expr_emit(key), val)
@@ -249,126 +189,87 @@ var generate = \tree ->
 		var content = ""
 		if #hash > 0
 			content = comma_sep_list(hash)
-
-		return "{" .. content .. "}", operator.ident_priority
-
-
-	ExpressionRule.CallExpression = \node ->
-		var callee, prio = expr_emit(node.callee)
-		if prio < operator.ident_priority
-			callee = "(" .. callee .. ")"
-
-		var exp = format("%s(%s)", callee, expr_list(node.arguments))
-		return exp, operator.ident_priority
+		return priority("{" .. content .. "}")
 
 
-	ExpressionRule.SendExpression = \node ->
-		var receiver, prio = expr_emit(node.receiver)
-		if prio < operator.ident_priority or is_literal(node.receiver)
-			receiver = "(" .. receiver .. ")"
+	var receiver = \target ->
+		var obj, prio = expr_emit(target)
+		var t = target.tag
+		if prio < operator.ident_priority or t == TExpr.String or t == TExpr.Number or t == TExpr.Bool or t == TExpr.Table
+			return "(" .. obj .. ")"
+		return obj
 
-		var method = node.method.name
-		var exp = format("%s:%s(%s)", receiver, method, expr_list(node.arguments))
-		return exp, operator.ident_priority
+	Expr[TExpr.Index] = \node ->
+		var obj = receiver(node.object)
+		var idx = expr_emit(node.index)
+		var exp = format("%s[%s]", obj, idx)
+		return priority(exp)
+
+
+	Expr[TExpr.Property] = \node ->
+		var obj = receiver(node.object)
+		var exp = format("%s.%s", obj, node.property)
+		return priority(exp)
+
+
+	Expr[TExpr.Call] = \node ->
+		var fn = receiver(node.func)
+		var exp = format("%s(%s)", fn, expr_list(node.arguments))
+		return priority(exp)
+
+
+	Expr[TExpr.Invoke] = \node ->
+		var obj = receiver(node.object)
+		var exp = format("%s:%s(%s)", obj, node.method, expr_list(node.arguments))
+		return priority(exp)
+
+
+	Expr[TExpr.Unary] = \node ->
+		var arg, arg_prio = expr_emit(node.argument)
+		var op_prio = operator.unary_priority
+		if arg_prio < op_prio arg = format("(%s)", arg) 
+		var op = node.operator
+		if op == 'not' op = 'not ' 
+		return format("%s%s", op, arg), operator.unary_priority
+
+
+	Expr[TExpr.Binary] = \node ->
+		var oper = node.operator
+		var lprio = operator.left_priority(oper)
+		var rprio = operator.right_priority(oper)
+		var a, alprio, arprio = expr_emit(node.left)
+		var b, blprio, brprio = expr_emit(node.right)
+		if not arprio arprio = alprio 
+		if not brprio brprio = blprio 
+		var ap = arprio <  lprio and format("(%s)", a) or a
+		var bp = blprio <= rprio and format("(%s)", b) or b
+		return format("%s %s %s", ap, oper, bp), lprio, rprio
 
 
 	--``
-	ExpressionRule.SendExpression = \node ->
-		var callee, prio = expr_emit(node.callee)
-		-- replace the last . with :
-		var dot = string.match(callee, ".*%.()")
-		var method = callee.sub(@, 1, dot-2) .. ':' .. callee.sub(@, dot)
-		if prio < operator.ident_priority or is_literal(node.callee)
-			method = "(" .. method .. ")"
+	Expr.ConcatenateExpression = \node ->
+		var ls = {}
+		var cat_prio = operator.left_priority("..")
+		for k = 1, #node.terms
+			var kprio
+			ls[k], kprio = expr_emit(node.terms[k])
+			if kprio < cat_prio ls[k] = format("(%s)", ls[k]) 
 
-		var exp = format("%s(%s)", method, expr_list(node.arguments))
-		return exp, operator.ident_priority
+		return concat(ls, " .. "), cat_prio
 
-
-	StatementRule.FunctionDeclaration = \node ->
-		proto_enter(0)
-		var name = expr_emit(node.id)
-
-		var header = format("function %s(%s)", name, comma_sep_list(node.params, as_parameter))
-		if node.locald
-			header = "local " .. header
-
-		add_section(header, node.body)
-		proto_leave()
-		proto_merge()
-	--``
-
-	ExpressionRule.FunctionExpression = \node ->
-		proto_enter()
-		var header = format("function(%s)", comma_sep_list(node.params, as_parameter))
-		add_section(header, node.body)
-		var code = proto_inline()
-		proto_leave()
-		return code, 0
-
-
-	StatementRule.CallExpression = \node ->
+	Stmt.CallExpression = \node ->
 		var line = expr_emit(node)
 		add_line(line)
-
-
-	StatementRule.ForStatement = \node ->
-		var init = node.init
-		var istart = expr_emit(init.value)
-		var iend = expr_emit(node.last)
-		var header
-		if node.step and not is_const(node.step, 1)
-			var step = expr_emit(node.step)
-			header = format("for %s = %s, %s, %s do", init.id.name, istart, iend, step)
-		else
-			header = format("for %s = %s, %s do", init.id.name, istart, iend)
-
-		add_section(header, node.body)
-
-
-	StatementRule.ForInStatement = \node ->
-		var vars = comma_sep_list(node.namelist.names, as_parameter)
-		var explist = expr_list(node.explist)
-		var header = format("for %s in %s do", vars, explist)
-		add_section(header, node.body)
-
-
-	StatementRule.DoStatement = \node ->
-		add_section("do", node.body)
-
-
-	StatementRule.WhileStatement = \node ->
-		var test = expr_emit(node.test)
-		var header = format("while %s do", test)
-		add_section(header, node.body)
-
-
-	StatementRule.RepeatStatement = \node ->
-		add_section("repeat", node.body, true)
-		var test = expr_emit(node.test)
-		var until_line = format("until %s", test)
-		add_line(until_line)
-
-
-	StatementRule.BreakStatement = ->
-		add_line("break")
-
-
-	StatementRule.IfStatement = \node ->
-		var ncons = #node.tests
-		for i = 1, ncons
-			var header_tag = i == 1 and "if" or "elseif"
-			var test = expr_emit(node.tests[i])
-			var header = format("%s %s then", header_tag, test)
-			add_section(header, node.cons[i], true)
-
-		if node.alternate
-			add_section("else", node.alternate, true)
-
-		add_line("end")
-
-
-	StatementRule.LocalDeclaration = \node ->
+	``
+	
+	
+	---------------- Statements -----
+	Stmt[TStmt.Expr] = \node ->
+		var line = expr_emit(node.expression)
+		add_line(line)
+		
+		
+	Stmt[TStmt.Local] = \node ->
 		var line
 		var names = comma_sep_list(node.names, as_parameter)
 		if #node.expressions > 0
@@ -379,36 +280,84 @@ var generate = \tree ->
 		add_line(line)
 
 
-	StatementRule.AssignmentExpression = \node ->
+	Stmt[TStmt.Assign] = \node ->
 		var line = format("%s = %s", expr_list(node.left), expr_list(node.right))
 		add_line(line)
 
 
-	StatementRule.Chunk = \node ->
-		list_emit(node.body)
+	Stmt[TStmt.Do] = \node ->
+		add_section("do", node.body)
 
 
-	StatementRule.ExpressionStatement = \node ->
-		var line = expr_emit(node.expression)
-		add_line(line)
+	Stmt[TStmt.If] = \node ->
+		var ncons = #node.tests
+		for i = 1, ncons
+			var header_tag = i == 1 and "if" or "elseif"
+			var test = expr_emit(node.tests[i])
+			var header = format("%s %s then", header_tag, test)
+			add_section(header, node.conds[i], true)
+
+		if node.els
+			add_section("else", node.els, true)
+
+		add_line("end")
 
 
-	StatementRule.ReturnStatement = \node ->
+	Stmt[TStmt.Forin] = \node ->
+		var vars = comma_sep_list(node.vars, as_parameter)
+		var explist = expr_list(node.explist)
+		var header = format("for %s in %s do", vars, explist)
+		add_section(header, node.body)
+
+
+	Stmt[TStmt.Fornum] = \node ->
+		var istart = expr_emit(node.first)
+		var iend = expr_emit(node.last)
+		var header
+		if node.step
+			if not (node.step.tag == TExpr.Number and node.step.value == 1)
+				var step = expr_emit(node.step)
+				header = format("for %s = %s, %s, %s do", node.var.name, istart, iend, step)
+		
+		if not header
+			header = format("for %s = %s, %s do", node.var.name, istart, iend)
+
+		add_section(header, node.body)
+
+
+	Stmt[TStmt.While] = \node ->
+		var test = expr_emit(node.test)
+		var header = format("while %s do", test)
+		add_section(header, node.body)
+
+
+	Stmt[TStmt.Repeat] = \node ->
+		add_section("repeat", node.body, true)
+		var test = expr_emit(node.test)
+		var until_line = format("until %s", test)
+		add_line(until_line)
+
+
+	Stmt[TStmt.Return] = \node ->
 		var line = format("return %s", expr_list(node.arguments))
 		add_line(line)
 
 
-	StatementRule.LabelStatement = \node ->
-		add_line("::" .. node.label .. "::")
+	Stmt[TStmt.Break] = ->
+		add_line("break")
 
 
-	StatementRule.GotoStatement = \node ->
+	Stmt[TStmt.Goto] = \node ->
 		add_line("goto " .. node.label)
 	
-	
-	
+		
+	Stmt[TStmt.Label] = \node ->
+		add_line("::" .. node.name .. "::")
+
+
+
 	proto_enter()
-	emit(tree)
+	list_emit(stmts)
 	var code = proto_inline()
 	proto_leave()
 	return code

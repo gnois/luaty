@@ -5,6 +5,7 @@
 local ast = require("lua.ast")
 local Kinds = {"Void", "Nil", "Any", "Num", "Str", "Bool", "Func", "Tbl", "Or", "And", "Not", "Custom", "Index", "Keyed"}
 local make = function(kind, node)
+    assert("table" == type(node))
     node.kind = kind
     return node
 end

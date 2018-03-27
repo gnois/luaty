@@ -2,15 +2,19 @@
 -- Generated from generate.lt
 --
 
+local Tag = require("lua.tag")
 local reserved = require("lua.reserved")
 local operator = require("lua.operator")
 local chars = require("lua.chars")
+local TStmt = Tag.Stmt
+local TExpr = Tag.Expr
 local Keyword = reserved.Keyword
 local format = string.format
+local concat = table.concat
 local is = chars.is
-local generate = function(tree)
-    local StatementRule = {}
-    local ExpressionRule = {}
+local generate = function(stmts)
+    local Stmt = {}
+    local Expr = {}
     local proto = nil
     local proto_enter = function(indent)
         local ind = 0
@@ -34,28 +38,26 @@ local generate = function(tree)
         if #proto.code > 0 then
             proto.code[1] = string.gsub(proto.code[1], "^%s*", "")
         end
-        return table.concat(proto.code, "\n")
+        return concat(proto.code, "\n")
     end
-    local proto_merge = function(child)
-        for k = 1, #child.code do
-            local line = child.code[k]
-            local indent_str = string.rep("    ", proto.indent)
-            proto.code[#proto.code + 1] = indent_str .. line
+    local emit = function(node)
+        local rule = Stmt[node.tag]
+        if rule then
+            return rule(node)
+        end
+        error("cannot find a statement rule for " .. node.tag)
+    end
+    local list_emit = function(node_list)
+        for i = 1, #node_list do
+            emit(node_list[i])
         end
     end
     local expr_emit = function(node)
-        local rule = ExpressionRule[node.kind]
+        local rule = Expr[node.tag]
         if rule then
             return rule(node)
         end
-        error("cannot find an expression rule for " .. node.kind)
-    end
-    local emit = function(node)
-        local rule = StatementRule[node.kind]
-        if rule then
-            return rule(node)
-        end
-        error("cannot find a statement rule for " .. node.kind)
+        error("cannot find an expression rule for " .. node.tag)
     end
     local to_expr = function(node, bracket)
         local val = expr_emit(node)
@@ -70,12 +72,7 @@ local generate = function(tree)
         for k = 1, last do
             strls[k] = to_expr(exps[k], k == last and exps[k].bracketed)
         end
-        return table.concat(strls, ", ")
-    end
-    local list_emit = function(node_list)
-        for i = 1, #node_list do
-            emit(node_list[i])
-        end
+        return concat(strls, ", ")
     end
     local add_line = function(line)
         local indent = string.rep("    ", proto.indent)
@@ -90,131 +87,83 @@ local generate = function(tree)
             add_line("end")
         end
     end
-    local is_string = function(node)
-        return node.kind == "Literal" and type(node.value) == "string"
-    end
-    local is_const = function(node, val)
-        return node.kind == "Literal" and node.value == val
-    end
-    local is_literal = function(node)
-        local k = node.kind
-        return (k == "Literal" or k == "Table")
-    end
-    local string_is_ident = function(str)
-        local c = string.sub(str, 1, 1)
-        if c == "" or not is.letter(c) then
-            return false
-        end
-        for k = 2, #str do
-            c = string.sub(str, k, k)
-            if not is.letter(c) and not is.digit(c) then
+    local is_plain_string = function(node)
+        if node.tag == TExpr.String and type(node.value) == "string" then
+            local str = node.value
+            local c = string.sub(str, 1, 1)
+            if c == "" or not is.letter(c) then
                 return false
             end
+            for k = 2, #str do
+                c = string.sub(str, k, k)
+                if not is.letter(c) and not is.digit(c) then
+                    return false
+                end
+            end
+            return not Keyword[str]
         end
-        return not Keyword[str]
     end
     local comma_sep_list = function(ls, f)
-        local strls
+        local strls = ls
         if f then
             strls = {}
             for k = 1, #ls do
                 strls[k] = f(ls[k])
             end
-        else
-            strls = ls
         end
-        return table.concat(strls, ", ")
+        return concat(strls, ", ")
     end
     local as_parameter = function(node)
-        return node.kind == "Vararg" and "..." or node.name
+        return node.tag == TExpr.Vararg and "..." or node.name
     end
-    ExpressionRule.Identifier = function(node)
-        return node.name, operator.ident_priority
+    local priority = function(val)
+        return val, operator.ident_priority
+    end
+    Expr[TExpr.Id] = function(node)
+        return priority(node.name)
+    end
+    Expr[TExpr.Number] = function(node)
+        return priority(node.value)
+    end
+    Expr[TExpr.Bool] = function(node)
+        return priority(tostring(node.value))
+    end
+    Expr[TExpr.Nil] = function()
+        return priority("nil")
+    end
+    Expr[TExpr.Vararg] = function()
+        return priority("...")
     end
     local escape = function(s)
         local replace = {["\""] = [[\"]], ["\a"] = [[\a]], ["\b"] = [[\b]], ["\f"] = [[\f]], ["\n"] = [[\n]], ["\r"] = [[\r]], ["\t"] = [[\t]], ["\v"] = [[\v]]}
         return string.gsub(s, "[\"\a\b\f\n\r\t\v]", replace)
     end
-    ExpressionRule.Literal = function(node)
+    Expr[TExpr.String] = function(node)
         local val = node.value
-        local str = type(val) == "string" and format("\"%s\"", escape(val)) or tostring(val)
-        return str, operator.ident_priority
-    end
-    ExpressionRule.NumberLiteral = function(node)
-        return node.value, operator.ident_priority
-    end
-    ExpressionRule.LongStringLiteral = function(node)
-        local n, m = string.find(node.text, "^`+")
-        if n then
-            local p, q = string.find(node.text, "`+$")
-            assert(q - p == m - n)
-            local eq = string.rep("=", m - n)
-            local begins = "[" .. eq .. "["
-            local ends = "]" .. eq .. "]"
-            local text = string.sub(node.text, m + 1, p - 1)
-            return begins .. text .. ends, operator.ident_priority
-        end
-        return node.text, operator.ident_priority
-    end
-    ExpressionRule.MemberExpression = function(node)
-        local object, prio = expr_emit(node.object)
-        if prio < operator.ident_priority or is_literal(node.object) then
-            object = "(" .. object .. ")"
-        end
-        local exp
-        if node.computed then
-            local prop = expr_emit(node.property)
-            exp = format("%s[%s]", object, prop)
-        else
-            exp = format("%s.%s", object, node.property.name)
-        end
-        return exp, operator.ident_priority
-    end
-    ExpressionRule.Vararg = function()
-        return "...", operator.ident_priority
-    end
-    ExpressionRule.BinaryExpression = function(node)
-        local oper = node.operator
-        local lprio = operator.left_priority(oper)
-        local rprio = operator.right_priority(oper)
-        local a, alprio, arprio = expr_emit(node.left)
-        local b, blprio, brprio = expr_emit(node.right)
-        if not arprio then
-            arprio = alprio
-        end
-        if not brprio then
-            brprio = blprio
-        end
-        local ap = arprio < lprio and format("(%s)", a) or a
-        local bp = blprio <= rprio and format("(%s)", b) or b
-        return format("%s %s %s", ap, oper, bp), lprio, rprio
-    end
-    ExpressionRule.UnaryExpression = function(node)
-        local arg, arg_prio = expr_emit(node.argument)
-        local op_prio = operator.unary_priority
-        if arg_prio < op_prio then
-            arg = format("(%s)", arg)
-        end
-        local op = node.operator
-        if op == "not" then
-            op = "not "
-        end
-        return format("%s%s", op, arg), operator.unary_priority
-    end
-    ExpressionRule.LogicalExpression = ExpressionRule.BinaryExpression
-    ExpressionRule.ConcatenateExpression = function(node)
-        local ls = {}
-        local cat_prio = operator.left_priority("..")
-        for k = 1, #node.terms do
-            local kprio
-            ls[k], kprio = expr_emit(node.terms[k])
-            if kprio < cat_prio then
-                ls[k] = format("(%s)", ls[k])
+        local text = val
+        if node.long then
+            local n, m = string.find(val, "^`+")
+            if n then
+                local p, q = string.find(val, "`+$")
+                assert(q - p == m - n)
+                local eq = string.rep("=", m - n)
+                local ls = {"[", eq, "[", string.sub(val, m + 1, p - 1), "]", eq, "]"}
+                text = priority(concat(ls))
             end
+        else
+            text = format("\"%s\"", escape(val))
         end
-        return table.concat(ls, " .. "), cat_prio
+        return priority(text)
     end
-    ExpressionRule.Table = function(node)
+    Expr[TExpr.Function] = function(node)
+        proto_enter()
+        local header = format("function(%s)", comma_sep_list(node.params, as_parameter))
+        add_section(header, node.body)
+        local code = proto_inline()
+        proto_leave()
+        return code, 0
+    end
+    Expr[TExpr.Table] = function(node)
         local hash = {}
         local last = #node.keyvals
         for i = 1, last do
@@ -222,7 +171,7 @@ local generate = function(tree)
             local val = expr_emit(kv[1])
             local key = kv[2]
             if key then
-                if is_string(key) and string_is_ident(key.value) then
+                if is_plain_string(key) then
                     hash[i] = format("%s = %s", key.value, val)
                 else
                     hash[i] = format("[%s] = %s", expr_emit(key), val)
@@ -239,87 +188,70 @@ local generate = function(tree)
         if #hash > 0 then
             content = comma_sep_list(hash)
         end
-        return "{" .. content .. "}", operator.ident_priority
+        return priority("{" .. content .. "}")
     end
-    ExpressionRule.CallExpression = function(node)
-        local callee, prio = expr_emit(node.callee)
-        if prio < operator.ident_priority then
-            callee = "(" .. callee .. ")"
+    local receiver = function(target)
+        local obj, prio = expr_emit(target)
+        local t = target.tag
+        if prio < operator.ident_priority or t == TExpr.String or t == TExpr.Number or t == TExpr.Bool or t == TExpr.Table then
+            return "(" .. obj .. ")"
         end
-        local exp = format("%s(%s)", callee, expr_list(node.arguments))
-        return exp, operator.ident_priority
+        return obj
     end
-    ExpressionRule.SendExpression = function(node)
-        local receiver, prio = expr_emit(node.receiver)
-        if prio < operator.ident_priority or is_literal(node.receiver) then
-            receiver = "(" .. receiver .. ")"
+    Expr[TExpr.Index] = function(node)
+        local obj = receiver(node.object)
+        local idx = expr_emit(node.index)
+        local exp = format("%s[%s]", obj, idx)
+        return priority(exp)
+    end
+    Expr[TExpr.Property] = function(node)
+        local obj = receiver(node.object)
+        local exp = format("%s.%s", obj, node.property)
+        return priority(exp)
+    end
+    Expr[TExpr.Call] = function(node)
+        local fn = receiver(node.func)
+        local exp = format("%s(%s)", fn, expr_list(node.arguments))
+        return priority(exp)
+    end
+    Expr[TExpr.Invoke] = function(node)
+        local obj = receiver(node.object)
+        local exp = format("%s:%s(%s)", obj, node.method, expr_list(node.arguments))
+        return priority(exp)
+    end
+    Expr[TExpr.Unary] = function(node)
+        local arg, arg_prio = expr_emit(node.argument)
+        local op_prio = operator.unary_priority
+        if arg_prio < op_prio then
+            arg = format("(%s)", arg)
         end
-        local method = node.method.name
-        local exp = format("%s:%s(%s)", receiver, method, expr_list(node.arguments))
-        return exp, operator.ident_priority
+        local op = node.operator
+        if op == "not" then
+            op = "not "
+        end
+        return format("%s%s", op, arg), operator.unary_priority
     end
-    ExpressionRule.FunctionExpression = function(node)
-        proto_enter()
-        local header = format("function(%s)", comma_sep_list(node.params, as_parameter))
-        add_section(header, node.body)
-        local code = proto_inline()
-        proto_leave()
-        return code, 0
+    Expr[TExpr.Binary] = function(node)
+        local oper = node.operator
+        local lprio = operator.left_priority(oper)
+        local rprio = operator.right_priority(oper)
+        local a, alprio, arprio = expr_emit(node.left)
+        local b, blprio, brprio = expr_emit(node.right)
+        if not arprio then
+            arprio = alprio
+        end
+        if not brprio then
+            brprio = blprio
+        end
+        local ap = arprio < lprio and format("(%s)", a) or a
+        local bp = blprio <= rprio and format("(%s)", b) or b
+        return format("%s %s %s", ap, oper, bp), lprio, rprio
     end
-    StatementRule.CallExpression = function(node)
-        local line = expr_emit(node)
+    Stmt[TStmt.Expr] = function(node)
+        local line = expr_emit(node.expression)
         add_line(line)
     end
-    StatementRule.ForStatement = function(node)
-        local init = node.init
-        local istart = expr_emit(init.value)
-        local iend = expr_emit(node.last)
-        local header
-        if node.step and not is_const(node.step, 1) then
-            local step = expr_emit(node.step)
-            header = format("for %s = %s, %s, %s do", init.id.name, istart, iend, step)
-        else
-            header = format("for %s = %s, %s do", init.id.name, istart, iend)
-        end
-        add_section(header, node.body)
-    end
-    StatementRule.ForInStatement = function(node)
-        local vars = comma_sep_list(node.namelist.names, as_parameter)
-        local explist = expr_list(node.explist)
-        local header = format("for %s in %s do", vars, explist)
-        add_section(header, node.body)
-    end
-    StatementRule.DoStatement = function(node)
-        add_section("do", node.body)
-    end
-    StatementRule.WhileStatement = function(node)
-        local test = expr_emit(node.test)
-        local header = format("while %s do", test)
-        add_section(header, node.body)
-    end
-    StatementRule.RepeatStatement = function(node)
-        add_section("repeat", node.body, true)
-        local test = expr_emit(node.test)
-        local until_line = format("until %s", test)
-        add_line(until_line)
-    end
-    StatementRule.BreakStatement = function()
-        add_line("break")
-    end
-    StatementRule.IfStatement = function(node)
-        local ncons = #node.tests
-        for i = 1, ncons do
-            local header_tag = i == 1 and "if" or "elseif"
-            local test = expr_emit(node.tests[i])
-            local header = format("%s %s then", header_tag, test)
-            add_section(header, node.cons[i], true)
-        end
-        if node.alternate then
-            add_section("else", node.alternate, true)
-        end
-        add_line("end")
-    end
-    StatementRule.LocalDeclaration = function(node)
+    Stmt[TStmt.Local] = function(node)
         local line
         local names = comma_sep_list(node.names, as_parameter)
         if #node.expressions > 0 then
@@ -329,29 +261,73 @@ local generate = function(tree)
         end
         add_line(line)
     end
-    StatementRule.AssignmentExpression = function(node)
+    Stmt[TStmt.Assign] = function(node)
         local line = format("%s = %s", expr_list(node.left), expr_list(node.right))
         add_line(line)
     end
-    StatementRule.Chunk = function(node)
-        list_emit(node.body)
+    Stmt[TStmt.Do] = function(node)
+        add_section("do", node.body)
     end
-    StatementRule.ExpressionStatement = function(node)
-        local line = expr_emit(node.expression)
-        add_line(line)
+    Stmt[TStmt.If] = function(node)
+        local ncons = #node.tests
+        for i = 1, ncons do
+            local header_tag = i == 1 and "if" or "elseif"
+            local test = expr_emit(node.tests[i])
+            local header = format("%s %s then", header_tag, test)
+            add_section(header, node.conds[i], true)
+        end
+        if node.els then
+            add_section("else", node.els, true)
+        end
+        add_line("end")
     end
-    StatementRule.ReturnStatement = function(node)
+    Stmt[TStmt.Forin] = function(node)
+        local vars = comma_sep_list(node.vars, as_parameter)
+        local explist = expr_list(node.explist)
+        local header = format("for %s in %s do", vars, explist)
+        add_section(header, node.body)
+    end
+    Stmt[TStmt.Fornum] = function(node)
+        local istart = expr_emit(node.first)
+        local iend = expr_emit(node.last)
+        local header
+        if node.step then
+            if not (node.step.tag == TExpr.Number and node.step.value == 1) then
+                local step = expr_emit(node.step)
+                header = format("for %s = %s, %s, %s do", node.var.name, istart, iend, step)
+            end
+        end
+        if not header then
+            header = format("for %s = %s, %s do", node.var.name, istart, iend)
+        end
+        add_section(header, node.body)
+    end
+    Stmt[TStmt.While] = function(node)
+        local test = expr_emit(node.test)
+        local header = format("while %s do", test)
+        add_section(header, node.body)
+    end
+    Stmt[TStmt.Repeat] = function(node)
+        add_section("repeat", node.body, true)
+        local test = expr_emit(node.test)
+        local until_line = format("until %s", test)
+        add_line(until_line)
+    end
+    Stmt[TStmt.Return] = function(node)
         local line = format("return %s", expr_list(node.arguments))
         add_line(line)
     end
-    StatementRule.LabelStatement = function(node)
-        add_line("::" .. node.label .. "::")
+    Stmt[TStmt.Break] = function()
+        add_line("break")
     end
-    StatementRule.GotoStatement = function(node)
+    Stmt[TStmt.Goto] = function(node)
         add_line("goto " .. node.label)
     end
+    Stmt[TStmt.Label] = function(node)
+        add_line("::" .. node.name .. "::")
+    end
     proto_enter()
-    emit(tree)
+    list_emit(stmts)
     local code = proto_inline()
     proto_leave()
     return code

@@ -49,6 +49,10 @@ assert(({(-> return 2,3,4,5)()})[4] == 5)
 assert(({((-> return 2,3,4,5)())})[2] == nil)
 assert(({((-> return 2,3,4,5)())})[1] == 2)
 
+-- semicolon
+assert(({-> return 2,3;,4,5})[1]() == 2)
+assert(({-> return 2,3;,4,5})[3] == 5)
+
 
 do
 	var a = (7 % 2 == 1)

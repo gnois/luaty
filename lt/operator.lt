@@ -1,11 +1,11 @@
 var bit = require('bit')
 
--- Priorities for each binary operator.
+-- Priorities for each binary operator
 -- (left priority) * 256 + (right priority)
 -- modulus is your friend
 var binop = {
 	['+']  = 6 * 256 + 6, ['-']  = 6 * 256 + 6, ['*'] = 7 * 256 + 7, ['/'] = 7 * 256 + 7, ['%'] = 7 * 256 + 7,
-	['^']  = 9 * 256 + 8, ['..'] = 5 * 256 + 4, -- POW CONCAT (right associative)
+	['^']  = 9 * 256 + 8, ['..'] = 5 * 256 + 4, -- right associative
 	['=='] = 3 * 256 + 3, ['~='] = 3 * 256 + 3,
 	['<']  = 3 * 256 + 3, ['>='] = 3 * 256 + 3, ['>'] = 3 * 256 + 3, ['<='] = 3 * 256 + 3,
 	['and']= 2 * 256 + 2, ['or'] = 1 * 256 + 1
@@ -21,7 +21,7 @@ var is_binop = \op ->
 	return binop[op]
 
 
--- Priority for type declaration operator
+-- Priority for type annotation operator
 -- (left priority) * 256 + (right priority)
 var typeop = {
 	['|']  = 1 * 256 + 1, ['&']  = 2 * 256 + 2,

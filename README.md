@@ -1,16 +1,47 @@
 
-Luaty mixes Lua's simplicity with Moonscript's brevity, sprinkled with some safety.
+Luaty is like a rudimentary [Moonscript](http://moonscript.org) that comes with a linter.
 
-If [off-side syntax](https://en.wikipedia.org/wiki/Off-side_rule) is your thing, and you don't like to type `end`, `then`, `do`, or you prefer compile-time to runtime error, then Luaty may work for you.
+If [off-side syntax](https://en.wikipedia.org/wiki/Off-side_rule) is your thing, or you are lazy to type `end`, `then`, `do`, or you prefer compile-time to runtime error, then Luaty may suit your taste.
 
 Luaty stands for *[Lua] with less [ty]ping*.
+
+
+Builtin linter
+---
+
+During transpiling, Luaty checks and provides warning for:
+  * unused variables
+  * unused labels
+  * assigning to undeclared (a.k.a global) variable
+  * shadowing variables in the parent or same scope
+  * duplicate keys in a table
+  * number of expressions on the right side of assignment is more than the variables on the left
+
+Lua code is generated regardless.
+
+```
+a = 1                     -- undeclared identifier a
+
+var c, d = 1, 2, 4        -- assigning 3 values to 2 variables
+
+var p = print
+var p = 'p'               -- shadowing previous var p
+
+var f = \z->
+   var z = 10             -- shadowing previous var z
+
+var tbl = {
+   x = 1
+   , x = 3                -- duplicate key 'x' in table
+}
+```
 
 
 Differences from Lua
 ---
 
-Aside from being indent based, Luaty has only a handful of features.
-Most syntaxes of Lua are kept, so that if you know Lua, you already knew most of Luaty.
+Luaty is skim on features. Aside from being indent based, most syntaxes of Lua are kept.
+If you know Lua, you already knew most of Luaty.
 
 Here goes the differences:
 
@@ -61,31 +92,6 @@ p(obj:foo(2))                               -- Error: ')' expected instead of ':
 assert(obj.foo(@, 2) == 6)                  -- Ok, compiles to obj:foo(2)
 ```
 
-- basic linting that checks for
-  * unused variables
-  * unused labels
-  * assigning to undeclared (a.k.a global) variable
-  * number of values on the right side of multiple assignment is more than the variables on the left side
-  * shadowing variables in the parent or same scope
-  * duplicate keys in a table
-
-```
-a = 1                     -- Error: undeclared identifier a
-
-var c, d = 1, 2, 4        -- Error: assigning 3 values to 2 variables
-
-var p = print
-var p = 'p'               -- Error: shadowing previous var p
-
-var f = \z->
-   var z = 10             -- Error: shadowing previous var z
-
-var tbl = {
-   x = 1
-   , x = 3                -- Error: duplicate key 'x' in table
-}
-```
-
 - table keys can be keywords
 
 ```
@@ -118,7 +124,7 @@ To execute a Luaty source file, use
 luajit lt.lua /path/to/source.lt
 ```
 
-To compile a Luaty *source.lt* file to *dest.lua*, use
+To transpile a Luaty *source.lt* file to *dest.lua*, use
 ```
 luajit lt.lua -c /path/to/source.lt dest.lua
 ```
@@ -133,7 +139,7 @@ luajit run-test.lua
 
 
 
-The indent (offside) rule
+The detailed indent (offside) rule
 ---
 
 1. Either tabs or spaces can be used as indent, but not both in a single file.
@@ -179,7 +185,7 @@ print(
 
 ```
 
-5. The multi-valued return statement in single-lined functions could cause ambiguity in some cases. A semicolon `;` can be used to terminate single-lined function unambiguously
+5. The multi-valued return statement in single-lined functions may cause ambiguity in certain cases. A semicolon `;` can be used to terminate single-lined function
 ```
 print(pcall(\x-> return x, 10))                 -- multiple return values. Prints true, nil, 10
 
@@ -203,5 +209,7 @@ See the [tests folder](https://github.com/gnois/luaty/tree/master/tests) for mor
 
 Acknowledgments
 ---
+
 Luaty is modified from the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit).
 
+Some of the tests are stolen and modified from official Lua test suit.

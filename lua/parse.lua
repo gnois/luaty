@@ -6,6 +6,8 @@ local ast = require("lua.ast")
 local ty = require("lua.type")
 local operator = require("lua.operator")
 local reserved = require("lua.reserved")
+local Stmt = ast.Stmt
+local Expr = ast.Expr
 local Keyword = reserved.Keyword
 local LJ_52 = false
 local EndOfChunk = {TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true}
@@ -304,17 +306,17 @@ local var_name = function(scope, ls)
     if scope.declared(name) == 0 then
         err_warn(ls, "undeclared identifier `" .. name .. "`")
     end
-    return ast.identifier(name), vk
+    return Expr.id(name, ls.line), vk
 end
 local expr_field = function(ls, v)
     ls.step()
     local key = is_keyword(ls)
     if key then
         ls.step()
-        return ast.expr_index(v, ast.literal(key))
+        return Expr.index(v, Expr.string(key))
     end
     key = lex_str(ls)
-    return ast.expr_property(v, key), v, key
+    return Expr.property(v, key), v, key
 end
 local expr_bracket = function(scope, ls)
     ls.step()
@@ -343,16 +345,18 @@ expr_table = function(scope, ls)
         elseif ls.next() == "=" then
             if ls.token == "TK_name" then
                 local name = lex_str(ls)
-                key = ast.literal(name)
+                key = Expr.string(name)
             elseif ls.token == "TK_string" then
-                key = ast.literal(ls.value)
+                key = Expr.string(ls.value)
                 ls.step()
             else
                 local name = is_keyword(ls)
                 if name then
-                    key = ast.literal(name)
-                    ls.step()
+                    key = Expr.string(name)
+                else
+                    err_syntax(ls, "invalid table key " .. as_val(ls) or ls.astext(ls.token))
                 end
+                ls.step()
             end
             lex_check(ls, "=")
         end
@@ -368,7 +372,7 @@ expr_table = function(scope, ls)
         kvs[#kvs + 1] = {val, key}
         dented = lex_opt_dent(ls, dented)
         if ls.token == ";" then
-            err_instead(ls, 3, "use %s", ls.astext(","))
+            err_instead(ls, 3, "use `,`")
         end
         if not lex_opt(ls, ",") and not lex_opt(ls, ";") then
             break
@@ -378,7 +382,7 @@ expr_table = function(scope, ls)
         err_instead(ls, 10, "%s expected to match %s at line %d", ls.astext("TK_dedent"), ls.astext("TK_indent"), line)
     end
     lex_match(ls, "}", "{", line)
-    return ast.expr_table(kvs, line)
+    return Expr.table(kvs, line)
 end
 local expr_function = function(scope, ls)
     local line = ls.line
@@ -386,36 +390,37 @@ local expr_function = function(scope, ls)
         ls.step()
     end
     local curry, params, body, varargs = parse_body(scope, ls, line)
-    local lambda = ast.expr_function(params, body, varargs)
+    local lambda = Expr["function"](params, body, varargs, line)
     if curry then
         if scope.declared("curry") == 0 then
-            err_warn(ls, "require('lib.curry') is needed to use `~>`")
+            err_warn(ls, "'lib.curry' is required to use `~>`")
         end
-        local cargs = {ast.literal(#params), lambda}
-        return ast.expr_function_call(ast.identifier("curry"), cargs, line)
+        local cargs = {Expr.number(#params), lambda}
+        return Expr.call(Expr.id("curry"), cargs, line)
     end
     return lambda
 end
 expr_simple = function(scope, ls)
     local tk, val = ls.token, ls.value
+    local line = ls.line
     local e
     if tk == "TK_number" then
-        e = ast.numberliteral(val)
+        e = Expr.number(val, line)
     elseif tk == "TK_string" then
-        e = ast.literal(val)
+        e = Expr.string(val, false, line)
     elseif tk == "TK_longstring" then
-        e = ast.longstrliteral(val)
+        e = Expr.string(val, true, line)
     elseif tk == "TK_nil" then
-        e = ast.literal(nil)
+        e = Expr.null(line)
     elseif tk == "TK_true" then
-        e = ast.literal(true)
+        e = Expr.bool(true, line)
     elseif tk == "TK_false" then
-        e = ast.literal(false)
+        e = Expr.bool(false, line)
     elseif tk == "..." then
         if not scope.is_varargs() then
             err_syntax(ls, "cannot use `...` in a function without variable arguments")
         end
-        e = ast.expr_vararg()
+        e = Expr.vararg(line)
     elseif tk == "{" then
         return expr_table(scope, ls)
     elseif tk == "\\" or tk == "->" or tk == "~>" then
@@ -445,7 +450,7 @@ expr_unop = function(scope, ls)
         local line = ls.line
         ls.step()
         local v = expr_binop(scope, ls, operator.unary_priority)
-        return ast.expr_unop(ls.tostr(tk), v, line)
+        return Expr.unary(ls.tostr(tk), v, line)
     else
         return expr_simple(scope, ls)
     end
@@ -457,7 +462,7 @@ expr_binop = function(scope, ls, limit)
         local line = ls.line
         ls.step()
         local v2, nextop = expr_binop(scope, ls, operator.right_priority(op))
-        v = ast.expr_binop(op, v, v2, line)
+        v = Expr.binary(op, v, v2, line)
         op = nextop
     end
     return v, op
@@ -470,7 +475,7 @@ expr_primary = function(scope, ls)
     if ls.token == "(" then
         local line = ls.line
         ls.step()
-        vk, v = Kind.Expr, ast.expr_brackets(expr(scope, ls))
+        vk, v = Kind.Expr, ast.bracket(expr(scope, ls))
         lex_match(ls, ")", "(", line)
     else
         v, vk = var_name(scope, ls)
@@ -483,27 +488,27 @@ expr_primary = function(scope, ls)
         elseif ls.token == "[" then
             key = expr_bracket(scope, ls)
             val = v
-            vk, v = Kind.Index, ast.expr_index(val, key)
+            vk, v = Kind.Index, Expr.index(val, key)
         elseif ls.token == "(" then
             local args, self1 = parse_args(scope, ls)
             if self1 then
                 if vk == Kind.Field or vk == Kind.Index then
                     if vk == Kind.Field then
-                        vk, v = Kind.Call, ast.expr_method_call(val, key, args, line)
+                        vk, v = Kind.Call, Expr.invoke(val, key, args, line)
                     elseif vk == Kind.Index then
                         local nm = "_0"
-                        local obj = ast.identifier(nm)
+                        local obj = Expr.id(nm)
                         table.insert(args, 1, obj)
-                        local body = {ast.local_decl({obj}, {val}, line), ast.return_stmt({ast.expr_function_call(ast.expr_index(obj, key), args, line)}, line)}
-                        local lambda = ast.expr_function({}, body, false)
-                        vk, v = Kind.Call, ast.expr_function_call(lambda, {}, line)
+                        local body = {Stmt.declare({obj}, {val}, line), Stmt["return"]({Expr.call(Expr.index(obj, key), args, line)}, line)}
+                        local lambda = Expr["function"]({}, body, false)
+                        vk, v = Kind.Call, Expr.call(lambda, {}, line)
                     end
                 else
-                    table.insert(args, 1, ast.identifier("self"))
-                    vk, v = Kind.Call, ast.expr_function_call(v, args, line)
+                    table.insert(args, 1, Expr.id("self"))
+                    vk, v = Kind.Call, Expr.call(v, args, line)
                 end
             else
-                vk, v = Kind.Call, ast.expr_function_call(v, args, line)
+                vk, v = Kind.Call, Expr.call(v, args, line)
             end
         else
             break
@@ -513,62 +518,59 @@ expr_primary = function(scope, ls)
 end
 local parse_return = function(scope, ls, line)
     ls.step()
-    ast.has_return = true
     local exps
     if EndOfChunk[ls.token] or NewLine[ls.token] or EndOfFunction[ls.token] then
         exps = {}
     else
         exps = expr_list(scope, ls)
     end
-    return ast.return_stmt(exps, line)
+    return Stmt["return"](exps, line)
 end
-local parse_for_num = function(scope, ls, varname, line)
+local parse_for_num = function(scope, ls, idxname, line)
     lex_check(ls, "=")
-    local init = expr(scope, ls)
+    scope.enter_block("ForNum")
+    local first = expr(scope, ls)
     lex_check(ls, ",")
     local last = expr(scope, ls)
     local step
     if lex_opt(ls, ",") then
         step = expr(scope, ls)
     else
-        step = ast.literal(1)
+        step = Expr.number(1, line)
     end
-    scope.enter_block()
-    local name = declare_var(scope, ls, varname, nil)
-    local v = ast.identifier(name)
+    local name = declare_var(scope, ls, idxname, nil)
+    local var = Expr.id(name, line)
     local body = parse_block(scope, ls, line, "TK_for")
     scope.leave_block()
-    return ast.for_stmt(v, init, last, step, body, line, ls.line)
+    return Stmt.fornum(var, first, last, step, body, line)
 end
-local parse_for_iter = function(scope, ls, indexname)
-    scope.enter_block("ForIter")
-    local name = declare_var(scope, ls, indexname, nil)
-    local vars = {ast.identifier(name)}
+local parse_for_in = function(scope, ls, idxname)
+    scope.enter_block("ForIn")
+    local name = declare_var(scope, ls, idxname, nil)
+    local vars = {Expr.id(name)}
     while lex_opt(ls, ",") do
         name = lex_str(ls)
         name = declare_var(scope, ls, name, nil)
-        vars[#vars + 1] = ast.identifier(name)
+        vars[#vars + 1] = Expr.id(name)
     end
     lex_check(ls, "TK_in")
     local line = ls.line
     local exps = expr_list(scope, ls)
     local body = parse_block(scope, ls, line, "TK_for")
     scope.leave_block()
-    return ast.for_iter_stmt(vars, exps, body, line, ls.line)
+    return Stmt.forin(vars, exps, body, line)
 end
 local parse_for = function(scope, ls, line)
     ls.step()
-    scope.enter_block("ForNum")
-    local varname = lex_str(ls)
+    local idxname = lex_str(ls)
     local stmt
     if ls.token == "=" then
-        stmt = parse_for_num(scope, ls, varname, line)
+        stmt = parse_for_num(scope, ls, idxname, line)
     elseif ls.token == "," or ls.token == "TK_in" then
-        stmt = parse_for_iter(scope, ls, varname)
+        stmt = parse_for_in(scope, ls, idxname)
     else
-        err_instead(ls, 10, "%s expected", "`=` or `in`")
+        err_instead(ls, 10, "`=` or `in` expected")
     end
-    scope.leave_block()
     return stmt
 end
 parse_args = function(scope, ls)
@@ -614,28 +616,28 @@ parse_args = function(scope, ls)
     return args, self1
 end
 local parse_assignment
-parse_assignment = function(scope, ls, vlist, v, vk)
+parse_assignment = function(scope, ls, lhs, v, vk)
     local line = ls.line
     if vk ~= Kind.Var and vk ~= Kind.Field and vk ~= Kind.Index then
         err_symbol(ls)
     end
-    vlist[#vlist + 1] = v
+    lhs[#lhs + 1] = v
     if lex_opt(ls, ",") then
         local n_var, n_vk = expr_primary(scope, ls)
-        return parse_assignment(scope, ls, vlist, n_var, n_vk)
+        return parse_assignment(scope, ls, lhs, n_var, n_vk)
     else
         lex_check(ls, "=")
-        local exps = expr_list(scope, ls, #vlist)
-        return ast.assignment_expr(vlist, exps, line)
+        local exps = expr_list(scope, ls, #lhs)
+        return Stmt.assign(lhs, exps, line)
     end
 end
 local parse_call_assign = function(scope, ls)
     local v, vk = expr_primary(scope, ls)
     if vk == Kind.Call then
-        return ast.new_statement_expr(v, ls.line)
+        return Stmt.expression(v, ls.line)
     else
-        local vlist = {}
-        return parse_assignment(scope, ls, vlist, v, vk)
+        local lhs = {}
+        return parse_assignment(scope, ls, lhs, v, vk)
     end
 end
 local parse_var = function(scope, ls)
@@ -646,18 +648,16 @@ local parse_var = function(scope, ls)
         local typ = parse_type(scope, ls)
         names[#names + 1] = name
     until not lex_opt(ls, ",")
-    local rhs
+    local rhs = {}
     if lex_opt(ls, "=") then
         rhs = expr_list(scope, ls, #names)
-    else
-        rhs = {}
     end
     local lhs = {}
     for _, name in ipairs(names) do
         name = declare_var(scope, ls, name, nil)
-        lhs[#lhs + 1] = ast.identifier(name)
+        lhs[#lhs + 1] = Expr.id(name)
     end
-    return ast.local_decl(lhs, rhs, line)
+    return Stmt.declare(lhs, rhs, line)
 end
 local parse_while = function(scope, ls, line)
     ls.step()
@@ -666,7 +666,7 @@ local parse_while = function(scope, ls, line)
     local body = parse_block(scope, ls, line, "TK_while")
     scope.leave_block()
     local lastline = ls.line
-    return ast.while_stmt(cond, body, line, lastline)
+    return Stmt["while"](cond, body, line, lastline)
 end
 local parse_then = function(scope, ls, tests, line)
     ls.step()
@@ -691,41 +691,41 @@ local parse_if = function(scope, ls, line)
             break
         end
     end
-    return ast.if_stmt(tests, blocks, else_branch, line)
+    return Stmt["if"](tests, blocks, else_branch, line)
 end
 local parse_do = function(scope, ls, line)
     ls.step()
     local body = parse_block(scope, ls, line, "TK_do")
     local lastline = ls.line
-    return ast.do_stmt(body, line, lastline)
+    return Stmt["do"](body, line, lastline)
 end
 local parse_repeat = function(scope, ls, line)
     ls.step()
     scope.enter_block("Repeat")
     scope.enter_block()
-    local body, _, lastline = parse_opt_chunk(scope, ls, line, "TK_repeat")
+    local body = parse_opt_chunk(scope, ls, line, "TK_repeat")
     lex_match(ls, "TK_until", "TK_repeat", line)
     local cond = expr(scope, ls)
     scope.leave_block()
     scope.leave_block()
-    return ast.repeat_stmt(cond, body, line, lastline)
+    return Stmt["repeat"](cond, body, line)
 end
 local parse_break = function(scope, ls, line)
     ls.step()
     scope.new_break()
-    return ast.break_stmt(line)
+    return Stmt["break"](line)
 end
 local parse_label = function(scope, ls, line)
     ls.step()
     local name = lex_str(ls)
     lex_check(ls, "::")
     scope.new_label(name, line)
-    return ast.label_stmt(name, line)
+    return Stmt.label(name, line)
 end
 local parse_goto = function(scope, ls, line)
     local name = lex_str(ls)
     scope.new_goto(name, line)
-    return ast.goto_stmt(name, line)
+    return Stmt["goto"](name, line)
 end
 local parse_stmt
 parse_stmt = function(scope, ls)
@@ -828,12 +828,12 @@ local parse_params = function(scope, ls)
                 local name = lex_str(ls)
                 local typ = parse_type(scope, ls)
                 name = declare_var(scope, ls, name, nil)
-                params[#params + 1] = ast.identifier(name)
+                params[#params + 1] = Expr.id(name, ls.line)
             elseif ls.token == "..." then
                 ls.step()
                 local typ = parse_type(scope, ls, true)
                 scope.varargs()
-                params[#params + 1] = ast.expr_vararg()
+                params[#params + 1] = Expr.vararg(ls.line)
                 if ls.next() ~= "/" then
                     break
                 end
@@ -844,7 +844,7 @@ local parse_params = function(scope, ls)
                 until not lex_opt(ls, ",")
                 break
             else
-                err_instead(ls, 10, "parameter expected for %s", ls.astext("->"))
+                err_instead(ls, 10, "parameter expected for `->`")
             end
         until not lex_opt(ls, ",") and ls.token ~= "/"
     end
@@ -875,11 +875,11 @@ local parse = function(scope, ls)
     scope.varargs()
     ls.step()
     lex_opt(ls, "TK_newline")
-    local chunk, _, lastline = parse_chunk(scope, ls)
+    local chunk = parse_chunk(scope, ls)
     scope.end_func()
     if ls.token ~= "TK_eof" then
         err_warn(ls, "code should end. unexpected extra " .. ls.astext(ls.token))
     end
-    return ast.chunk(chunk, ls.chunkname, 0, lastline)
+    return chunk
 end
 return parse

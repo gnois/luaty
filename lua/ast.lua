@@ -2,128 +2,79 @@
 -- Generated from ast.lt
 --
 
-local build = function(kind, node)
-    node.kind = kind
+local Tag = require("lua.tag")
+local TStmt = Tag.Stmt
+local TExpr = Tag.Expr
+local make = function(tag, node, line)
+    assert("table" == type(node))
+    node.tag = tag
+    node.line = line
     return node
 end
-local ident = function(name, line)
-    return build("Identifier", {name = name, line = line})
-end
-local AST = {}
-AST.chunk = function(body, chunkname, firstline, lastline)
-    return build("Chunk", {body = body, chunkname = chunkname, firstline = firstline, lastline = lastline})
-end
-AST.expr_function = function(args, body, vararg)
-    return build("FunctionExpression", {body = body, params = args, vararg = vararg})
-end
-AST.local_decl = function(lhs, rhs, line)
-    return build("LocalDeclaration", {names = lhs, expressions = rhs, line = line})
-end
-AST.assignment_expr = function(lhs, rhs, line)
-    return build("AssignmentExpression", {left = lhs, right = rhs, line = line})
-end
-AST.expr_index = function(v, index, line)
-    return build("MemberExpression", {object = v, property = index, computed = true, line = line})
-end
-AST.expr_property = function(v, prop, line)
-    local index = ident(prop, line)
-    return build("MemberExpression", {object = v, property = index, computed = false, line = line})
-end
-AST.literal = function(val, line)
-    return build("Literal", {value = val, line = line})
-end
-AST.numberliteral = function(val, line)
-    return build("NumberLiteral", {value = val, line = line})
-end
-AST.longstrliteral = function(txt, line)
-    return build("LongStringLiteral", {text = txt, line = line})
-end
-AST.expr_vararg = function()
-    return build("Vararg", {})
-end
-AST.expr_brackets = function(expr)
-    expr.bracketed = true
-    return expr
-end
-AST.expr_table = function(keyvals, line)
-    return build("Table", {keyvals = keyvals, line = line})
-end
-AST.expr_unop = function(op, v, line)
-    return build("UnaryExpression", {operator = op, argument = v, line = line})
-end
-local concat_append = function(ts, node)
-    local n = #ts
-    if node.kind == "ConcatenateExpression" then
-        for k = 1, #node.terms do
-            ts[n + k] = node.terms[k]
-        end
-    else
-        ts[n + 1] = node
-    end
-end
-AST.expr_binop = function(op, expa, expb, line)
-    local binop_body = (op ~= ".." and {operator = op, left = expa, right = expb, line = line})
-    if binop_body then
-        if op == "and" or op == "or" then
-            return build("LogicalExpression", binop_body)
-        else
-            return build("BinaryExpression", binop_body)
-        end
-    else
-        local terms = {}
-        concat_append(terms, expa)
-        concat_append(terms, expb)
-        return build("ConcatenateExpression", {terms = terms, line = expa.line})
-    end
-end
-AST.identifier = function(name, line)
-    return ident(name, line)
-end
-AST.expr_method_call = function(v, key, args, line)
-    local m = ident(key, line)
-    return build("SendExpression", {receiver = v, method = m, arguments = args, line = line})
-end
-AST.expr_function_call = function(v, args, line)
-    return build("CallExpression", {callee = v, arguments = args, line = line})
-end
-AST.return_stmt = function(exps, line)
-    return build("ReturnStatement", {arguments = exps, line = line})
-end
-AST.break_stmt = function(line)
-    return build("BreakStatement", {line = line})
-end
-AST.label_stmt = function(name, line)
-    return build("LabelStatement", {label = name, line = line})
-end
-AST.new_statement_expr = function(expr, line)
-    return build("ExpressionStatement", {expression = expr, line = line})
-end
-AST.if_stmt = function(tests, cons, else_branch, line)
-    return build("IfStatement", {tests = tests, cons = cons, alternate = else_branch, line = line})
-end
-AST.do_stmt = function(body, line, lastline)
-    return build("DoStatement", {body = body, line = line, lastline = lastline})
-end
-AST.while_stmt = function(test, body, line, lastline)
-    return build("WhileStatement", {test = test, body = body, line = line, lastline = lastline})
-end
-AST.repeat_stmt = function(test, body, line, lastline)
-    return build("RepeatStatement", {test = test, body = body, line = line, lastline = lastline})
-end
-AST.for_stmt = function(variable, init, last, step, body, line, lastline)
-    local for_init = build("ForInit", {id = variable, value = init, line = line})
-    return build("ForStatement", {init = for_init, last = last, step = step, body = body, line = line, lastline = lastline})
-end
-AST.for_iter_stmt = function(vars, exps, body, line, lastline)
-    local names = build("ForNames", {names = vars, line = line})
-    return build("ForInStatement", {namelist = names, explist = exps, body = body, line = line, lastline = lastline})
-end
-AST.goto_stmt = function(name, line)
-    return build("GotoStatement", {label = name, line = line})
+local Stmt = {expression = function(expr, line)
+    return make(TStmt.Expr, {expression = expr}, line)
+end, declare = function(lhs, rhs, line)
+    return make(TStmt.Local, {names = lhs, expressions = rhs}, line)
+end, assign = function(lhs, rhs, line)
+    return make(TStmt.Assign, {left = lhs, right = rhs}, line)
+end, ["do"] = function(body, line)
+    return make(TStmt.Do, {body = body}, line)
+end, ["if"] = function(tests, conds, els, line)
+    return make(TStmt.If, {tests = tests, conds = conds, els = els}, line)
+end, forin = function(vars, exprs, body, line)
+    return make(TStmt.Forin, {vars = vars, explist = exprs, body = body}, line)
+end, fornum = function(var, first, last, step, body, line)
+    return make(TStmt.Fornum, {var = var, first = first, last = last, step = step, body = body}, line)
+end, ["while"] = function(test, body, line)
+    return make(TStmt.While, {test = test, body = body}, line)
+end, ["repeat"] = function(test, body, line)
+    return make(TStmt.Repeat, {test = test, body = body}, line)
+end, ["return"] = function(exps, line)
+    return make(TStmt.Return, {arguments = exps}, line)
+end, ["break"] = function(line)
+    return make(TStmt.Break, {}, line)
+end, ["goto"] = function(label, line)
+    return make(TStmt.Goto, {label = label}, line)
+end, label = function(name, line)
+    return make(TStmt.Label, {name = name}, line)
+end}
+local Expr = {null = function(line)
+    return make(TExpr.Nil, {}, line)
+end, vararg = function(line)
+    return make(TExpr.Vararg, {}, line)
+end, bool = function(val, line)
+    return make(TExpr.Bool, {value = val}, line)
+end, number = function(val, line)
+    return make(TExpr.Number, {value = val}, line)
+end, string = function(val, long, line)
+    return make(TExpr.String, {value = val, long = long}, line)
+end, ["function"] = function(params, body, vararg, line)
+    return make(TExpr.Function, {body = body, params = params, vararg = vararg}, line)
+end, table = function(keyvals, line)
+    return make(TExpr.Table, {keyvals = keyvals}, line)
+end, index = function(obj, index, line)
+    return make(TExpr.Index, {object = obj, index = index}, line)
+end, property = function(obj, prop, line)
+    return make(TExpr.Property, {object = obj, property = prop}, line)
+end, call = function(func, args, line)
+    return make(TExpr.Call, {func = func, arguments = args}, line)
+end, invoke = function(obj, method, args, line)
+    return make(TExpr.Invoke, {object = obj, method = method, arguments = args}, line)
+end, unary = function(op, v, line)
+    return make(TExpr.Unary, {operator = op, argument = v}, line)
+end, binary = function(op, left, right, line)
+    return make(TExpr.Binary, {operator = op, left = left, right = right}, line)
+end, id = function(name, line)
+    return make(TExpr.Id, {name = name}, line)
+end}
+local bracket = function(node)
+    assert("table" == type(node))
+    node.bracketed = true
+    return node
 end
 local same
 same = function(a, b)
-    if a and b and a.kind == b.kind then
+    if a and b and a.tag == b.tag then
         local last = 1
         if #a ~= #b then
             return false
@@ -164,5 +115,4 @@ same = function(a, b)
     end
     return false
 end
-AST.same = same
-return AST
+return {Stmt = Stmt, Expr = Expr, bracket = bracket, same = same}

@@ -21,6 +21,7 @@ var Kinds = {
 
 -- rest is ...
 var make = \kind, node ->
+	assert('table' == type(node))
 	node.kind = kind
 	return node
 
