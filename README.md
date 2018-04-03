@@ -1,23 +1,19 @@
 
-Luaty is like a rudimentary [Moonscript](http://moonscript.org) that comes with a linter.
-
-If [off-side syntax](https://en.wikipedia.org/wiki/Off-side_rule) is your thing, or you are lazy to type `end`, `then`, `do`, or you prefer compile-time to runtime error, then Luaty may suit your taste.
-
-Luaty stands for *[Lua] with less [ty]ping*.
+Luaty stands for *[Lua] with less [ty]ping*. It's like a rudimentary version of [Moonscript](http://moonscript.org), but comes with a linter.
 
 
 Builtin linter
 ---
 
-During transpiling, Luaty checks and provides warning for:
+During transpiling, Luaty warns for:
   * unused variables
   * unused labels
   * assigning to undeclared (a.k.a global) variable
-  * shadowing variables in the parent or same scope
+  * shadowing variables in the parent or the same scope
   * duplicate keys in a table
-  * number of expressions on the right side of assignment is more than the variables on the left
+  * number of expressions on the right side of assignment is more than the left side
 
-Lua code is generated regardless.
+Lua code will be generated regardless.
 
 ```
 a = 1                     -- undeclared identifier a
@@ -37,44 +33,56 @@ var tbl = {
 ```
 
 
-Differences from Lua
+Shorter syntax
 ---
 
-Luaty is skim on features. Aside from being indent based, most syntaxes of Lua are kept.
-If you know Lua, you already knew most of Luaty.
+Luaty is skim on features. Here are the differences from Lua:
 
-Here goes the differences:
-
-- Less or shorter keywords
+- General
   * no more `then`, `end`, `do`
   * `local` becomes `var`
   * `elseif` becomes `else if`
   * `[[` and `]]` are replaced with backquote \` which can be repeatable multiple times
-  * `self` can be `@`
-
+  * table keys can accept string or keyword
+  
 ```
 var x = false               -- `var` compiles to `local`
 if not x
    print(`"nay"`)           -- `then` and `end` not needed, `"nay"` compiles to [["nay"]]
+
+var z = {
+   'a-str' = 'a-str'                         -- string as key
+   , var = 7                                 -- works as in Lua
+   , local = 6                               -- keyword as key
+   , function = 5
+   , if = \...-> return ...
+   , goto = {true, false}
+}
+
+assert(z.var == 7)                           -- ok, z.var works as in Lua
+assert(11 == z.function + z.local)           -- becomes z['function'] and z['local']
+assert(z.if(z.goto)[2] == false)             -- ditto
+
 ```
 
-- Consistency preferred over sugar
-  * function definition is always a [lambda expression](https://www.lua.org/manual/5.1/manual.html#2.5.9) using  `->` or `\arg1, arg2, ... ->`
+- Function declaration
+  * function declaration is a [lambda expression](https://www.lua.org/manual/5.1/manual.html#2.5.9) using  `->` or `\arg1, arg2, ... ->`
   * function call always require parenthesis
 
 ```
 
-function f(x)                       -- Error: use '->' instead of 'function'
-\x -> print(x)                      -- Error: lambda expression by itself not allowed
-(\x -> print(x))(3)                 -- Ok, immediately invoked lambda
-var f = -> print(3)                 -- Ok, lambda with assignment statement
+function f(x)                       -- error: use '->' instead of 'function'
+\x -> print(x)                      -- error: lambda expression by itself not allowed
+(\x -> print(x))(3)                 -- ok, immediately invoked lambda
+var f = -> print(3)                 -- ok, lambda with assignment statement
 
-print 'a'                           -- Error: '=' expected instead of 'a'. This is valid in Lua
-print('a')                          -- Ok, obviously
+print 'a'                           -- error: '=' expected instead of 'a'. This is valid in Lua
+print('a')                          -- ok, obviously
 ```
 
-- Explicit prefered over implicit
-  * colon `:` is not used. `@` specified as the first lambda parameter to mean `self`
+- Method call
+  * `self` can be `@`
+  * colon `:` is not used. `@` specified as the first call argument instead
 
 ```
 var obj = {
@@ -86,28 +94,13 @@ var obj = {
 }
 
 var ret_o = -> return obj
-assert(ret_o()['long-name'](@, 10) == 20)   -- @ *just works*, better than `:`
+assert(ret_o()['long-name'](@, 10) == 20)   -- @ *just works*
 
-p(obj:foo(2))                               -- Error: ')' expected instead of ':'
-assert(obj.foo(@, 2) == 6)                  -- Ok, compiles to obj:foo(2)
+assert(obj.foo(@, 2) == 6)                  -- compiles to obj:foo(2)
+p(obj:foo(2))                               -- error: ')' expected instead of ':'
 ```
 
-- table keys can be keywords
-
-```
-var z = {
-   var = 7
-   , local = 6
-   , function = 5
-   , if = \...-> return ...
-   , goto = {true, false}
-}
-
-assert(z.var == 7)                           -- Ok, z.var works as in Lua
-assert(11 == z.function + z.local)           -- Becomes z['function'] and z['local']
-assert(z.if(z.goto)[2] == false)             -- Ditto
-```
-
+Lua code cannot be generated if there's syntax error.
 
 
 
@@ -185,7 +178,7 @@ print(
 
 ```
 
-5. The multi-valued return statement in single-lined functions may cause ambiguity in certain cases. A semicolon `;` can be used to terminate single-lined function
+5. A extra semicolon `;` can be used as a terminator for single-lined function if it causes ambiguity in a list of expressions
 ```
 print(pcall(\x-> return x, 10))                 -- multiple return values. Prints true, nil, 10
 
@@ -212,4 +205,4 @@ Acknowledgments
 
 Luaty is modified from the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit).
 
-Some of the tests are stolen and modified from official Lua test suit.
+Some of the tests are stolen from official Lua test suit.

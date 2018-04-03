@@ -45,7 +45,7 @@ local generate = function(stmts)
         if rule then
             return rule(node)
         end
-        error("cannot find a statement rule for " .. node.tag)
+        error("cannot find a statement rule for " .. (node.tag or "nil"))
     end
     local list_emit = function(node_list)
         for i = 1, #node_list do
@@ -57,7 +57,7 @@ local generate = function(stmts)
         if rule then
             return rule(node)
         end
-        error("cannot find an expression rule for " .. node.tag)
+        error("cannot find an expression rule for " .. (node.tag or "nil"))
     end
     local to_expr = function(node, bracket)
         local val = expr_emit(node)

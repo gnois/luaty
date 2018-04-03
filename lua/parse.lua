@@ -313,7 +313,7 @@ local expr_field = function(ls, v)
     local key = is_keyword(ls)
     if key then
         ls.step()
-        return Expr.index(v, Expr.string(key))
+        return Expr.index(v, Expr.string(key)), v, Expr.string(key)
     end
     key = lex_str(ls)
     return Expr.property(v, key), v, key
@@ -493,9 +493,9 @@ expr_primary = function(scope, ls)
             local args, self1 = parse_args(scope, ls)
             if self1 then
                 if vk == Kind.Field or vk == Kind.Index then
-                    if vk == Kind.Field then
+                    if vk == Kind.Field and type(key) == "string" then
                         vk, v = Kind.Call, Expr.invoke(val, key, args, line)
-                    elseif vk == Kind.Index then
+                    else
                         local nm = "_0"
                         local obj = Expr.id(nm)
                         table.insert(args, 1, obj)

@@ -1,5 +1,4 @@
 var Tag = require('lua.tag')
-
 var reserved = require('lua.reserved')
 var operator = require('lua.operator')
 var chars = require('lua.chars')
@@ -47,7 +46,7 @@ var generate = \stmts ->
 		var rule = Stmt[node.tag]
 		if rule
 			return rule(node)
-		error("cannot find a statement rule for " .. node.tag) 
+		error("cannot find a statement rule for " .. (node.tag or "nil"))
 
 	var list_emit = \node_list ->
 		for i = 1, #node_list
@@ -58,7 +57,7 @@ var generate = \stmts ->
 		var rule = Expr[node.tag]
 		if rule
 			return rule(node)
-		error("cannot find an expression rule for " .. node.tag) 
+		error("cannot find an expression rule for " .. (node.tag or "nil"))
 
 	var to_expr = \node, bracket ->
 		var val = expr_emit(node)
@@ -246,23 +245,6 @@ var generate = \stmts ->
 		return format("%s %s %s", ap, oper, bp), lprio, rprio
 
 
-	--``
-	Expr.ConcatenateExpression = \node ->
-		var ls = {}
-		var cat_prio = operator.left_priority("..")
-		for k = 1, #node.terms
-			var kprio
-			ls[k], kprio = expr_emit(node.terms[k])
-			if kprio < cat_prio ls[k] = format("(%s)", ls[k]) 
-
-		return concat(ls, " .. "), cat_prio
-
-	Stmt.CallExpression = \node ->
-		var line = expr_emit(node)
-		add_line(line)
-	``
-	
-	
 	---------------- Statements -----
 	Stmt[TStmt.Expr] = \node ->
 		var line = expr_emit(node.expression)

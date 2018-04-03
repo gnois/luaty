@@ -10,7 +10,7 @@ var make = \tag, node, line ->
 	return node
 
 
-var Stmt = {
+var Statement = {
 
 	expression = \expr, line ->
 		return make(TStmt.Expr, {expression = expr}, line)
@@ -53,13 +53,16 @@ var Stmt = {
 
 }
 
-var Expr = {
+var Expression = {
 
 	null = \line ->
 		return make(TExpr.Nil, {}, line)
 	
 	, vararg = \line ->
 		return make(TExpr.Vararg, {}, line)
+
+	, id = \name, line ->
+		return make(TExpr.Id, {name = name}, line)
 
 	, bool = \val, line ->
 		return make(TExpr.Bool, {value = val}, line)
@@ -94,15 +97,171 @@ var Expr = {
 	, binary = \op, left, right, line ->
 		return make(TExpr.Binary, {operator = op, left = left, right = right}, line)
 
-	, id = \name, line ->
-		return make(TExpr.Id, {name = name}, line)
-
 }
 
 var bracket = \node ->
 	assert('table' == type(node))
 	node.bracketed = true
 	return node
+
+
+var dump = \stmts ->
+	
+	var indents = 0
+	
+	var indentation = ->
+		return "\n"..string.rep("  ", indents)
+	
+	var astr = \open, close, tag, ... ->
+		var list = {}
+		list[1] = "`" .. tag
+		for k, v in ipairs({...})
+			list[1 + k] = tostring(v)
+		return open .. table.concat(list, " ") .. close
+		
+	var expr = \tag, ... ->
+		return astr('{', '}', tag, ...)
+		
+	var stmt = \tag, ... ->
+		return astr('[', ']', tag, ...)
+
+	var Stmt = {}
+	var Expr = {}
+
+	var visit_stmts = \nodes ->
+		var list, l = {}, 1
+		for _, node in ipairs(nodes)
+			var rule = Stmt[node.tag]
+			list[l] = rule(node)
+			l = l + 1
+		var spaces = indentation()
+		return spaces .. table.concat(list, spaces)
+	
+	var visit_expr = \node ->
+		var rule = Expr[node.tag]
+		return rule(node)
+			
+	var visit_exprs = \nodes ->
+		var list, l = {}, 1
+		for _, node in ipairs(nodes)
+			list[l] = visit_expr(node)
+			l = l + 1
+		return table.concat(list, " ")
+
+	var block = \header, nodes ->
+		indents = indents + 1
+		var body = visit_stmts(nodes)
+		indents = indents - 1
+		return header .. body
+
+	--------- Expressions --------------------
+	Expr[TExpr.Nil] = ->
+		return expr("nil")
+
+	Expr[TExpr.Vararg] = ->
+		return expr("dots")
+
+	Expr[TExpr.Id] = \node ->
+		return expr("Id", node.name)
+
+	Expr[TExpr.Bool] = \node ->
+		return expr("Bool", node.value)
+
+	Expr[TExpr.Number] = \node ->
+		return expr("Num", node.value)
+
+	Expr[TExpr.String] = \node ->
+		return expr("Str", node.value)
+
+	Expr[TExpr.Function] = \node ->
+		return block(expr("Function", visit_exprs(node.params)), node.body)
+
+	Expr[TExpr.Table] = \node ->
+		var header = expr("Table")
+		var body, b = {}, 1
+		var key, val
+		for _, kv in ipairs(node.keyvals)
+			val = visit_expr(kv[1])
+			if kv[2]
+				key = visit_expr(kv[2])
+				body[b] = key .. "=" .. val
+			else
+				body[b] = val
+			b = b + 1
+		return header .. table.concat(body, " ")
+
+	Expr[TExpr.Index] = \node ->
+		return expr("Index", visit_expr(node.object), visit_expr(node.index))
+
+	Expr[TExpr.Property] = \node ->
+		return expr("Property", visit_expr(node.object), node.property)
+
+	Expr[TExpr.Call] = \node ->
+		return expr("Call", visit_expr(node.func), visit_exprs(node.arguments))
+
+	Expr[TExpr.Invoke] = \node ->
+		return expr("Invoke", visit_expr(node.object), visit_exprs(node.arguments))
+
+	Expr[TExpr.Unary] = \node ->
+		return expr("Unary", node.operator, visit_expr(node.argument))
+
+	Expr[TExpr.Binary] = \node ->
+		return expr("Binary", node.operator, visit_expr(node.left), visit_expr(node.right))
+
+	--------- Statements --------------------
+	Stmt[TStmt.Expr] = \node ->
+		return stmt("ExprStatement", visit_expr(node.expression))
+
+	Stmt[TStmt.Local] = \node ->
+		return stmt("Local", visit_exprs(node.names), visit_exprs(node.expressions))
+
+	Stmt[TStmt.Assign] = \node ->
+		return stmt("Assign", visit_exprs(node.left), visit_exprs(node.right))
+
+	Stmt[TStmt.Do] = \node ->
+		return block(stmt("Do"), node.body)
+
+	Stmt[TStmt.If] = \node ->
+		var blocks, b = {}, 1
+		blocks[b] = block(stmt("If", visit_expr(node.tests[1])), node.conds[1])
+		b = b + 1
+		for i = 2, #node.tests
+			blocks[b] = block(indentation() .. "elseif " .. visit_expr(node.tests[i]), node.conds[i])
+			b = b + 1
+		if node.els
+			blocks[b] = block(indentation() .. "else", node.els)
+
+		return table.concat(blocks)
+
+		
+	Stmt[TStmt.Forin] = \node ->
+		return block(stmt("Forin", visit_exprs(node.explist)), node.body)
+
+	Stmt[TStmt.Fornum] = \node ->
+		return block(stmt("Fornum", visit_expr(node.first), visit_expr(node.last), node.step and visit_expr(node.step) or ""), node.body)
+
+
+	Stmt[TStmt.While] = \node ->
+		return block(stmt("While", visit_expr(node.test)), node.body)
+
+	Stmt[TStmt.Repeat] = \node ->
+		return block(stmt("Repeat until", visit_expr(node.test)), node.body)
+
+	Stmt[TStmt.Return] = \node ->
+		return stmt("Return", visit_exprs(node.arguments))
+
+	Stmt[TStmt.Break] = ->
+		return stmt("Break")
+
+	Stmt[TStmt.Goto] = \node ->
+		return stmt("Goto", node.label)
+		
+	Stmt[TStmt.Label] = \node ->
+		return stmt("Label", node.name)
+	
+	return visit_stmts(stmts)
+
+
 
 
 var same
@@ -141,10 +300,11 @@ same = \a, b ->
 		return true
 	return false
 
-
+	
 return {
-	Stmt = Stmt
-	, Expr = Expr
+	Stmt = Statement
+	, Expr = Expression
 	, bracket = bracket
 	, same = same
+	, dump = dump
 }

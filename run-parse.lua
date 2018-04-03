@@ -1,0 +1,15 @@
+local parse = require("lua.parse")
+local scope = require("lua.scope")
+local ast = require("lua.ast")
+local lex = require("lua.lex")
+local read = require("lua.read")
+local filename = assert(..., "usage: luajit run-parse.lua <filename>")
+
+local reader = read.file(filename)
+local lexer = lex(reader)
+local sc = scope({}, function(severe, msg)
+     lexer.error(lexer, severe, "%s", msg)
+end)
+local tree = parse(sc, lexer)
+print(ast.dump(tree))
+

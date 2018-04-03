@@ -326,7 +326,7 @@ var expr_field = \ls, v ->
 	var key = is_keyword(ls)
 	if key
 		ls.step()
-		return Expr.index(v, Expr.string(key))
+		return Expr.index(v, Expr.string(key)), v, Expr.string(key)
 	key = lex_str(ls)
 	return Expr.property(v, key), v, key
 
@@ -513,9 +513,9 @@ expr_primary = \scope, ls ->
 			var args, self1 = parse_args(scope, ls)
 			if self1
 				if vk == Kind.Field or vk == Kind.Index
-					if vk == Kind.Field
+					if vk == Kind.Field and type(key) == 'string'
 						vk, v = Kind.Call, Expr.invoke(val, key, args, line)
-					else if vk == Kind.Index
+					else -- if vk == Kind.Index
 						-- simulate a wrapped self method call
 						var nm = '_0'   -- lets hope we dont name clash
 						var obj = Expr.id(nm)

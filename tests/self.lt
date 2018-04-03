@@ -96,5 +96,41 @@ var boo = { value = 7, compute= \self, i-> return self.value*i+1 }
 print(boo.compute(@, 3) + boo.compute(@, 7))
 
 
--- self is not keyword
-var self = 8
+-- @ is normal identifier
+var @ = 8
+
+-- deep table
+var lvl = {
+	a = {
+		bb = {
+			'long-c' = {
+				\@, x ->
+					return @.val + x
+				, val = 13
+			}
+		}
+		, cc = {
+			fn = \@, x ->
+				return @.val * x
+			, val = 3
+		}
+		, dd = ->
+			return \@, x ->
+				return @.val / x
+		-- unused
+		, val = 7
+	}
+}
+
+assert(lvl.a.bb['long-c'][1](@, 5) == 18)
+assert(lvl.a.cc.fn(@, 4) == 12)
+
+-- these shd not convert to `:` method call
+@ = { val = 6 }
+assert((lvl.a.cc.fn)(@, 4) == 24)
+assert(lvl.a.dd()(@, 2) == 3)
+
+
+-- substitute val works
+var oth = { val = 7 }
+assert(lvl.a.cc.fn(oth, 4) == 28)

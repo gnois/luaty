@@ -95,13 +95,15 @@ if run and not paths[1] then
 
 elseif paths[1] then
     local code, errs = compile.file(paths[1], {declares = decls})
-    --io.stderr:write(color.magenta, "Error compiling " .. paths[1] .. "\n", color.reset)
-    term.show_error(errs)
-    
+
     local dest = paths[2] or string.gsub(paths[1], "%.lt", '.lua')
     while dest == paths[1] do
         dest = dest .. '.lua'
     end
+    io.stderr:write(" >> " .. dest .. "\n")
+    --io.stderr:write(color.magenta, "Error compiling " .. paths[1] .. "\n", color.reset)
+    term.show_error(errs)
+
     if code then
         if run then
             -- should not have another filename
@@ -121,7 +123,6 @@ elseif paths[1] then
             local basename = string.gsub(paths[1], "(.*[/\\])(.*)", "%2")
             f:write("--\n-- Generated from " .. basename .. "\n--\n\n")
             f:write(code)
-            io.stderr:write(" >> " .. dest .. "\n")
         end
     else
         if run then
