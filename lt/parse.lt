@@ -510,14 +510,15 @@ expr_primary = \scope, ls ->
 			vk, v = Kind.Index, Expr.index(val, key)
 		else if ls.token == '(' -- or ls.token == 'TK_string' or ls.token == '{'
 			var args, self1 = parse_args(scope, ls)
+			var c
 			if self1
 				if vk == Kind.Property
-					vk, v = Kind.Call, Expr.invoke(val, key, args, line)
+					table.remove(args, 1)
+					c = Expr.invoke(val, key, args, line)
 				else if vk == Kind.Index
 					-- simulate a wrapped self method call
-					var nm = '_0'   -- lets hope we dont name clash
-					var obj = Expr.id(nm)
-					table.insert(args, 1, obj)
+					var obj = Expr.id('_0')
+					args[1] = obj
 					var body = {
 						Stmt.local({obj}, {val}, line)
 						, Stmt.return({
@@ -525,13 +526,11 @@ expr_primary = \scope, ls ->
 						}, line)
 					}
 					var lambda = Expr.function({}, body, false)
-					vk, v = Kind.Call, Expr.call(lambda, {}, line)
-				else
-					-- normal function, add back `self`
-					table.insert(args, 1, Expr.id('self'))
-					vk, v = Kind.Call, Expr.call(v, args, line)
-			else
-				vk, v = Kind.Call, Expr.call(v, args, line)
+					c = Expr.call(lambda, {}, line)
+
+			if not c
+				c = Expr.call(v, args, line)
+			vk, v = Kind.Call, c
 		else
 			break
 
@@ -624,17 +623,13 @@ parse_args = \scope, ls ->
 			break
 		
 		-- check if the first arg is plain @
-		var collect = true
 		if n == 1 and ls.token == 'TK_name' and ls.value == '@'
 			-- this check follows the tokens inside the loop in expr_primary()
 			var nxt = ls.next()
 			if nxt ~= '.' and nxt ~= '[' and nxt ~= '('
 				self1 = true
-				ls.step()
-				collect = false
 
-		if collect
-			args[#args + 1] = expr(scope, ls)
+		args[n] = expr(scope, ls)
 		n = n + 1
 		
 		dented = lex_opt_dent(ls, dented)

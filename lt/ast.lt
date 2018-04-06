@@ -129,11 +129,10 @@ var dump = \stmts ->
 	var Expr = {}
 
 	var visit_stmts = \nodes ->
-		var list, l = {}, 1
-		for _, node in ipairs(nodes)
+		var list = {}
+		for i, node in ipairs(nodes)
 			var rule = Stmt[node.tag]
-			list[l] = rule(node)
-			l = l + 1
+			list[i] = rule(node)
 		var spaces = indentation()
 		return spaces .. table.concat(list, spaces)
 	
@@ -142,10 +141,9 @@ var dump = \stmts ->
 		return rule(node)
 			
 	var visit_exprs = \nodes ->
-		var list, l = {}, 1
-		for _, node in ipairs(nodes)
-			list[l] = visit_expr(node)
-			l = l + 1
+		var list = {}
+		for i, node in ipairs(nodes)
+			list[i] = visit_expr(node)
 		return table.concat(list, " ")
 
 	var block = \header, nodes ->
@@ -178,16 +176,15 @@ var dump = \stmts ->
 
 	Expr[TExpr.Table] = \node ->
 		var header = expr("Table")
-		var body, b = {}, 1
+		var body = {}
 		var key, val
-		for _, kv in ipairs(node.keyvals)
+		for i, kv in ipairs(node.keyvals)
 			val = visit_expr(kv[1])
 			if kv[2]
 				key = visit_expr(kv[2])
-				body[b] = key .. "=" .. val
+				body[i] = key .. "=" .. val
 			else
-				body[b] = val
-			b = b + 1
+				body[i] = val
 		return header .. table.concat(body, " ")
 
 	Expr[TExpr.Index] = \node ->
@@ -222,24 +219,19 @@ var dump = \stmts ->
 		return block(stmt("Do"), node.body)
 
 	Stmt[TStmt.If] = \node ->
-		var blocks, b = {}, 1
-		blocks[b] = block(stmt("If", visit_expr(node.tests[1])), node.thens[1])
-		b = b + 1
+		var blocks = {}
+		blocks[1] = block(stmt("If", visit_expr(node.tests[1])), node.thenss[1])
 		for i = 2, #node.tests
-			blocks[b] = block(indentation() .. "elseif " .. visit_expr(node.tests[i]), node.thens[i])
-			b = b + 1
+			blocks[i] = block(indentation() .. "elseif " .. visit_expr(node.tests[i]), node.thenss[i])
 		if node.elses
-			blocks[b] = block(indentation() .. "else", node.elses)
-
+			blocks[#blocks + 1] = block(indentation() .. "else", node.elses)
 		return table.concat(blocks)
 
-		
 	Stmt[TStmt.Forin] = \node ->
 		return block(stmt("Forin", visit_exprs(node.exprs)), node.body)
 
 	Stmt[TStmt.Fornum] = \node ->
 		return block(stmt("Fornum", visit_expr(node.first), visit_expr(node.last), node.step and visit_expr(node.step) or ""), node.body)
-
 
 	Stmt[TStmt.While] = \node ->
 		return block(stmt("While", visit_expr(node.test)), node.body)

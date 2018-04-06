@@ -100,7 +100,8 @@ print(boo.compute(@, 3) + boo.compute(@, 7))
 var @ = 8
 
 -- deep table
-var lvl = {
+var lvl
+lvl = {
 	a = {
 		bb = {
 			'long-c' = {
@@ -117,6 +118,9 @@ var lvl = {
 		, dd = ->
 			return \@, x ->
 				return @.val / x
+		
+		, ee = ->
+			return lvl.a.cc
 		-- unused
 		, val = 7
 	}
@@ -124,11 +128,13 @@ var lvl = {
 
 assert(lvl.a.bb['long-c'][1](@, 5) == 18)
 assert(lvl.a.cc.fn(@, 4) == 12)
+assert(lvl.a.ee().fn(@, 5) == 15)
 
 -- these shd not convert to `:` method call
 @ = { val = 6 }
-assert((lvl.a.cc.fn)(@, 4) == 24)
+assert((lvl['a'].cc.fn)(@, 4) == 24)
 assert(lvl.a.dd()(@, 2) == 3)
+
 
 
 -- substitute val works

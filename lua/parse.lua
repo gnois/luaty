@@ -491,23 +491,23 @@ expr_primary = function(scope, ls)
             vk, v = Kind.Index, Expr.index(val, key)
         elseif ls.token == "(" then
             local args, self1 = parse_args(scope, ls)
+            local c
             if self1 then
                 if vk == Kind.Property then
-                    vk, v = Kind.Call, Expr.invoke(val, key, args, line)
+                    table.remove(args, 1)
+                    c = Expr.invoke(val, key, args, line)
                 elseif vk == Kind.Index then
-                    local nm = "_0"
-                    local obj = Expr.id(nm)
-                    table.insert(args, 1, obj)
+                    local obj = Expr.id("_0")
+                    args[1] = obj
                     local body = {Stmt["local"]({obj}, {val}, line), Stmt["return"]({Expr.call(Expr.index(obj, key), args, line)}, line)}
                     local lambda = Expr["function"]({}, body, false)
-                    vk, v = Kind.Call, Expr.call(lambda, {}, line)
-                else
-                    table.insert(args, 1, Expr.id("self"))
-                    vk, v = Kind.Call, Expr.call(v, args, line)
+                    c = Expr.call(lambda, {}, line)
                 end
-            else
-                vk, v = Kind.Call, Expr.call(v, args, line)
             end
+            if not c then
+                c = Expr.call(v, args, line)
+            end
+            vk, v = Kind.Call, c
         else
             break
         end
@@ -589,18 +589,13 @@ parse_args = function(scope, ls)
         if ls.token == ")" then
             break
         end
-        local collect = true
         if n == 1 and ls.token == "TK_name" and ls.value == "@" then
             local nxt = ls.next()
             if nxt ~= "." and nxt ~= "[" and nxt ~= "(" then
                 self1 = true
-                ls.step()
-                collect = false
             end
         end
-        if collect then
-            args[#args + 1] = expr(scope, ls)
-        end
+        args[n] = expr(scope, ls)
         n = n + 1
         dented = lex_opt_dent(ls, dented)
         if not lex_opt(ls, ",") then

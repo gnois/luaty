@@ -94,11 +94,10 @@ local dump = function(stmts)
     local Stmt = {}
     local Expr = {}
     local visit_stmts = function(nodes)
-        local list, l = {}, 1
-        for _, node in ipairs(nodes) do
+        local list = {}
+        for i, node in ipairs(nodes) do
             local rule = Stmt[node.tag]
-            list[l] = rule(node)
-            l = l + 1
+            list[i] = rule(node)
         end
         local spaces = indentation()
         return spaces .. table.concat(list, spaces)
@@ -108,10 +107,9 @@ local dump = function(stmts)
         return rule(node)
     end
     local visit_exprs = function(nodes)
-        local list, l = {}, 1
-        for _, node in ipairs(nodes) do
-            list[l] = visit_expr(node)
-            l = l + 1
+        local list = {}
+        for i, node in ipairs(nodes) do
+            list[i] = visit_expr(node)
         end
         return table.concat(list, " ")
     end
@@ -144,17 +142,16 @@ local dump = function(stmts)
     end
     Expr[TExpr.Table] = function(node)
         local header = expr("Table")
-        local body, b = {}, 1
+        local body = {}
         local key, val
-        for _, kv in ipairs(node.keyvals) do
+        for i, kv in ipairs(node.keyvals) do
             val = visit_expr(kv[1])
             if kv[2] then
                 key = visit_expr(kv[2])
-                body[b] = key .. "=" .. val
+                body[i] = key .. "=" .. val
             else
-                body[b] = val
+                body[i] = val
             end
-            b = b + 1
         end
         return header .. table.concat(body, " ")
     end
@@ -189,15 +186,13 @@ local dump = function(stmts)
         return block(stmt("Do"), node.body)
     end
     Stmt[TStmt.If] = function(node)
-        local blocks, b = {}, 1
-        blocks[b] = block(stmt("If", visit_expr(node.tests[1])), node.thens[1])
-        b = b + 1
+        local blocks = {}
+        blocks[1] = block(stmt("If", visit_expr(node.tests[1])), node.thenss[1])
         for i = 2, #node.tests do
-            blocks[b] = block(indentation() .. "elseif " .. visit_expr(node.tests[i]), node.thens[i])
-            b = b + 1
+            blocks[i] = block(indentation() .. "elseif " .. visit_expr(node.tests[i]), node.thenss[i])
         end
         if node.elses then
-            blocks[b] = block(indentation() .. "else", node.elses)
+            blocks[#blocks + 1] = block(indentation() .. "else", node.elses)
         end
         return table.concat(blocks)
     end
