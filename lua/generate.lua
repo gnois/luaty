@@ -199,40 +199,35 @@ local generate = function(stmts)
         return obj
     end
     Expr[TExpr.Index] = function(node)
-        local obj = receiver(node.object)
-        local idx = expr_emit(node.index)
-        local exp = format("%s[%s]", obj, idx)
+        local exp = format("%s[%s]", receiver(node.obj), expr_emit(node.idx))
         return priority(exp)
     end
     Expr[TExpr.Property] = function(node)
-        local obj = receiver(node.object)
-        local exp = format("%s.%s", obj, node.property)
-        return priority(exp)
-    end
-    Expr[TExpr.Call] = function(node)
-        local fn = receiver(node.func)
-        local exp = format("%s(%s)", fn, expr_list(node.arguments))
+        local exp = format("%s.%s", receiver(node.obj), node.prop)
         return priority(exp)
     end
     Expr[TExpr.Invoke] = function(node)
-        local obj = receiver(node.object)
-        local exp = format("%s:%s(%s)", obj, node.method, expr_list(node.arguments))
+        local exp = format("%s:%s(%s)", receiver(node.obj), node.prop, expr_list(node.args))
+        return priority(exp)
+    end
+    Expr[TExpr.Call] = function(node)
+        local exp = format("%s(%s)", receiver(node.func), expr_list(node.args))
         return priority(exp)
     end
     Expr[TExpr.Unary] = function(node)
-        local arg, arg_prio = expr_emit(node.argument)
+        local arg, arg_prio = expr_emit(node.left)
         local op_prio = operator.unary_priority
         if arg_prio < op_prio then
             arg = format("(%s)", arg)
         end
-        local op = node.operator
+        local op = node.op
         if op == "not" then
             op = "not "
         end
         return format("%s%s", op, arg), operator.unary_priority
     end
     Expr[TExpr.Binary] = function(node)
-        local oper = node.operator
+        local oper = node.op
         local lprio = operator.left_priority(oper)
         local rprio = operator.right_priority(oper)
         local a, alprio, arprio = expr_emit(node.left)
@@ -248,21 +243,21 @@ local generate = function(stmts)
         return format("%s %s %s", ap, oper, bp), lprio, rprio
     end
     Stmt[TStmt.Expr] = function(node)
-        local line = expr_emit(node.expression)
+        local line = expr_emit(node.expr)
         add_line(line)
     end
     Stmt[TStmt.Local] = function(node)
         local line
-        local names = comma_sep_list(node.names, as_parameter)
-        if #node.expressions > 0 then
-            line = format("local %s = %s", names, expr_list(node.expressions))
+        local names = comma_sep_list(node.lefts, as_parameter)
+        if #node.rights > 0 then
+            line = format("local %s = %s", names, expr_list(node.rights))
         else
             line = format("local %s", names)
         end
         add_line(line)
     end
     Stmt[TStmt.Assign] = function(node)
-        local line = format("%s = %s", expr_list(node.left), expr_list(node.right))
+        local line = format("%s = %s", expr_list(node.lefts), expr_list(node.rights))
         add_line(line)
     end
     Stmt[TStmt.Do] = function(node)
@@ -274,16 +269,16 @@ local generate = function(stmts)
             local header_tag = i == 1 and "if" or "elseif"
             local test = expr_emit(node.tests[i])
             local header = format("%s %s then", header_tag, test)
-            add_section(header, node.conds[i], true)
+            add_section(header, node.thenss[i], true)
         end
-        if node.els then
-            add_section("else", node.els, true)
+        if node.elses then
+            add_section("else", node.elses, true)
         end
         add_line("end")
     end
     Stmt[TStmt.Forin] = function(node)
         local vars = comma_sep_list(node.vars, as_parameter)
-        local explist = expr_list(node.explist)
+        local explist = expr_list(node.exprs)
         local header = format("for %s in %s do", vars, explist)
         add_section(header, node.body)
     end
@@ -314,14 +309,14 @@ local generate = function(stmts)
         add_line(until_line)
     end
     Stmt[TStmt.Return] = function(node)
-        local line = format("return %s", expr_list(node.arguments))
+        local line = format("return %s", expr_list(node.exprs))
         add_line(line)
     end
     Stmt[TStmt.Break] = function()
         add_line("break")
     end
     Stmt[TStmt.Goto] = function(node)
-        add_line("goto " .. node.label)
+        add_line("goto " .. node.name)
     end
     Stmt[TStmt.Label] = function(node)
         add_line("::" .. node.name .. "::")

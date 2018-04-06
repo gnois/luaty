@@ -13,7 +13,7 @@ local LJ_52 = false
 local EndOfChunk = {TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true}
 local EndOfFunction = {["}"] = true, [")"] = true, [";"] = true, [","] = true}
 local NewLine = {TK_newline = true}
-local Kind = {Expr = 1, Var = 3, Field = 4, Index = 5, Call = 6}
+local Kind = {Expr = 1, Var = 3, Property = 4, Index = 5, Call = 6}
 local stmted
 local is_keyword = function(ls)
     local str = ls.tostr(ls.token)
@@ -308,16 +308,6 @@ local var_name = function(scope, ls)
     end
     return Expr.id(name, ls.line), vk
 end
-local expr_field = function(ls, v)
-    ls.step()
-    local key = is_keyword(ls)
-    if key then
-        ls.step()
-        return Expr.index(v, Expr.string(key)), v, Expr.string(key)
-    end
-    key = lex_str(ls)
-    return Expr.property(v, key), v, key
-end
 local expr_bracket = function(scope, ls)
     ls.step()
     local v = expr(scope, ls)
@@ -484,7 +474,17 @@ expr_primary = function(scope, ls)
     while true do
         local line = ls.line
         if ls.token == "." then
-            vk, v, val, key = Kind.Field, expr_field(ls, v)
+            ls.step()
+            val = v
+            local kw = is_keyword(ls)
+            if kw then
+                ls.step()
+                key = Expr.string(kw)
+                vk, v = Kind.Index, Expr.index(val, key)
+            else
+                key = lex_str(ls)
+                vk, v = Kind.Property, Expr.property(val, key)
+            end
         elseif ls.token == "[" then
             key = expr_bracket(scope, ls)
             val = v
@@ -492,17 +492,15 @@ expr_primary = function(scope, ls)
         elseif ls.token == "(" then
             local args, self1 = parse_args(scope, ls)
             if self1 then
-                if vk == Kind.Field or vk == Kind.Index then
-                    if vk == Kind.Field and type(key) == "string" then
-                        vk, v = Kind.Call, Expr.invoke(val, key, args, line)
-                    else
-                        local nm = "_0"
-                        local obj = Expr.id(nm)
-                        table.insert(args, 1, obj)
-                        local body = {Stmt.declare({obj}, {val}, line), Stmt["return"]({Expr.call(Expr.index(obj, key), args, line)}, line)}
-                        local lambda = Expr["function"]({}, body, false)
-                        vk, v = Kind.Call, Expr.call(lambda, {}, line)
-                    end
+                if vk == Kind.Property then
+                    vk, v = Kind.Call, Expr.invoke(val, key, args, line)
+                elseif vk == Kind.Index then
+                    local nm = "_0"
+                    local obj = Expr.id(nm)
+                    table.insert(args, 1, obj)
+                    local body = {Stmt["local"]({obj}, {val}, line), Stmt["return"]({Expr.call(Expr.index(obj, key), args, line)}, line)}
+                    local lambda = Expr["function"]({}, body, false)
+                    vk, v = Kind.Call, Expr.call(lambda, {}, line)
                 else
                     table.insert(args, 1, Expr.id("self"))
                     vk, v = Kind.Call, Expr.call(v, args, line)
@@ -618,7 +616,7 @@ end
 local parse_assignment
 parse_assignment = function(scope, ls, lhs, v, vk)
     local line = ls.line
-    if vk ~= Kind.Var and vk ~= Kind.Field and vk ~= Kind.Index then
+    if vk ~= Kind.Var and vk ~= Kind.Property and vk ~= Kind.Index then
         err_symbol(ls)
     end
     lhs[#lhs + 1] = v
@@ -657,7 +655,7 @@ local parse_var = function(scope, ls)
         name = declare_var(scope, ls, name, nil)
         lhs[#lhs + 1] = Expr.id(name)
     end
-    return Stmt.declare(lhs, rhs, line)
+    return Stmt["local"](lhs, rhs, line)
 end
 local parse_while = function(scope, ls, line)
     ls.step()

@@ -13,22 +13,22 @@ var make = \tag, node, line ->
 var Statement = {
 
 	expression = \expr, line ->
-		return make(TStmt.Expr, {expression = expr}, line)
+		return make(TStmt.Expr, {expr = expr}, line)
 	
-	, declare = \lhs, rhs, line ->
-		return make(TStmt.Local, {names = lhs, expressions = rhs}, line)
-
 	, assign = \lhs, rhs, line ->
-		return make(TStmt.Assign, {left = lhs, right = rhs}, line)
+		return make(TStmt.Assign, {lefts = lhs, rights = rhs}, line)
+
+	, local = \lhs, rhs, line ->
+		return make(TStmt.Local, {lefts = lhs, rights = rhs}, line)
 
 	, do = \body, line ->
 		return make(TStmt.Do, {body = body}, line)
 
-	, if = \tests, conds, els, line ->
-		return make(TStmt.If, {tests = tests, conds = conds, els = els}, line)
+	, if = \tests, thenss, elses, line ->
+		return make(TStmt.If, {tests = tests, thenss = thenss, elses = elses}, line)
 
 	, forin = \vars, exprs, body, line ->
-		return make(TStmt.Forin, {vars = vars, explist = exprs, body = body}, line)
+		return make(TStmt.Forin, {vars = vars, exprs = exprs, body = body}, line)
 
 	, fornum = \var, first, last, step, body, line ->
 		return make(TStmt.Fornum, {var = var, first = first, last = last, step = step, body = body}, line)
@@ -39,14 +39,14 @@ var Statement = {
 	, repeat = \test, body, line ->
 		return make(TStmt.Repeat, {test = test, body = body}, line)
 
-	, return = \exps, line ->
-		return make(TStmt.Return, {arguments = exps}, line)
+	, return = \exprs, line ->
+		return make(TStmt.Return, {exprs = exprs}, line)
 
 	, break = \line ->
 		return make(TStmt.Break, {}, line)
 
-	, goto = \label, line ->
-		return make(TStmt.Goto, {label = label}, line)
+	, goto = \name, line ->
+		return make(TStmt.Goto, {name = name}, line)
 
 	, label = \name, line ->
 		return make(TStmt.Label, {name = name}, line)
@@ -80,22 +80,22 @@ var Expression = {
 		return make(TExpr.Table, {keyvals = keyvals}, line)
 
 	, index = \obj, index, line ->
-		return make(TExpr.Index, {object = obj, index = index}, line)
+		return make(TExpr.Index, {obj = obj, idx = index}, line)
 
 	, property = \obj, prop, line ->
-		return make(TExpr.Property, {object = obj, property = prop}, line)
+		return make(TExpr.Property, {obj = obj, prop = prop}, line)
+
+	, invoke = \obj, prop, args, line ->
+		return make(TExpr.Invoke, {obj = obj, prop = prop, args = args}, line)
 
 	, call = \func, args, line ->
-		return make(TExpr.Call, {func = func, arguments = args}, line)
-	
-	, invoke = \obj, method, args, line ->
-		return make(TExpr.Invoke, {object = obj, method = method, arguments = args}, line)
+		return make(TExpr.Call, {func = func, args = args}, line)
 
-	, unary = \op, v, line ->
-		return make(TExpr.Unary, {operator = op, argument = v}, line)
+	, unary = \op, left, line ->
+		return make(TExpr.Unary, {op = op, left = left}, line)
 
 	, binary = \op, left, right, line ->
-		return make(TExpr.Binary, {operator = op, left = left, right = right}, line)
+		return make(TExpr.Binary, {op = op, left = left, right = right}, line)
 
 }
 
@@ -191,51 +191,51 @@ var dump = \stmts ->
 		return header .. table.concat(body, " ")
 
 	Expr[TExpr.Index] = \node ->
-		return expr("Index", visit_expr(node.object), visit_expr(node.index))
+		return expr("Index", visit_expr(node.obj), visit_expr(node.idx))
 
 	Expr[TExpr.Property] = \node ->
-		return expr("Property", visit_expr(node.object), node.property)
-
-	Expr[TExpr.Call] = \node ->
-		return expr("Call", visit_expr(node.func), visit_exprs(node.arguments))
+		return expr("Property", visit_expr(node.obj), node.prop)
 
 	Expr[TExpr.Invoke] = \node ->
-		return expr("Invoke", visit_expr(node.object), visit_exprs(node.arguments))
+		return expr("Invoke", visit_expr(node.obj), node.prop, visit_exprs(node.args))
+
+	Expr[TExpr.Call] = \node ->
+		return expr("Call", visit_expr(node.func), visit_exprs(node.args))
 
 	Expr[TExpr.Unary] = \node ->
-		return expr("Unary", node.operator, visit_expr(node.argument))
+		return expr("Unary", node.op, visit_expr(node.left))
 
 	Expr[TExpr.Binary] = \node ->
-		return expr("Binary", node.operator, visit_expr(node.left), visit_expr(node.right))
+		return expr("Binary", node.op, visit_expr(node.left), visit_expr(node.right))
 
 	--------- Statements --------------------
 	Stmt[TStmt.Expr] = \node ->
-		return stmt("ExprStatement", visit_expr(node.expression))
+		return stmt("ExprStatement", visit_expr(node.expr))
 
 	Stmt[TStmt.Local] = \node ->
-		return stmt("Local", visit_exprs(node.names), visit_exprs(node.expressions))
+		return stmt("Local", visit_exprs(node.lefts), visit_exprs(node.rights))
 
 	Stmt[TStmt.Assign] = \node ->
-		return stmt("Assign", visit_exprs(node.left), visit_exprs(node.right))
+		return stmt("Assign", visit_exprs(node.lefts), visit_exprs(node.rights))
 
 	Stmt[TStmt.Do] = \node ->
 		return block(stmt("Do"), node.body)
 
 	Stmt[TStmt.If] = \node ->
 		var blocks, b = {}, 1
-		blocks[b] = block(stmt("If", visit_expr(node.tests[1])), node.conds[1])
+		blocks[b] = block(stmt("If", visit_expr(node.tests[1])), node.thens[1])
 		b = b + 1
 		for i = 2, #node.tests
-			blocks[b] = block(indentation() .. "elseif " .. visit_expr(node.tests[i]), node.conds[i])
+			blocks[b] = block(indentation() .. "elseif " .. visit_expr(node.tests[i]), node.thens[i])
 			b = b + 1
-		if node.els
-			blocks[b] = block(indentation() .. "else", node.els)
+		if node.elses
+			blocks[b] = block(indentation() .. "else", node.elses)
 
 		return table.concat(blocks)
 
 		
 	Stmt[TStmt.Forin] = \node ->
-		return block(stmt("Forin", visit_exprs(node.explist)), node.body)
+		return block(stmt("Forin", visit_exprs(node.exprs)), node.body)
 
 	Stmt[TStmt.Fornum] = \node ->
 		return block(stmt("Fornum", visit_expr(node.first), visit_expr(node.last), node.step and visit_expr(node.step) or ""), node.body)
@@ -248,13 +248,13 @@ var dump = \stmts ->
 		return block(stmt("Repeat until", visit_expr(node.test)), node.body)
 
 	Stmt[TStmt.Return] = \node ->
-		return stmt("Return", visit_exprs(node.arguments))
+		return stmt("Return", visit_exprs(node.exprs))
 
 	Stmt[TStmt.Break] = ->
 		return stmt("Break")
 
 	Stmt[TStmt.Goto] = \node ->
-		return stmt("Goto", node.label)
+		return stmt("Goto", node.name)
 		
 	Stmt[TStmt.Label] = \node ->
 		return stmt("Label", node.name)

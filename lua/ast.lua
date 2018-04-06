@@ -12,29 +12,29 @@ local make = function(tag, node, line)
     return node
 end
 local Statement = {expression = function(expr, line)
-    return make(TStmt.Expr, {expression = expr}, line)
-end, declare = function(lhs, rhs, line)
-    return make(TStmt.Local, {names = lhs, expressions = rhs}, line)
+    return make(TStmt.Expr, {expr = expr}, line)
 end, assign = function(lhs, rhs, line)
-    return make(TStmt.Assign, {left = lhs, right = rhs}, line)
+    return make(TStmt.Assign, {lefts = lhs, rights = rhs}, line)
+end, ["local"] = function(lhs, rhs, line)
+    return make(TStmt.Local, {lefts = lhs, rights = rhs}, line)
 end, ["do"] = function(body, line)
     return make(TStmt.Do, {body = body}, line)
-end, ["if"] = function(tests, conds, els, line)
-    return make(TStmt.If, {tests = tests, conds = conds, els = els}, line)
+end, ["if"] = function(tests, thenss, elses, line)
+    return make(TStmt.If, {tests = tests, thenss = thenss, elses = elses}, line)
 end, forin = function(vars, exprs, body, line)
-    return make(TStmt.Forin, {vars = vars, explist = exprs, body = body}, line)
+    return make(TStmt.Forin, {vars = vars, exprs = exprs, body = body}, line)
 end, fornum = function(var, first, last, step, body, line)
     return make(TStmt.Fornum, {var = var, first = first, last = last, step = step, body = body}, line)
 end, ["while"] = function(test, body, line)
     return make(TStmt.While, {test = test, body = body}, line)
 end, ["repeat"] = function(test, body, line)
     return make(TStmt.Repeat, {test = test, body = body}, line)
-end, ["return"] = function(exps, line)
-    return make(TStmt.Return, {arguments = exps}, line)
+end, ["return"] = function(exprs, line)
+    return make(TStmt.Return, {exprs = exprs}, line)
 end, ["break"] = function(line)
     return make(TStmt.Break, {}, line)
-end, ["goto"] = function(label, line)
-    return make(TStmt.Goto, {label = label}, line)
+end, ["goto"] = function(name, line)
+    return make(TStmt.Goto, {name = name}, line)
 end, label = function(name, line)
     return make(TStmt.Label, {name = name}, line)
 end}
@@ -55,17 +55,17 @@ end, ["function"] = function(params, body, vararg, line)
 end, table = function(keyvals, line)
     return make(TExpr.Table, {keyvals = keyvals}, line)
 end, index = function(obj, index, line)
-    return make(TExpr.Index, {object = obj, index = index}, line)
+    return make(TExpr.Index, {obj = obj, idx = index}, line)
 end, property = function(obj, prop, line)
-    return make(TExpr.Property, {object = obj, property = prop}, line)
+    return make(TExpr.Property, {obj = obj, prop = prop}, line)
+end, invoke = function(obj, prop, args, line)
+    return make(TExpr.Invoke, {obj = obj, prop = prop, args = args}, line)
 end, call = function(func, args, line)
-    return make(TExpr.Call, {func = func, arguments = args}, line)
-end, invoke = function(obj, method, args, line)
-    return make(TExpr.Invoke, {object = obj, method = method, arguments = args}, line)
-end, unary = function(op, v, line)
-    return make(TExpr.Unary, {operator = op, argument = v}, line)
+    return make(TExpr.Call, {func = func, args = args}, line)
+end, unary = function(op, left, line)
+    return make(TExpr.Unary, {op = op, left = left}, line)
 end, binary = function(op, left, right, line)
-    return make(TExpr.Binary, {operator = op, left = left, right = right}, line)
+    return make(TExpr.Binary, {op = op, left = left, right = right}, line)
 end}
 local bracket = function(node)
     assert("table" == type(node))
@@ -159,50 +159,50 @@ local dump = function(stmts)
         return header .. table.concat(body, " ")
     end
     Expr[TExpr.Index] = function(node)
-        return expr("Index", visit_expr(node.object), visit_expr(node.index))
+        return expr("Index", visit_expr(node.obj), visit_expr(node.idx))
     end
     Expr[TExpr.Property] = function(node)
-        return expr("Property", visit_expr(node.object), node.property)
-    end
-    Expr[TExpr.Call] = function(node)
-        return expr("Call", visit_expr(node.func), visit_exprs(node.arguments))
+        return expr("Property", visit_expr(node.obj), node.prop)
     end
     Expr[TExpr.Invoke] = function(node)
-        return expr("Invoke", visit_expr(node.object), visit_exprs(node.arguments))
+        return expr("Invoke", visit_expr(node.obj), node.prop, visit_exprs(node.args))
+    end
+    Expr[TExpr.Call] = function(node)
+        return expr("Call", visit_expr(node.func), visit_exprs(node.args))
     end
     Expr[TExpr.Unary] = function(node)
-        return expr("Unary", node.operator, visit_expr(node.argument))
+        return expr("Unary", node.op, visit_expr(node.left))
     end
     Expr[TExpr.Binary] = function(node)
-        return expr("Binary", node.operator, visit_expr(node.left), visit_expr(node.right))
+        return expr("Binary", node.op, visit_expr(node.left), visit_expr(node.right))
     end
     Stmt[TStmt.Expr] = function(node)
-        return stmt("ExprStatement", visit_expr(node.expression))
+        return stmt("ExprStatement", visit_expr(node.expr))
     end
     Stmt[TStmt.Local] = function(node)
-        return stmt("Local", visit_exprs(node.names), visit_exprs(node.expressions))
+        return stmt("Local", visit_exprs(node.lefts), visit_exprs(node.rights))
     end
     Stmt[TStmt.Assign] = function(node)
-        return stmt("Assign", visit_exprs(node.left), visit_exprs(node.right))
+        return stmt("Assign", visit_exprs(node.lefts), visit_exprs(node.rights))
     end
     Stmt[TStmt.Do] = function(node)
         return block(stmt("Do"), node.body)
     end
     Stmt[TStmt.If] = function(node)
         local blocks, b = {}, 1
-        blocks[b] = block(stmt("If", visit_expr(node.tests[1])), node.conds[1])
+        blocks[b] = block(stmt("If", visit_expr(node.tests[1])), node.thens[1])
         b = b + 1
         for i = 2, #node.tests do
-            blocks[b] = block(indentation() .. "elseif " .. visit_expr(node.tests[i]), node.conds[i])
+            blocks[b] = block(indentation() .. "elseif " .. visit_expr(node.tests[i]), node.thens[i])
             b = b + 1
         end
-        if node.els then
-            blocks[b] = block(indentation() .. "else", node.els)
+        if node.elses then
+            blocks[b] = block(indentation() .. "else", node.elses)
         end
         return table.concat(blocks)
     end
     Stmt[TStmt.Forin] = function(node)
-        return block(stmt("Forin", visit_exprs(node.explist)), node.body)
+        return block(stmt("Forin", visit_exprs(node.exprs)), node.body)
     end
     Stmt[TStmt.Fornum] = function(node)
         return block(stmt("Fornum", visit_expr(node.first), visit_expr(node.last), node.step and visit_expr(node.step) or ""), node.body)
@@ -214,13 +214,13 @@ local dump = function(stmts)
         return block(stmt("Repeat until", visit_expr(node.test)), node.body)
     end
     Stmt[TStmt.Return] = function(node)
-        return stmt("Return", visit_exprs(node.arguments))
+        return stmt("Return", visit_exprs(node.exprs))
     end
     Stmt[TStmt.Break] = function()
         return stmt("Break")
     end
     Stmt[TStmt.Goto] = function(node)
-        return stmt("Goto", node.label)
+        return stmt("Goto", node.name)
     end
     Stmt[TStmt.Label] = function(node)
         return stmt("Label", node.name)

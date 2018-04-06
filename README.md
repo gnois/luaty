@@ -5,14 +5,14 @@ Luaty stands for *[Lua] with less [ty]ping*. It's like a rudimentary version of 
 Builtin linter
 ---
 
-During transpiling, Luaty warns for:
+During transpiling, Luaty warns about:
   * unused variables
   * unused labels
-  * assigning to undeclared (a.k.a global) variable
-  * shadowing variables in the parent or the same scope
+  * assignment to undeclared (a.k.a global) variable
+  * assignment having more expressions on the right side than the left
+  * shadowed variables in the parent or the same scope
   * duplicate keys in a table
-  * number of expressions on the right side of assignment is more than the left side
-
+  
 Lua code will be generated regardless.
 
 ```
@@ -65,7 +65,7 @@ assert(z.if(z.goto)[2] == false)             -- ditto
 
 ```
 
-- Function declaration
+- Functions
   * function declaration is a [lambda expression](https://www.lua.org/manual/5.1/manual.html#2.5.9) using  `->` or `\arg1, arg2, ... ->`
   * function call always require parenthesis
 
@@ -82,7 +82,7 @@ print('a')                          -- ok, obviously
 
 - Method call
   * `self` can be `@`
-  * colon `:` is not used. `@` specified as the first call argument instead
+  * colon `:` is never used. `@` specified as the first call argument instead
 
 ```
 var obj = {
@@ -205,4 +205,4 @@ Acknowledgments
 
 Luaty is modified from the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit).
 
-Some of the tests are stolen from official Lua test suit.
+Some of the tests are stolen from official Lua test suite.
