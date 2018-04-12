@@ -26,7 +26,8 @@ return function(decls, err)
         return 0
     end
     local new_var = function(name, vtype, line)
-        assert(name)
+        assert(type(name) == "string")
+        assert(type(line) == "number")
         local ln = declared(name)
         if ln ~= 0 then
             local which = "previous"
@@ -44,9 +45,18 @@ return function(decls, err)
         return vtop
     end
     local new_break = function()
+        local blk = bptr
+        while blk.tag ~= "Function" do
+            if ({While = true, Repeat = true, ForIn = true, ForNum = true})[blk.tag] then
+                return 
+            end
+            blk = blk.outer
+        end
+        err(10, "`break` must be inside a loop")
     end
     local new_label = function(name, line)
-        assert(name)
+        assert(type(name) == "string")
+        assert(type(line) == "number")
         if not bptr.golas then
             bptr.golas = {}
         end
@@ -55,7 +65,7 @@ return function(decls, err)
             if blk.golas then
                 for _, gl in ipairs(blk.golas) do
                     if gl.label == name then
-                        err(4, "duplicate label <" .. name .. "> in on line " .. gl.line .. " and " .. line)
+                        err(4, "duplicate label ::" .. name .. ":: on line " .. gl.line .. " and " .. line)
                         break
                     end
                 end
@@ -65,7 +75,8 @@ return function(decls, err)
         table.insert(bptr.golas, {label = name, used = false, line = line, vtop = vtop})
     end
     local new_goto = function(name, line)
-        assert(name)
+        assert(type(name) == "string")
+        assert(type(line) == "number")
         if not bptr.golas then
             bptr.golas = {}
         end
@@ -131,7 +142,7 @@ return function(decls, err)
             end
             for _, gl in ipairs(golas) do
                 if gl.label and not gl.used then
-                    err(3, "unused label <" .. gl.label .. "> on line " .. gl.line)
+                    err(3, "unused label ::" .. gl.label .. ":: on line " .. gl.line)
                 end
             end
         end

@@ -11,7 +11,7 @@ During transpiling, Luaty warns about:
   * assignment to undeclared (a.k.a global) variable
   * assignment having more expressions on the right side than the left
   * shadowed variables in the parent or the same scope
-  * duplicate keys in a table
+  * duplicate keys in table constructor
   
 Lua code will be generated regardless.
 
@@ -36,7 +36,7 @@ var tbl = {
 Shorter syntax
 ---
 
-Luaty is skim on features. Here are the differences from Lua:
+Aside from having [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule), Luaty is skim on features. Here are the differences from Lua:
 
 - General
   * no more `then`, `end`, `do`
@@ -66,7 +66,7 @@ assert(z.if(z.goto)[2] == false)             -- ditto
 ```
 
 - Functions
-  * function declaration is a [lambda expression](https://www.lua.org/manual/5.1/manual.html#2.5.9) using  `->` or `\arg1, arg2, ... ->`
+  * function declaration is always a [lambda expression](https://www.lua.org/manual/5.1/manual.html#2.5.9) using  `->` or `\arg1, arg2, ... ->`
   * function call always require parenthesis
 
 ```
@@ -80,7 +80,7 @@ print 'a'                           -- error: '=' expected instead of 'a'. This 
 print('a')                          -- ok, obviously
 ```
 
-- Method call
+- Methods
   * `self` can be `@`
   * colon `:` is never used. `@` specified as the first call argument instead
 
@@ -100,7 +100,7 @@ assert(obj.foo(@, 2) == 6)                  -- compiles to obj:foo(2)
 p(obj:foo(2))                               -- error: ')' expected instead of ':'
 ```
 
-Lua code cannot be generated if there's syntax error.
+Lua code is not generated if there is syntax error.
 
 
 

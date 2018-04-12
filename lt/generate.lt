@@ -248,12 +248,11 @@ var generate = \stmts ->
 		
 	Stmt[TStmt.Local] = \node ->
 		var line
-		var names = comma_sep_list(node.lefts, as_parameter)
-		if #node.rights > 0
-			line = format("local %s = %s", names, expr_list(node.rights))
+		var vars = comma_sep_list(node.vars, as_parameter)
+		if #node.exprs > 0
+			line = format("local %s = %s", vars, expr_list(node.exprs))
 		else
-			line = format("local %s", names)
-
+			line = format("local %s", vars)
 		add_line(line)
 
 

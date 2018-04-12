@@ -305,8 +305,6 @@ var parse_body, parse_args, parse_block, parse_opt_chunk
 
 
 var declare_var = \scope, ls, name, vtype ->
-	if name == '@'
-		name = 'self'
 	scope.new_var(name, vtype, ls.line)
 	return name
 
@@ -314,8 +312,6 @@ var declare_var = \scope, ls, name, vtype ->
 var var_name = \scope, ls ->
 	var name = lex_str(ls)
 	var vk = Kind.Var
-	if name == '@'
-		name = 'self'
 	if scope.declared(name) == 0
 		err_warn(ls, "undeclared identifier `" .. name .. "`")
 	return Expr.id(name, ls.line), vk
@@ -509,28 +505,8 @@ expr_primary = \scope, ls ->
 			val = v
 			vk, v = Kind.Index, Expr.index(val, key)
 		else if ls.token == '(' -- or ls.token == 'TK_string' or ls.token == '{'
-			var args, self1 = parse_args(scope, ls)
-			var c
-			if self1
-				if vk == Kind.Property
-					table.remove(args, 1)
-					c = Expr.invoke(val, key, args, line)
-				else if vk == Kind.Index
-					-- simulate a wrapped self method call
-					var obj = Expr.id('_0')
-					args[1] = obj
-					var body = {
-						Stmt.local({obj}, {val}, line)
-						, Stmt.return({
-							Expr.call(Expr.index(obj, key), args, line)
-						}, line)
-					}
-					var lambda = Expr.function({}, body, false)
-					c = Expr.call(lambda, {}, line)
-
-			if not c
-				c = Expr.call(v, args, line)
-			vk, v = Kind.Call, c
+			var args = parse_args(scope, ls)
+			vk, v = Kind.Call, Expr.call(v, args, line)
 		else
 			break
 
@@ -574,11 +550,11 @@ var parse_for_num = \scope, ls, idxname, line ->
 var parse_for_in = \scope, ls, idxname ->
 	scope.enter_block('ForIn')
 	var name = declare_var(scope, ls, idxname, nil)
-	var vars = { Expr.id(name) }
+	var vars = { Expr.id(name, ls.line) }
 	while lex_opt(ls, ',')
 		name = lex_str(ls)
 		name = declare_var(scope, ls, name, nil)
-		vars[#vars + 1] = Expr.id(name)
+		vars[#vars + 1] = Expr.id(name, ls.line)
 
 	lex_check(ls, 'TK_in')
 	var line = ls.line
@@ -610,8 +586,7 @@ parse_args = \scope, ls ->
 		err_warn(ls, "ambiguous syntax (function call x new statement)")
 
 	var dented = false
-	var self1 = false
-	var args, n = {}, 1
+	var args = {}
 	while ls.token ~= ')'
 
 		dented = lex_opt_dent(ls, dented)
@@ -621,16 +596,7 @@ parse_args = \scope, ls ->
 			ls.step()
 		if ls.token == ')'
 			break
-		
-		-- check if the first arg is plain @
-		if n == 1 and ls.token == 'TK_name' and ls.value == '@'
-			-- this check follows the tokens inside the loop in expr_primary()
-			var nxt = ls.next()
-			if nxt ~= '.' and nxt ~= '[' and nxt ~= '('
-				self1 = true
-
-		args[n] = expr(scope, ls)
-		n = n + 1
+		args[#args + 1] = expr(scope, ls)
 		
 		dented = lex_opt_dent(ls, dented)
 		if not lex_opt(ls, ',')
@@ -640,7 +606,7 @@ parse_args = \scope, ls ->
 		err_instead(ls, 10, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), line)
 	lex_match(ls, ')', '(', line)
 
-	return args, self1
+	return args
 
 
 var parse_assignment
@@ -687,7 +653,7 @@ var parse_var = \scope, ls ->
 	var lhs = {}
 	for _, name in ipairs(names)
 		name = declare_var(scope, ls, name, nil)
-		lhs[#lhs+1] = Expr.id(name)
+		lhs[#lhs+1] = Expr.id(name, line)
 
 	return Stmt.local(lhs, rhs, line)
 

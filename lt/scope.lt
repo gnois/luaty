@@ -30,7 +30,8 @@ return \decls, err ->
 
 	-- reports shadowing variable
 	var new_var = \name, vtype, line ->
-		assert(name)
+		assert(type(name) == 'string')
+		assert(type(line) == 'number')
 		var ln = declared(name)
 		if ln ~= 0
 			var which = "previous"
@@ -44,14 +45,21 @@ return \decls, err ->
 		vtop = vtop + 1
 		return vtop
 
-
+	-- Note: loop block tags must be spelled correctly
 	var new_break = ->
 		-- report if not in loop
+		var blk = bptr
+		while blk.tag ~= 'Function'
+			if ({While = true, Repeat = true, ForIn = true, ForNum = true})[blk.tag]
+				return
+			blk = blk.outer
+		err(10, "`break` must be inside a loop")
 
 
 	-- goto and label
 	var new_label = \name, line ->
-		assert(name)
+		assert(type(name) == 'string')
+		assert(type(line) == 'number')
 		if not bptr.golas
 			bptr.golas = {}
 		
@@ -61,7 +69,7 @@ return \decls, err ->
 			if blk.golas
 				for _, gl in ipairs(blk.golas)
 					if gl.label == name
-						err(4, "duplicate label <" .. name .. "> in on line " .. gl.line .. " and " .. line)
+						err(4, "duplicate label ::" .. name .. ":: on line " .. gl.line .. " and " .. line)
 						break
 			blk = blk.outer
 
@@ -69,7 +77,8 @@ return \decls, err ->
 	
 	
 	var new_goto = \name, line ->
-		assert(name)
+		assert(type(name) == 'string')
+		assert(type(line) == 'number')
 		if not bptr.golas
 			bptr.golas = {}
 		table.insert(bptr.golas, { go = name, match = false, line = line, vtop = vtop })
@@ -138,7 +147,7 @@ return \decls, err ->
 			-- report unused labels
 			for _, gl in ipairs(golas)
 				if gl.label and not gl.used
-					err(3, "unused label <" .. gl.label .. "> on line " .. gl.line)
+					err(3, "unused label ::" .. gl.label .. ":: on line " .. gl.line)
 
 		-- pop the vstack
 		vtop = bptr.vstart

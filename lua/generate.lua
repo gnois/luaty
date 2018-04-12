@@ -248,11 +248,11 @@ local generate = function(stmts)
     end
     Stmt[TStmt.Local] = function(node)
         local line
-        local names = comma_sep_list(node.lefts, as_parameter)
-        if #node.rights > 0 then
-            line = format("local %s = %s", names, expr_list(node.rights))
+        local vars = comma_sep_list(node.vars, as_parameter)
+        if #node.exprs > 0 then
+            line = format("local %s = %s", vars, expr_list(node.exprs))
         else
-            line = format("local %s", names)
+            line = format("local %s", vars)
         end
         add_line(line)
     end

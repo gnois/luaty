@@ -291,18 +291,12 @@ end
 local expr_primary, expr, expr_unop, expr_binop, expr_simple, expr_list, expr_table
 local parse_body, parse_args, parse_block, parse_opt_chunk
 local declare_var = function(scope, ls, name, vtype)
-    if name == "@" then
-        name = "self"
-    end
     scope.new_var(name, vtype, ls.line)
     return name
 end
 local var_name = function(scope, ls)
     local name = lex_str(ls)
     local vk = Kind.Var
-    if name == "@" then
-        name = "self"
-    end
     if scope.declared(name) == 0 then
         err_warn(ls, "undeclared identifier `" .. name .. "`")
     end
@@ -490,24 +484,8 @@ expr_primary = function(scope, ls)
             val = v
             vk, v = Kind.Index, Expr.index(val, key)
         elseif ls.token == "(" then
-            local args, self1 = parse_args(scope, ls)
-            local c
-            if self1 then
-                if vk == Kind.Property then
-                    table.remove(args, 1)
-                    c = Expr.invoke(val, key, args, line)
-                elseif vk == Kind.Index then
-                    local obj = Expr.id("_0")
-                    args[1] = obj
-                    local body = {Stmt["local"]({obj}, {val}, line), Stmt["return"]({Expr.call(Expr.index(obj, key), args, line)}, line)}
-                    local lambda = Expr["function"]({}, body, false)
-                    c = Expr.call(lambda, {}, line)
-                end
-            end
-            if not c then
-                c = Expr.call(v, args, line)
-            end
-            vk, v = Kind.Call, c
+            local args = parse_args(scope, ls)
+            vk, v = Kind.Call, Expr.call(v, args, line)
         else
             break
         end
@@ -545,11 +523,11 @@ end
 local parse_for_in = function(scope, ls, idxname)
     scope.enter_block("ForIn")
     local name = declare_var(scope, ls, idxname, nil)
-    local vars = {Expr.id(name)}
+    local vars = {Expr.id(name, ls.line)}
     while lex_opt(ls, ",") do
         name = lex_str(ls)
         name = declare_var(scope, ls, name, nil)
-        vars[#vars + 1] = Expr.id(name)
+        vars[#vars + 1] = Expr.id(name, ls.line)
     end
     lex_check(ls, "TK_in")
     local line = ls.line
@@ -578,8 +556,7 @@ parse_args = function(scope, ls)
         err_warn(ls, "ambiguous syntax (function call x new statement)")
     end
     local dented = false
-    local self1 = false
-    local args, n = {}, 1
+    local args = {}
     while ls.token ~= ")" do
         dented = lex_opt_dent(ls, dented)
         if not dented and ls.token == "TK_dedent" then
@@ -589,14 +566,7 @@ parse_args = function(scope, ls)
         if ls.token == ")" then
             break
         end
-        if n == 1 and ls.token == "TK_name" and ls.value == "@" then
-            local nxt = ls.next()
-            if nxt ~= "." and nxt ~= "[" and nxt ~= "(" then
-                self1 = true
-            end
-        end
-        args[n] = expr(scope, ls)
-        n = n + 1
+        args[#args + 1] = expr(scope, ls)
         dented = lex_opt_dent(ls, dented)
         if not lex_opt(ls, ",") then
             break
@@ -606,7 +576,7 @@ parse_args = function(scope, ls)
         err_instead(ls, 10, "%s expected to match %s at line %d", ls.astext("TK_dedent"), ls.astext("TK_indent"), line)
     end
     lex_match(ls, ")", "(", line)
-    return args, self1
+    return args
 end
 local parse_assignment
 parse_assignment = function(scope, ls, lhs, v, vk)
@@ -648,7 +618,7 @@ local parse_var = function(scope, ls)
     local lhs = {}
     for _, name in ipairs(names) do
         name = declare_var(scope, ls, name, nil)
-        lhs[#lhs + 1] = Expr.id(name)
+        lhs[#lhs + 1] = Expr.id(name, line)
     end
     return Stmt["local"](lhs, rhs, line)
 end

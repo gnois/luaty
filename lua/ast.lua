@@ -15,8 +15,8 @@ local Statement = {expression = function(expr, line)
     return make(TStmt.Expr, {expr = expr}, line)
 end, assign = function(lhs, rhs, line)
     return make(TStmt.Assign, {lefts = lhs, rights = rhs}, line)
-end, ["local"] = function(lhs, rhs, line)
-    return make(TStmt.Local, {lefts = lhs, rights = rhs}, line)
+end, ["local"] = function(vars, exprs, line)
+    return make(TStmt.Local, {vars = vars, exprs = exprs}, line)
 end, ["do"] = function(body, line)
     return make(TStmt.Do, {body = body}, line)
 end, ["if"] = function(tests, thenss, elses, line)
@@ -135,13 +135,15 @@ local dump = function(stmts)
         return expr("Num", node.value)
     end
     Expr[TExpr.String] = function(node)
+        if node.long then
+            return expr("LongStr", node.value)
+        end
         return expr("Str", node.value)
     end
     Expr[TExpr.Function] = function(node)
         return block(expr("Function", visit_exprs(node.params)), node.body)
     end
     Expr[TExpr.Table] = function(node)
-        local header = expr("Table")
         local body = {}
         local key, val
         for i, kv in ipairs(node.keyvals) do
@@ -153,7 +155,7 @@ local dump = function(stmts)
                 body[i] = val
             end
         end
-        return header .. table.concat(body, " ")
+        return expr("Table", table.concat(body, " "))
     end
     Expr[TExpr.Index] = function(node)
         return expr("Index", visit_expr(node.obj), visit_expr(node.idx))
@@ -177,7 +179,7 @@ local dump = function(stmts)
         return stmt("ExprStatement", visit_expr(node.expr))
     end
     Stmt[TStmt.Local] = function(node)
-        return stmt("Local", visit_exprs(node.lefts), visit_exprs(node.rights))
+        return stmt("Local", visit_exprs(node.vars), visit_exprs(node.exprs))
     end
     Stmt[TStmt.Assign] = function(node)
         return stmt("Assign", visit_exprs(node.lefts), visit_exprs(node.rights))
@@ -188,7 +190,7 @@ local dump = function(stmts)
     Stmt[TStmt.If] = function(node)
         local blocks = {}
         blocks[1] = block(stmt("If", visit_expr(node.tests[1])), node.thenss[1])
-        for i = 2, #node.tests do
+        for i = 2, #node.tests, 1 do
             blocks[i] = block(indentation() .. "elseif " .. visit_expr(node.tests[i]), node.thenss[i])
         end
         if node.elses then
@@ -197,10 +199,10 @@ local dump = function(stmts)
         return table.concat(blocks)
     end
     Stmt[TStmt.Forin] = function(node)
-        return block(stmt("Forin", visit_exprs(node.exprs)), node.body)
+        return block(stmt("Forin", visit_exprs(node.vars), visit_exprs(node.exprs)), node.body)
     end
     Stmt[TStmt.Fornum] = function(node)
-        return block(stmt("Fornum", visit_expr(node.first), visit_expr(node.last), node.step and visit_expr(node.step) or ""), node.body)
+        return block(stmt("Fornum", visit_expr(node.var), visit_expr(node.first), visit_expr(node.last), node.step and visit_expr(node.step) or ""), node.body)
     end
     Stmt[TStmt.While] = function(node)
         return block(stmt("While", visit_expr(node.test)), node.body)
