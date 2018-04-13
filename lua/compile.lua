@@ -6,27 +6,50 @@ local read = require("lua.read")
 local lex = require("lua.lex")
 local scope = require("lua.scope")
 local parse = require("lua.parse")
+local check = require("lua.check")
 local transform = require("lua.transform")
 local generate = require("lua.generate")
-local compile = function(reader, options)
-    local lexer = lex(reader)
+local warnings = {}
+local warn = function(line, col, severity, msg)
+    local w = {line = line, col = col, severity = severity, msg = msg}
+    for i, m in ipairs(warnings) do
+        if line == m.line and severity < m.severity then
+            return 
+        end
+        if line < m.line or line == m.line and col < m.col then
+            table.insert(warnings, i, w)
+            return 
+        end
+    end
+    table.insert(warnings, w)
+end
+local tostr = function(color)
+    local warns = {}
+    for i, m in ipairs(warnings) do
+        local clr = color.yellow
+        if m.severity >= 10 then
+            clr = color.red
+        end
+        warns[i] = string.format(" (%d,%d)" .. clr .. "  %s" .. color.reset, m.line, m.col, m.msg)
+    end
+    return table.concat(warns, "\n")
+end
+local compile = function(reader, options, color)
+    local lexer = lex(reader, warn)
+    local tree = transform(parse(lexer))
     local sc = scope(options.declares, function(severe, msg)
         lexer.error(lexer, severe, "%s", msg)
     end)
-    local tree = transform(parse(sc, lexer))
-    local out = true
-    for _, w in ipairs(lexer.warnings) do
-        if w.s >= 10 then
-            out = nil
+    check(sc, tree, warn)
+    for _, w in ipairs(warnings) do
+        if w.severity >= 10 then
+            return nil, tostr(color)
         end
     end
-    if out then
-        out = generate(tree)
-    end
-    return out, lexer.warnings
+    return generate(tree), tostr(color)
 end
-return {string = function(src, options)
-    return compile(read.string(src), options or {})
-end, file = function(filename, options)
-    return compile(read.file(filename), options or {})
+return {string = function(src, options, color)
+    return compile(read.string(src), options or {}, color)
+end, file = function(filename, options, color)
+    return compile(read.file(filename), options or {}, color)
 end}

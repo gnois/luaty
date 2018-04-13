@@ -1,0 +1,152 @@
+var Tag = require('lua.tag')
+var TStmt = Tag.Stmt
+var TExpr = Tag.Expr
+
+
+return \scope, stmts, warn ->
+
+	var Stmt = {}
+	var Expr = {}
+
+	var check_block = \nodes ->
+		scope.enter_block()
+		for _, node in ipairs(nodes)
+			var rule = Stmt[node.tag]
+			if rule rule(node)
+		scope.leave_block()
+
+	var check_expr = \node ->
+		var rule = Expr[node.tag]
+		if rule rule(node)
+			
+	var check_exprs = \nodes ->
+		for _, node in ipairs(nodes)
+			check_expr(node)
+
+
+	var declare = \var, vtype ->
+		assert(var.tag == TExpr.Id)
+		scope.new_var(var.name, vtype, var.line)
+			
+	--------- Expressions --------------------
+	Expr[TExpr.Vararg] = \node ->
+		if not scope.is_varargs()
+			warn(node.line, 1, 11, "cannot use `...` in a function without variable arguments")
+
+	Expr[TExpr.Id] = \node ->
+		if scope.declared(node.name) == 0
+			warn(node.line, 1, 10, "undeclared identifier `" .. node.name)
+		
+	Expr[TExpr.Function] = \node ->
+		scope.begin_func()
+		for _, var in ipairs(node.params)
+			if var.tag == TExpr.Vararg
+				scope.varargs()
+			else
+				declare(var)
+		check_block(node.body)
+		scope.end_func()
+
+	Expr[TExpr.Table] = \node ->
+		for _, kv in ipairs(node.keyvals)
+			check_expr(kv[1])
+			if kv[2]
+				check_expr(kv[2])
+
+	Expr[TExpr.Index] = \node ->
+		check_expr(node.obj)
+		check_expr(node.idx)
+
+	Expr[TExpr.Property] = \node ->
+		check_expr(node.obj)
+
+	Expr[TExpr.Invoke] = \node ->
+		check_expr(node.obj)
+		check_exprs(node.args)
+
+	Expr[TExpr.Call] = \node ->
+		check_expr(node.func)
+		check_exprs(node.args)
+
+	Expr[TExpr.Unary] = \node ->
+		check_expr(node.left)
+
+	Expr[TExpr.Binary] = \node ->
+		check_expr(node.left)
+		check_expr(node.right)
+
+
+	--------- Statements --------------------
+	Stmt[TStmt.Expr] = \node ->
+		check_expr(node.expr)
+
+	Stmt[TStmt.Local] = \node ->
+		for _, var in ipairs(node.vars)
+			declare(var)
+		check_exprs(node.exprs)
+
+	Stmt[TStmt.Assign] = \node ->
+		check_exprs(node.lefts)
+		check_exprs(node.rights)
+
+	Stmt[TStmt.Do] = \node ->
+		check_block(node.body)
+
+	Stmt[TStmt.If] = \node ->
+		for i = 1, #node.tests
+			check_expr(node.tests[i])
+			check_block(node.thenss[i])
+		if node.elses
+			check_block(node.elses)
+
+	Stmt[TStmt.Forin] = \node ->
+		scope.enter_block('ForIn')
+		check_exprs(node.exprs)
+		-- declare var into scope after rhs
+		for _, var in ipairs(node.vars)
+			declare(var)
+		check_block(node.body)
+		scope.leave_block()
+		
+	Stmt[TStmt.Fornum] = \node ->
+		scope.enter_block('ForNum')
+		check_expr(node.first)
+		check_expr(node.last)
+		if node.step
+			check_expr(node.step)
+		-- declare var into scope after rhs
+		declare(node.var)
+		check_block(node.body)
+		scope.leave_block()
+		
+	Stmt[TStmt.While] = \node ->
+		scope.enter_block('While')
+		check_expr(node.test)
+		check_block(node.body)
+		scope.leave_block()
+
+	Stmt[TStmt.Repeat] = \node ->
+		scope.enter_block('Repeat')
+		check_block(node.body)
+		check_expr(node.test)
+		scope.leave_block()
+
+	Stmt[TStmt.Return] = \node ->
+		check_exprs(node.exprs)
+
+	Stmt[TStmt.Break] = \node ->
+		scope.new_break(node.line)
+
+	Stmt[TStmt.Goto] = \node ->
+		scope.new_goto(node.name, node.line)
+		
+	Stmt[TStmt.Label] = \node ->
+		scope.new_label(node.name, node.line)
+
+
+	-- main chunk is always a vararg function
+	scope.begin_func()
+	scope.varargs()
+	check_block(stmts)
+	scope.end_func()
+	

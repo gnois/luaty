@@ -1,8 +1,9 @@
+var Slab = 4096 - 32
 
 var string_reader = \src ->
 	var pos = 1
 	return ->
-		var chunk =  string.sub(src, pos, pos + 4096 - 32)
+		var chunk = string.sub(src, pos, pos + Slab)
 		pos = pos + #chunk
 		return #chunk > 0 and chunk or nil
 
@@ -15,7 +16,7 @@ var file_reader = \filename ->
 		f = io.stdin
 	
 	return ->
-		return f.read(@, 4096 - 32)
+		return f.read(@, Slab)
 
 return {
 	string = string_reader

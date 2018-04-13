@@ -71,8 +71,10 @@ if run and not paths[1] then
         elseif #s == 0 then
             local str = table.concat(list, '\n')
             list = {}
-            local code, errs = compile.string(str, {declares = decls})
-            term.show_error(errs)
+            local code, warns = compile.string(str, {declares = decls}, color)
+            if string.len(warns) > 0 then
+                io.stderr:write(warns .. "\n")
+            end
             if code then
                 print(color.yellow .. code .. color.reset)
                 local fn, err = loadstring(code)
@@ -94,7 +96,7 @@ if run and not paths[1] then
     until false
 
 elseif paths[1] then
-    local code, errs = compile.file(paths[1], {declares = decls})
+    local code, warns = compile.file(paths[1], {declares = decls}, color)
 
     local dest = paths[2] or string.gsub(paths[1], "%.lt", '.lua')
     while dest == paths[1] do
@@ -102,7 +104,9 @@ elseif paths[1] then
     end
     io.stderr:write(" >> " .. dest .. "\n")
     --io.stderr:write(color.magenta, "Error compiling " .. paths[1] .. "\n", color.reset)
-    term.show_error(errs)
+    if string.len(warns) > 0 then
+        io.stderr:write(warns .. "\n")
+    end
 
     if code then
         if run then

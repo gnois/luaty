@@ -28,7 +28,7 @@ local token2text = function(tok)
     end
     return t
 end
-return function(read)
+return function(read, warn)
     local data, n, p = nil, 0, 0
     local ch, comment_buff = "", ""
     local buff, bi = {}, 0
@@ -38,19 +38,6 @@ return function(read)
     local tabs = nil
     local lookahead = {token = "TK_eof", value = nil}
     local state = {prevline = 1, prevpos = 1, line = 1, pos = 1, token = "TK_eof", value = nil}
-    local warnings = {}
-    local warn = function(w)
-        for i, m in ipairs(warnings) do
-            if w.l == m.l and w.s < m.s then
-                return 
-            end
-            if w.l < m.l or w.l == m.l and w.c < m.c then
-                table.insert(warnings, i, w)
-                return 
-            end
-        end
-        table.insert(warnings, w)
-    end
     local fmt_token = function(token)
         if token then
             if token == "TK_name" or token == "TK_string" or token == "TK_number" then
@@ -73,10 +60,10 @@ return function(read)
         else
             pos = state.pos - pos
         end
-        warn({msg = string.format(em, ...), l = state.line, c = pos, s = 11})
+        warn(state.line, pos, 11, string.format(em, ...))
     end
     local parse_error = function(st, severe, em, ...)
-        warn({msg = string.format(em, ...), l = st.line, c = st.prevpos, s = severe})
+        warn(st.line, st.prevpos, severe, string.format(em, ...))
     end
     local popchar = function()
         local k = p
@@ -575,7 +562,7 @@ return function(read)
         end
         return lookahead.token, lookahead.value
     end
-    local lexer = setmetatable(state, {__index = {tostr = token2str, astext = token2text, step = step, next = preview, error = parse_error, warnings = warnings}})
+    local lexer = setmetatable(state, {__index = {tostr = token2str, astext = token2text, step = step, next = preview, error = parse_error}})
     nextchar()
     if ch == "\xef" and n >= 2 and char(0) == "\xbb" and char(1) == "\xbf" then
         n = n - 2

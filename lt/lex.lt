@@ -28,7 +28,7 @@ var token2text = \tok ->
 		return "`" .. token2str(tok) .. "`"
 	return t
 
-return \read ->
+return \read, warn ->
 
 	-- input stream pointer
 	var data, n, p = nil, 0, 0
@@ -53,22 +53,6 @@ return \read ->
 		, token = 'TK_eof'
 		, value = nil
 	}
-	-- keeps all warnings as {l(ine) = l, c(ol) = c, msg = msg, s(everity) = s}
-	-- severity < 10 means code can still be generated
-	var warnings = {}
-
-	var warn = \w ->
-		for i, m in ipairs(warnings)
-			-- skip errors at the same line with lower severity
-			if w.l == m.l and w.s < m.s -- and w.c == m.c and w.msg == m.msg
-				return
-			if w.l < m.l or (w.l == m.l and w.c < m.c)
-				-- insert
-				table.insert(warnings, i, w)
-				return
-		-- append
-		table.insert(warnings, w)
-
 
 	var fmt_token = \token ->
 		if token
@@ -89,21 +73,11 @@ return \read ->
 			pos = state.pos
 		else
 			pos = state.pos - pos
-		warn({
-			msg = string.format(em, ...)
-			, l = state.line
-			, c = pos
-			, s = 11
-		})
+		warn(state.line, pos, 11, string.format(em, ...))
 
 
 	var parse_error = \st, severe, em, ... ->
-		warn({
-			msg = string.format(em, ...)
-			, l = st.line
-			, c = st.prevpos
-			, s = severe
-		})
+		warn(st.line, st.prevpos, severe, string.format(em, ...))
 
 
 	var popchar = ->
@@ -486,7 +460,7 @@ return \read ->
 					if is.digit(ch) -- Numeric literal.
 						return 'TK_number', lex_number()
 
-					repeat
+					do
 						add_buffer(ch)
 						nextchar()
 					until not is.alnum(ch)
@@ -601,7 +575,6 @@ return \read ->
 		, step = step
 		, next = preview
 		, error = parse_error
-		, warnings = warnings
 	}})
 
 
@@ -613,7 +586,7 @@ return \read ->
 
 	stack.push(0)
 	if ch == '#'
-		repeat
+		do
 			nextchar()
 			if ch == END_OF_STREAM return lexer
 		until IsNewLine[ch]

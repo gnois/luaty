@@ -50,24 +50,6 @@ function scan(args)
 end
 
 
-
--- result is a table of lexer.warnings
--- returns true if there are errors with severity >= 10
-function show_error(result)
-    local warns = {}
-    for i, m in ipairs(result) do
-        local clr = color.yellow
-        if m.s >= 10 then
-            clr = color.red
-        end
-        warns[i] = string.format(" (%d,%d)" .. clr ..  "  %s" .. color.reset, m.l, m.c, m.msg)
-    end
-    if #warns > 0 then
-        io.stderr:write(table.concat(warns, "\n") .. "\n")
-    end
-end
-
-
 -- Window to support ANSI color, may not work on all Windows version
 if slash == '\\' then
 	local bit = require("bit")
@@ -114,5 +96,4 @@ return {
     , color = color
     , usage = usage
     , scan = scan
-    , show_error = show_error
 }

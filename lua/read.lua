@@ -2,10 +2,11 @@
 -- Generated from read.lt
 --
 
+local Slab = 4096 - 32
 local string_reader = function(src)
     local pos = 1
     return function()
-        local chunk = string.sub(src, pos, pos + 4096 - 32)
+        local chunk = string.sub(src, pos, pos + Slab)
         pos = pos + #chunk
         return #chunk > 0 and chunk or nil
     end
@@ -18,7 +19,7 @@ local file_reader = function(filename)
         f = io.stdin
     end
     return function()
-        return f:read(4096 - 32)
+        return f:read(Slab)
     end
 end
 return {string = string_reader, file = file_reader}

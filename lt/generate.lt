@@ -291,13 +291,10 @@ var generate = \stmts ->
 		var iend = expr_emit(node.last)
 		var header
 		if node.step
-			if not (node.step.tag == TExpr.Number and node.step.value == 1)
-				var step = expr_emit(node.step)
-				header = format("for %s = %s, %s, %s do", node.var.name, istart, iend, step)
-		
-		if not header
+			var step = expr_emit(node.step)
+			header = format("for %s = %s, %s, %s do", node.var.name, istart, iend, step)
+		else
 			header = format("for %s = %s, %s do", node.var.name, istart, iend)
-
 		add_section(header, node.body)
 
 

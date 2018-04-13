@@ -17,7 +17,7 @@ var NewLine = { TK_newline = true }
 var Kind = { Expr = 1, Var = 3, Property = 4, Index = 5, Call = 6 }
 
 -- disallow multiple statement on one line
--- need to be in file scope coz parse_chunk() is recursive
+-- need to be in file scope coz parse_stmts() is recursive
 var stmted  -- keep the line number that we parsed
 
 var is_keyword = \ls ->
@@ -123,7 +123,7 @@ var lex_opt_dent = \ls, dented ->
 var parse_type, type_unary, type_binary, type_basic 
 
 -- Only table type annotation can span multiple lines
-var type_tbl = \scope, ls ->
+var type_tbl = \ls ->
 	var line = ls.line
 	ls.step()  -- skip '{'
 	var kvs = {}
@@ -138,12 +138,12 @@ var type_tbl = \scope, ls ->
 		-- in case the table ends immediately
 		if ls.token == '}'
 			break
-		var val = parse_type(scope, ls)
+		var val = parse_type(ls)
 		var key
 		if ls.token == ':'
 			ls.step()  -- skip ':'
 			key = val
-			val = parse_type(scope, ls)
+			val = parse_type(ls)
 			
 		if key
 			for i = 1, #kvs
@@ -171,16 +171,16 @@ var type_tbl = \scope, ls ->
 	return ty.tbl(kvs)
 
 
-var type_list = \isparam, scope, ls ->
+var type_list = \isparam, ls ->
 	var list = {}
 	if not (isparam and ls.token == '/' or ls.token == ']')
-		repeat
+		do
 			if ls.token == '...'
 				ls.step()
-				list[#list + 1] = parse_type(scope, ls, true)
+				list[#list + 1] = parse_type(ls, true)
 				break
 			else
-				list[#list+1] = parse_type(scope, ls)
+				list[#list+1] = parse_type(ls)
 				--``
 				var which = "return"
 				if isparam
@@ -191,20 +191,20 @@ var type_list = \isparam, scope, ls ->
 	return list
 
 
-var type_func = \scope, ls ->
+var type_func = \ls ->
 	var line = ls.line
 	ls.step()  -- skip '['
-	var params = type_list(true, scope, ls)
+	var params = type_list(true, ls)
 	var returns
 	if ls.token == '/'
 		ls.step()
-		returns = type_list(false, scope, ls)
+		returns = type_list(false, ls)
 	
 	lex_match(ls, ']', '[', line)
 	return ty.func(params, returns)
 
 
-var type_prefix = \scope, ls ->
+var type_prefix = \ls ->
 	var typ
 	if ls.token == 'TK_name'
 		typ = ty.custom(ls.value)
@@ -212,7 +212,7 @@ var type_prefix = \scope, ls ->
 	else if ls.token == '('
 		var line = ls.line
 		ls.step()
-		typ = ty.bracket(parse_type(scope, ls))
+		typ = ty.bracket(parse_type(ls))
 		lex_match(ls, ')', '(', line)
 	else
 		-- ls.error(ls, 10, "invalid type annotation %s", ls.astext(ls.token))
@@ -230,7 +230,7 @@ var type_prefix = \scope, ls ->
 	return typ
 
 
-type_basic = \scope, ls ->
+type_basic = \ls ->
 	var typ
 	var val
 	if ls.token == 'TK_name'
@@ -255,31 +255,31 @@ type_basic = \scope, ls ->
 			typ = ty.nil()
 		else
 			if ls.token == '['
-				return type_func(scope, ls)
+				return type_func(ls)
 			if ls.token == '{'
-				return type_tbl(scope, ls)
-			return type_prefix(scope, ls)
+				return type_tbl(ls)
+			return type_prefix(ls)
 
 	ls.step()
 	return typ
 
 
-type_unary = \scope, ls ->
+type_unary = \ls ->
 	var tk = ls.token
 	if tk == '!'
 		ls.step()
-		var t = type_binary(scope, ls, operator.unary_priority)
+		var t = type_binary(ls, operator.unary_priority)
 		return ty.not(t)
 	else
-		return type_basic(scope, ls)
+		return type_basic(ls)
 
 
-type_binary = \scope, ls, limit ->
-	var l = type_unary(scope, ls)
+type_binary = \ls, limit ->
+	var l = type_unary(ls)
 	var op = ls.token
 	while operator.is_typeop(op) and operator.left_priority(op) > limit
 		ls.step()
-		var r, nextop = type_binary(scope, ls, operator.right_priority(op))
+		var r, nextop = type_binary(ls, operator.right_priority(op))
 		if op == '?'
 			l = ty.or(l, ty.nil())
 		else if op == '|'
@@ -293,38 +293,25 @@ type_binary = \scope, ls, limit ->
 	return l, op
 
 
-parse_type = \scope, ls, varargs ->
-	var typ = type_binary(scope, ls, 0) -- Priority 0: parse whole type
+parse_type = \ls, varargs ->
+	var typ = type_binary(ls, 0) -- Priority 0: parse whole type
 	if typ and varargs
 		return ty.varargs(typ)
 	return typ
 
 --- Expressions ------------------------------------------------
 var expr_primary, expr, expr_unop, expr_binop, expr_simple, expr_list, expr_table
-var parse_body, parse_args, parse_block, parse_opt_chunk
+var parse_body, parse_args, parse_block
 
 
-var declare_var = \scope, ls, name, vtype ->
-	scope.new_var(name, vtype, ls.line)
-	return name
-
-
-var var_name = \scope, ls ->
-	var name = lex_str(ls)
-	var vk = Kind.Var
-	if scope.declared(name) == 0
-		err_warn(ls, "undeclared identifier `" .. name .. "`")
-	return Expr.id(name, ls.line), vk
-
-
-var expr_bracket = \scope, ls ->
+var expr_bracket = \ls ->
 	ls.step() -- Skip '['
-	var v = expr(scope, ls)
+	var v = expr(ls)
 	lex_check(ls, ']')
 	return v
 
 
-expr_table = \scope, ls ->
+expr_table = \ls ->
 	var line = ls.line
 	var kvs = {}
 	var dented = false
@@ -341,7 +328,7 @@ expr_table = \scope, ls ->
 			break
 		var key
 		if ls.token == '['
-			key = expr_bracket(scope, ls)
+			key = expr_bracket(ls)
 			lex_check(ls, '=')
 		else if ls.next() == '='
 			if ls.token == 'TK_name'
@@ -361,7 +348,7 @@ expr_table = \scope, ls ->
 				ls.step()
 			lex_check(ls, '=')
 	
-		var val = expr(scope, ls)
+		var val = expr(ls)
 		if key
 			for i = 1, #kvs
 				var arr = kvs[i]
@@ -382,23 +369,19 @@ expr_table = \scope, ls ->
 	return Expr.table(kvs, line)
 
 
-var expr_function = \scope, ls ->
+var expr_function = \ls ->
 	var line = ls.line
 	if ls.token == '\\'
 		ls.step()
-	var curry, params, body, varargs = parse_body(scope, ls, line)
+	var curry, params, body, varargs = parse_body(ls, line)
 	var lambda = Expr.function(params, body, varargs, line)
 	if curry
-		if scope.declared('curry') == 0
-			err_warn(ls, "'lib.curry' is required to use `~>`")
-		
 		var cargs = { Expr.number(#params), lambda }
-		return Expr.call(Expr.id('curry'), cargs, line)
-
+		return Expr.call(Expr.id('curry', line), cargs, line)
 	return lambda
   
 
-expr_simple = \scope, ls ->
+expr_simple = \ls ->
 	var tk, val = ls.token, ls.value
 	var line = ls.line
 	var e
@@ -415,28 +398,25 @@ expr_simple = \scope, ls ->
 	else if tk == 'TK_false'
 		e = Expr.bool(false, line)
 	else if tk == '...'
-		if not scope.is_varargs()
-			err_syntax(ls, "cannot use `...` in a function without variable arguments")
 		e = Expr.vararg(line)
 	else if tk == '{'
-		return expr_table(scope, ls)
+		return expr_table(ls)
 	else if tk == '\\' or tk == '->' or tk == '~>'
-		return expr_function(scope, ls)
+		return expr_function(ls)
 	else
-		return expr_primary(scope, ls)
+		return expr_primary(ls)
 
 	ls.step()
 	return e
 
 
 -- nmax checks the max number of expression expected
-expr_list = \scope, ls, nmax ->
+expr_list = \ls, nmax ->
 	var exps = {}
-	exps[1] = expr(scope, ls)
-	
+	exps[1] = expr(ls)
 	while ls.token == ','
 		ls.step()
-		exps[#exps + 1] = expr(scope, ls)
+		exps[#exps + 1] = expr(ls)
 
 	var n = #exps
 	if nmax and n > nmax
@@ -444,45 +424,44 @@ expr_list = \scope, ls, nmax ->
 	return exps
 
 
-expr_unop = \scope, ls ->
+expr_unop = \ls ->
 	var tk = ls.token
 	if tk == 'TK_not' or tk == '-' or tk == '#'
 		var line = ls.line
 		ls.step()
-		var v = expr_binop(scope, ls, operator.unary_priority)
+		var v = expr_binop(ls, operator.unary_priority)
 		return Expr.unary(ls.tostr(tk), v, line)
 	else
-		return expr_simple(scope, ls)
+		return expr_simple(ls)
 
 
 -- Parse binary expressions with priority higher than the limit.
-expr_binop = \scope, ls, limit ->
-	var v = expr_unop(scope, ls)
+expr_binop = \ls, limit ->
+	var v = expr_unop(ls)
 	var op = ls.tostr(ls.token)
 	while operator.is_binop(op) and operator.left_priority(op) > limit
 		var line = ls.line
 		ls.step()
-		var v2, nextop = expr_binop(scope, ls, operator.right_priority(op))
+		var v2, nextop = expr_binop(ls, operator.right_priority(op))
 		v = Expr.binary(op, v, v2, line)
 		op = nextop
-
 	return v, op
 
 
-expr = \scope, ls ->
-	return expr_binop(scope, ls, 0) -- Priority 0: parse whole expression.
+expr = \ls ->
+	return expr_binop(ls, 0) -- Priority 0: parse whole expression.
 
 
 -- Parse primary and prefix expression
-expr_primary = \scope, ls ->
+expr_primary = \ls ->
 	var v, vk
 	if ls.token == '('
 		var line = ls.line
 		ls.step()
-		vk, v = Kind.Expr, ast.bracket(expr(scope, ls))
+		vk, v = Kind.Expr, ast.bracket(expr(ls))
 		lex_match(ls, ')', '(', line)
 	else --if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')    -- comment out coz err_symbol() will not quit, and v will be nil
-		v, vk = var_name(scope, ls)
+		v, vk = Expr.id(lex_str(ls), ls.line), Kind.Var
 	--else
 	--	err_symbol(ls)
 
@@ -501,11 +480,11 @@ expr_primary = \scope, ls ->
 				key = lex_str(ls)
 				vk, v = Kind.Property, Expr.property(val, key)
 		else if ls.token == '['
-			key = expr_bracket(scope, ls)
+			key = expr_bracket(ls)
 			val = v
 			vk, v = Kind.Index, Expr.index(val, key)
 		else if ls.token == '(' -- or ls.token == 'TK_string' or ls.token == '{'
-			var args = parse_args(scope, ls)
+			var args = parse_args(ls)
 			vk, v = Kind.Call, Expr.call(v, args, line)
 		else
 			break
@@ -514,72 +493,60 @@ expr_primary = \scope, ls ->
 
 
 --- Statements ------------------------------------------------
-var parse_return = \scope, ls, line ->
+var parse_return = \ls, line ->
 	ls.step() -- skip 'return'
 	var exps
 	if EndOfChunk[ls.token] or NewLine[ls.token] or EndOfFunction[ls.token]  -- or ls.token == ';'
 		exps = {}
 	else -- return with one or more values
-		exps = expr_list(scope, ls)
+		exps = expr_list(ls)
 	return Stmt.return(exps, line)
 
 
 -- Parse numeric 'for'
-var parse_for_num = \scope, ls, idxname, line ->
+var parse_for_num = \ls, idxname, line ->
 	lex_check(ls, '=')
-	scope.enter_block('ForNum')
-	var first = expr(scope, ls)
+	var first = expr(ls)
 	lex_check(ls, ',')
-	var last = expr(scope, ls)
+	var last = expr(ls)
 	var step
 	if lex_opt(ls, ',')
-		step = expr(scope, ls)
-	else
-		step = Expr.number(1, line)
-	
-	-- declare var into scope after rhs
-	var name = declare_var(scope, ls, idxname, nil)
-	var var = Expr.id(name, line)
-	
-	var body = parse_block(scope, ls, line, 'TK_for')
-	scope.leave_block()
+		step = expr(ls)
+
+	var var = Expr.id(idxname, line)
+	var body = parse_block(ls, line, 'TK_for')
 	return Stmt.fornum(var, first, last, step, body, line)
 
 
 -- Parse 'for .. in ..'
-var parse_for_in = \scope, ls, idxname ->
-	scope.enter_block('ForIn')
-	var name = declare_var(scope, ls, idxname, nil)
-	var vars = { Expr.id(name, ls.line) }
+var parse_for_in = \ls, idxname ->
+	var vars = { Expr.id(idxname, ls.line) }
 	while lex_opt(ls, ',')
-		name = lex_str(ls)
-		name = declare_var(scope, ls, name, nil)
-		vars[#vars + 1] = Expr.id(name, ls.line)
+		vars[#vars + 1] = Expr.id(lex_str(ls), ls.line)
 
 	lex_check(ls, 'TK_in')
 	var line = ls.line
-	var exps = expr_list(scope, ls)
-	var body = parse_block(scope, ls, line, 'TK_for')
-	scope.leave_block()
+	var exps = expr_list(ls)
+	var body = parse_block(ls, line, 'TK_for')
 	return Stmt.forin(vars, exps, body, line)
 
 
 -- Parse 'for' statement
-var parse_for = \scope, ls, line ->
+var parse_for = \ls, line ->
 	ls.step()  -- Skip 'for'.
 	var idxname = lex_str(ls)  -- Get first variable name.
 	var stmt
 	if ls.token == '='
-		stmt = parse_for_num(scope, ls, idxname, line)
+		stmt = parse_for_num(ls, idxname, line)
 	else if ls.token == ',' or ls.token == 'TK_in'
-		stmt = parse_for_in(scope, ls, idxname)
+		stmt = parse_for_in(ls, idxname)
 	else
 		err_instead(ls, 10, "`=` or `in` expected")
 	return stmt
 
 
--- Parse function call argument list.
-parse_args = \scope, ls ->
+-- Parse function call argument list
+parse_args = \ls ->
 	var line = ls.line
 	lex_check(ls, '(')
 	if not LJ_52 and line ~= ls.prevline
@@ -588,7 +555,6 @@ parse_args = \scope, ls ->
 	var dented = false
 	var args = {}
 	while ls.token ~= ')'
-
 		dented = lex_opt_dent(ls, dented)
 		-- catch common mistake that mess everything later
 		if not dented and ls.token == 'TK_dedent'
@@ -596,7 +562,7 @@ parse_args = \scope, ls ->
 			ls.step()
 		if ls.token == ')'
 			break
-		args[#args + 1] = expr(scope, ls)
+		args[#args + 1] = expr(ls)
 		
 		dented = lex_opt_dent(ls, dented)
 		if not lex_opt(ls, ',')
@@ -610,177 +576,159 @@ parse_args = \scope, ls ->
 
 
 var parse_assignment
-parse_assignment = \scope, ls, lhs, v, vk ->
+parse_assignment = \ls, lhs, v, vk ->
 	var line = ls.line
 	if vk ~= Kind.Var and vk ~= Kind.Property and vk ~= Kind.Index
 		err_symbol(ls)
 
 	lhs[#lhs+1] = v
 	if lex_opt(ls, ',')
-		var n_var, n_vk = expr_primary(scope, ls)
-		return parse_assignment(scope, ls, lhs, n_var, n_vk)
+		var n_var, n_vk = expr_primary(ls)
+		return parse_assignment(ls, lhs, n_var, n_vk)
 	else -- Parse RHS.
 		lex_check(ls, '=')
-		var exps = expr_list(scope, ls, #lhs)
+		var exps = expr_list(ls, #lhs)
 		return Stmt.assign(lhs, exps, line)
 
 
-
-var parse_call_assign = \scope, ls ->
-	var v, vk = expr_primary(scope, ls)
+var parse_call_assign = \ls ->
+	var v, vk = expr_primary(ls)
 	if vk == Kind.Call
 		return Stmt.expression(v, ls.line)
 	else
 		var lhs = {}
-		return parse_assignment(scope, ls, lhs, v, vk)
+		return parse_assignment(ls, lhs, v, vk)
 
 
-var parse_var = \scope, ls ->
+var parse_var = \ls ->
 	var line = ls.line
 	var names = {}
 
-	repeat
+	do
 		var name = lex_str(ls)
-		var typ = parse_type(scope, ls)
+		var typ = parse_type(ls)
 		names[#names+1] = name
 	until not lex_opt(ls, ',')
 
 	var rhs = {}
 	if lex_opt(ls, '=')
-		rhs = expr_list(scope, ls, #names)
+		rhs = expr_list(ls, #names)
 	
-	-- declare var into scope after rhs
 	var lhs = {}
 	for _, name in ipairs(names)
-		name = declare_var(scope, ls, name, nil)
 		lhs[#lhs+1] = Expr.id(name, line)
 
 	return Stmt.local(lhs, rhs, line)
 
 
-var parse_while = \scope, ls, line ->
+var parse_while = \ls, line ->
 	ls.step() -- Skip 'while'
-	var cond = expr(scope, ls)
-	scope.enter_block('While')  -- loop block
-	var body = parse_block(scope, ls, line, 'TK_while')
-	scope.leave_block()
-	var lastline = ls.line
-	return Stmt.while(cond, body, line, lastline)
+	var cond = expr(ls)
+	var body = parse_block(ls, line, 'TK_while')
+	return Stmt.while(cond, body, line)
 
 
-var parse_then = \scope, ls, tests, line ->
+var parse_then = \ls, tests, line ->
 	ls.step()
-	tests[#tests+1] = expr(scope, ls)
+	tests[#tests+1] = expr(ls)
 	if ls.token == 'TK_then'
 		err_warn(ls, "`then` is not needed")
 		ls.step()
-	return parse_block(scope, ls, line, 'TK_if')
+	return parse_block(ls, line, 'TK_if')
 
 
-var parse_if = \scope, ls, line ->
+var parse_if = \ls, line ->
 	var tests, blocks = {}, {}
-	blocks[#blocks+1] = parse_then(scope, ls, tests, line)
+	blocks[#blocks+1] = parse_then(ls, tests, line)
 	var else_branch
 	while ls.token == 'TK_else' or NewLine[ls.token] and ls.next() == 'TK_else'
 		lex_opt(ls, 'TK_newline')
 		ls.step()
 		if ls.token == 'TK_if'
-			blocks[#blocks+1] = parse_then(scope, ls, tests, line)
+			blocks[#blocks+1] = parse_then(ls, tests, line)
 		else
-			else_branch = parse_block(scope, ls, ls.line, 'TK_else')
+			else_branch = parse_block(ls, ls.line, 'TK_else')
 			break
 	return Stmt.if(tests, blocks, else_branch, line)
 
 
-var parse_do = \scope, ls, line ->
+var parse_do = \ls, line ->
 	ls.step() -- Skip 'do'
-	var body = parse_block(scope, ls, line, 'TK_do')
-	var lastline = ls.line
-	return Stmt.do(body, line, lastline)
+	var body = parse_block(ls, line, 'TK_do')
+	if lex_opt(ls, 'TK_until')
+		var cond = expr(ls) -- until condition
+		return Stmt.repeat(cond, body, line)
+	return Stmt.do(body, line)
 
 
-var parse_repeat = \scope, ls, line ->
-	ls.step()  -- skip repeat
-	scope.enter_block('Repeat')
-	scope.enter_block()   -- block
-	var body = parse_opt_chunk(scope, ls, line, 'TK_repeat')
-	lex_match(ls, 'TK_until', 'TK_repeat', line)
-	var cond = expr(scope, ls) -- until condition
-	scope.leave_block()   -- finish block
-	scope.leave_block()
-	return Stmt.repeat(cond, body, line)
-
-
-var parse_break = \scope, ls, line ->
+var parse_break = \ls, line ->
 	ls.step()
-	scope.new_break()
 	return Stmt.break(line)
 
 
-var parse_label = \scope, ls, line ->
+var parse_label = \ls, line ->
 	ls.step() -- Skip '::'
 	var name = lex_str(ls)
 	lex_check(ls, '::')
-	scope.new_label(name, line)
 	return Stmt.label(name, line)
 
 
-var parse_goto = \scope, ls, line ->
+var parse_goto = \ls, line ->
 	var name = lex_str(ls)
-	scope.new_goto(name, line)
 	return Stmt.goto(name, line)
 
 
--- Parse a statement. Returns the statement itself and a boolean that tells if it
--- must be the last one in a chunk.
+-- Parse one statement
+-- Returns the statement AST and a bool to indicate if it must be the last one in a chunk
 var parse_stmt
-parse_stmt = \scope, ls ->
+parse_stmt = \ls ->
 	var line = ls.line
 	var stmt
 	if ls.token == 'TK_if'
-		stmt = parse_if(scope, ls, line)
+		stmt = parse_if(ls, line)
 	else if ls.token == 'TK_for'
-		stmt = parse_for(scope, ls, line)
+		stmt = parse_for(ls, line)
 	else if ls.token == 'TK_while'
-		stmt = parse_while(scope, ls, line)
+		stmt = parse_while(ls, line)
 	else if ls.token == 'TK_do'
-		stmt = parse_do(scope, ls, line)
+		stmt = parse_do(ls, line)
 	else if ls.token == 'TK_repeat'
-		stmt = parse_repeat(scope, ls, line)
+		err_symbol(ls)
+		stmt = parse_do(ls, line)
 	--else if ls.token == 'TK_function'
-	--	stmt = parse_func(scope, ls, line)
-	else if ls.token == '->' or ls.token == '~>'
-		err_syntax(ls, "lambda must either be assigned or invoked")
+	--	stmt = parse_func(ls, line)
+	else if ls.token == '\\' or ls.token == '->' or ls.token == '~>'
+		err_syntax(ls, "lambda must either be assigned or immediately invoked")
+		stmt = expr_function(ls)
 	else if ls.token == 'TK_name' and ls.value == 'var'
 		ls.step()
-		stmt = parse_var(scope, ls, line)
+		stmt = parse_var(ls, line)
 	else if ls.token == 'TK_local'
 		err_symbol(ls)
 		ls.step()
-		stmt = parse_var(scope, ls, line)
+		stmt = parse_var(ls, line)
 	else if ls.token == 'TK_return'
-		stmt = parse_return(scope, ls, line)
+		stmt = parse_return(ls, line)
 		return stmt, true -- Must be last
 	else if ls.token == 'TK_break'
-		stmt = parse_break(scope, ls, line)
+		stmt = parse_break(ls, line)
 		return stmt, not LJ_52 -- Must be last in Lua 5.1
 	else if ls.token == '::'
-		stmt = parse_label(scope, ls, line)
+		stmt = parse_label(ls, line)
 	else if ls.token == 'TK_goto'
 		if LJ_52 or ls.next() == 'TK_name'
 			ls.step()
-			stmt = parse_goto(scope, ls, line)
+			stmt = parse_goto(ls, line)
 		-- else fall thru
-		
+
 	-- is TK_name, must be function call or assignment
 	if not stmt
-		stmt = parse_call_assign(scope, ls)
+		stmt = parse_call_assign(ls)
 	return stmt, false
 
 
--- a chunk is a list of statements, regardless of scope
-var parse_chunk = \scope, ls ->
-	
+-- Parse list of statements
+var parse_stmts = \ls ->
 	var skip_ends = ->
 		while ls.token == ';' or ls.token == 'TK_end'
 			err_symbol(ls)
@@ -793,7 +741,7 @@ var parse_chunk = \scope, ls ->
 	while not islast and not EndOfChunk[ls.token]
 		stmted = ls.line
 		skip_ends()
-		stmt, islast = parse_stmt(scope, ls)
+		stmt, islast = parse_stmt(ls)
 		body[#body + 1] = stmt
 		skip_ends()
 		-- disallow multiple statement in one line
@@ -803,19 +751,17 @@ var parse_chunk = \scope, ls ->
 	return body, firstline, ls.line
 
 
--- parse indented single or list of statements, regardless of scope
-parse_opt_chunk = \scope, ls, line, match_token ->
+-- Parse indented single or multiple statements
+parse_block = \ls, line, match_token ->
 	var body = {}
 	if lex_indent(ls)
-		body = parse_chunk(scope, ls)
-		--lex_match(ls, 'TK_dedent', match_token, line)
+		body = parse_stmts(ls)
 		if not lex_dedent(ls)
 			err_instead(ls, 10, "%s expected to end %s at line %d", ls.astext('TK_dedent'), ls.astext(match_token), line)
 	else
 		if not EndOfChunk[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
-			-- single statement
-			body[1] = parse_stmt(scope, ls)
-			--body.firstline, body.lastline = line, ls.line
+			-- single line statement
+			body[1] = parse_stmt(ls)
 
 		if not EndOfChunk[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
 			err_instead(ls, 10, "statement should end near %s. %s expected", ls.astext(match_token), ls.astext('TK_newline'))
@@ -825,35 +771,28 @@ parse_opt_chunk = \scope, ls, line, match_token ->
 	return body
 
 
-parse_block = \scope, ls, line, match ->
-	scope.enter_block()
-	var chunk = parse_opt_chunk(scope, ls, line, match)
-	scope.leave_block()
-	return chunk
-
-
--- Parse function definition parameters
-var parse_params = \scope, ls ->
+-- Parse function parameters
+var parse_params = \ls ->
 	var params = {}
 	var rettyp = {}
+	var varargs = false
 	if ls.token ~= '->' and ls.token ~= '~>'
-		repeat
+		do
 			if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')
 				var name = lex_str(ls)
-				var typ = parse_type(scope, ls)
-				name = declare_var(scope, ls, name, nil)
+				var typ = parse_type(ls)
 				params[#params+1] = Expr.id(name, ls.line)
 			else if ls.token == '...'
 				ls.step()
-				var typ = parse_type(scope, ls, true)
-				scope.varargs()
+				varargs = true
+				var typ = parse_type(ls, true)
 				params[#params + 1] = Expr.vararg(ls.line)
 				if ls.next() ~= '/'
 					break
 			else if ls.token == '/'
 				ls.step()  -- skip '/'
-				repeat
-					rettyp[#rettyp + 1] = parse_type(scope, ls)
+				do
+					rettyp[#rettyp + 1] = parse_type(ls)
 				until not lex_opt(ls, ',')
 				break
 			else
@@ -862,35 +801,28 @@ var parse_params = \scope, ls ->
 
 	if ls.token == '->'
 		ls.step()
-		return false, params
+		return false, params, varargs
 	else if ls.token == '~>'
-		if scope.is_varargs()
+		ls.step()
+		if varargs
 			err_syntax(ls, "cannot curry variadic parameters with `~>`")
 		if #params < 2
 			err_syntax(ls, "at least 2 parameters needed with `~>`")
-		ls.step()
-		return true, params
+		return true, params, varargs
 	err_expect(ls, '->')
 
 
--- Parse body of a function
-parse_body = \scope, ls, line ->
-	scope.begin_func()
-	var curry, params = parse_params(scope, ls)
-	var body = parse_opt_chunk(scope, ls, line, '->')
-	scope.end_func()
-	return curry, params, body, scope.is_varargs()
+-- Parse function body
+parse_body = \ls, line ->
+	var curry, params, varargs = parse_params(ls)
+	var body = parse_block(ls, line, '->')
+	return curry, params, body, varargs
 
 
-var parse = \scope, ls ->
-	-- main chunk is always a vararg function
-	scope.begin_func()
-	scope.varargs()
-
+var parse = \ls ->
 	ls.step()
 	lex_opt(ls, 'TK_newline')
-	var chunk = parse_chunk(scope, ls)
-	scope.end_func()
+	var chunk = parse_stmts(ls)
 	if ls.token ~= 'TK_eof'
 		err_warn(ls, "code should end. unexpected extra " .. ls.astext(ls.token))
 	return chunk

@@ -2,6 +2,7 @@ var read = require('lua.read')
 var lex = require('lua.lex')
 var scope = require('lua.scope')
 var parse = require('lua.parse')
+var check = require('lua.check')
 var transform = require('lua.transform')
 var generate = require('lua.generate')
 
@@ -11,24 +12,53 @@ var generate = require('lua.generate')
     , silent = {...}
  }
 --`
-var compile = \reader, options ->
-	var lexer = lex(reader)
+
+var warnings = {}
+
+var warn = \line, col, severity, msg ->
+	var w = { line = line, col = col, severity = severity, msg = msg }
+	
+	for i, m in ipairs(warnings)
+		-- skip errors at the same line with lower severity
+		if line == m.line and severity < m.severity -- and col == m.col and msg == m.msg
+			return
+		if line < m.line or (line == m.line and col < m.col)
+			-- insert
+			table.insert(warnings, i, w)
+			return
+	-- append
+	table.insert(warnings, w)
+
+
+var tostr = \color ->
+	var warns = {}
+	for i, m in ipairs(warnings)
+		var clr = color.yellow
+		if m.severity >= 10
+			clr = color.red
+		warns[i] = string.format(" (%d,%d)" .. clr ..  "  %s" .. color.reset, m.line, m.col, m.msg)
+	return table.concat(warns, "\n")
+
+
+
+var compile = \reader, options, color ->
+	var lexer = lex(reader, warn)
+	var tree = transform(parse(lexer))
 	var sc = scope(options.declares, \severe, msg -> lexer.error(lexer, severe, "%s", msg))
-	var tree = transform(parse(sc, lexer))
-	var out = true
+	check(sc, tree, warn)
+
 	-- not generating if severity >= 10
-	for _, w in ipairs(lexer.warnings)
-		if w.s >= 10
-			out = nil
-	if out
-		out = generate(tree)
-	return out, lexer.warnings
+	for _, w in ipairs(warnings)
+		if w.severity >= 10
+			return nil, tostr(color)
+
+	return generate(tree), tostr(color)
 
 
 return {
-	string = \src, options ->
-		return compile(read.string(src), options or {})
+	string = \src, options, color ->
+		return compile(read.string(src), options or {}, color)
 	
-	, file = \filename, options ->
-		return compile(read.file(filename), options or {})
+	, file = \filename, options, color ->
+		return compile(read.file(filename), options or {}, color)
 }

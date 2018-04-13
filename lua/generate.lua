@@ -287,12 +287,9 @@ local generate = function(stmts)
         local iend = expr_emit(node.last)
         local header
         if node.step then
-            if not (node.step.tag == TExpr.Number and node.step.value == 1) then
-                local step = expr_emit(node.step)
-                header = format("for %s = %s, %s, %s do", node.var.name, istart, iend, step)
-            end
-        end
-        if not header then
+            local step = expr_emit(node.step)
+            header = format("for %s = %s, %s, %s do", node.var.name, istart, iend, step)
+        else
             header = format("for %s = %s, %s do", node.var.name, istart, iend)
         end
         add_section(header, node.body)
