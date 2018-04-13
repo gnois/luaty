@@ -16,816 +16,810 @@ var NewLine = { TK_newline = true }
 -- expr kind
 var Kind = { Expr = 1, Var = 3, Property = 4, Index = 5, Call = 6 }
 
--- disallow multiple statement on one line
--- need to be in file scope coz parse_stmts() is recursive
-var stmted  -- keep the line number that we parsed
 
-var is_keyword = \ls ->
-	var str = ls.tostr(ls.token)
-	if Keyword[str]
-		return str
+return \ls, warn ->
+	-- disallow multiple statement on one line
+	-- need to be in file scope coz parse_stmts() is recursive
+	var stmted  -- keep the line number that we parsed
 
-var err_warn = \ls, em ->
-	ls.error(ls, 2, "%s", em)
+	-----  Error reporting ----------------
+	var parse_error = \severe, em, ... ->
+		var loc = ls.loc()
+		warn(loc.line, loc.col, severe, string.format(em, ...))
 
+	var err_warn = \em ->
+		parse_error(2, "%s", em)
 
-var err_syntax = \ls, em ->
-	ls.error(ls, 10, "%s", em)
+	var err_syntax = \em ->
+		parse_error(10, "%s", em)
 
+	var ls_value = ->
+		if ls.value
+			return "'" .. ls.value .. "'"
 
-var as_val = \ls ->
-	if ls.value
-		return "'" .. ls.value .. "'"
+	var err_instead = \severe, em, ... ->
+		var msg = string.format(em, ...)
+		parse_error(severe, "%s instead of %s", msg, ls_value() or ls.astext(ls.token))
 
+	var err_expect = \token ->
+		err_instead(10, "%s expected", ls.astext(token))
 
-var err_instead = \ls, severe, em, ... ->
-	var msg = string.format(em, ...)
-	ls.error(ls, severe, "%s instead of %s", msg, as_val(ls) or ls.astext(ls.token))
-
-
-var err_expect = \ls, token ->
-	err_instead(ls, 10, "%s expected", ls.astext(token))
-
-
-var err_symbol = \ls ->
-	var sym = ls.tostr(ls.token)
-	var replace = {end = "<dedent>", local = "`var`", function = "\\...->", elseif = "`else if`", repeat = "`do`"}
-	var rep = replace[sym]
-	if rep
-		ls.error(ls, 7, "use %s instead of '%s'", rep, sym)
-	else
-		ls.error(ls, 10, "unexpected %s", as_val(ls) or ls.astext(ls.token))
-
-
-var lex_opt = \ls, tok ->
-	if ls.token == tok
-		ls.step()
-		return true
-	return false
-
-
-var lex_check = \ls, tok ->
-	if ls.token ~= tok
-		err_expect(ls, tok) 
-	ls.step()
-
-
-var lex_match = \ls, what, who, line ->
-	if not lex_opt(ls, what)
-		if line == ls.line
-			err_expect(ls, what)
+	var err_symbol = ->
+		var sym = ls.tostr(ls.token)
+		var replace = {end = "<dedent>", local = "`var`", function = "\\...->", elseif = "`else if`", repeat = "`do`"}
+		var rep = replace[sym]
+		if rep
+			parse_error(7, "use %s instead of '%s'", rep, sym)
 		else
-			err_instead(ls, 10, "%s expected to match %s at line %d", ls.astext(what), ls.astext(who), line)
-		return false
-	return true
+			parse_error(10, "unexpected %s", ls_value() or ls.astext(ls.token))
 
 
-var lex_str = \ls ->
-	var s
-	if ls.token ~= 'TK_name' and (LJ_52 or ls.token ~= 'TK_goto')
-		err_expect(ls, 'TK_name')
-		-- no longer exiting, so cannot be nil
-		s = ls.tostr(ls.token)
-	else
-		s = ls.value
-	ls.step()
-	return s
+	-------- Helpers ---------------------------
+	var is_keyword = ->
+		var str = ls.tostr(ls.token)
+		if Keyword[str]
+			return str
 
 
--- return true only if a real indent is eaten
-var lex_indent = \ls ->
-	if NewLine[ls.token] and ls.next() == 'TK_indent'
-		lex_opt(ls, 'TK_newline')
-		ls.step()
-		return true
-	return false
-
-
--- return true only if a real dedent is eaten
-var lex_dedent = \ls ->
-	if ls.token == 'TK_dedent' or NewLine[ls.token] and ls.next() == 'TK_dedent'
-		lex_opt(ls, 'TK_newline')
-		ls.step()
-		return true
-	return false
-
-
-var lex_opt_dent = \ls, dented ->
-	if not dented
-		dented = lex_indent(ls)
-	else
-		dented = not lex_dedent(ls)
-	lex_opt(ls, 'TK_newline')
-	return dented
-
-
---- Type Declarations ------------------------------------------------
-var parse_type, type_unary, type_binary, type_basic 
-
--- Only table type annotation can span multiple lines
-var type_tbl = \ls ->
-	var line = ls.line
-	ls.step()  -- skip '{'
-	var kvs = {}
-	var dented = false
-	while ls.token ~= '}'
-		dented = lex_opt_dent(ls, dented)
-		-- catch common mistake that mess everything later
-		if not dented and ls.token == 'TK_dedent'
-			err_symbol(ls)
+	var lex_opt = \tok ->
+		if ls.token == tok
 			ls.step()
+			return true
+		return false
 
-		-- in case the table ends immediately
-		if ls.token == '}'
-			break
-		var val = parse_type(ls)
-		var key
-		if ls.token == ':'
-			ls.step()  -- skip ':'
-			key = val
-			val = parse_type(ls)
-			
-		if key
-			for i = 1, #kvs
-				var arr = kvs[i]
-				if ast.same(arr[2], key)
-					ls.error(ls, 10, "similar key type at position %i and %i in table type annotation", i, (#kvs + 1))
-		else
-			if not val
-				err_instead(ls, 10, "type expected in table type annotation")
+
+	var lex_check = \tok ->
+		if ls.token ~= tok
+			err_expect(tok) 
+		ls.step()
+
+
+	var lex_match = \what, who, line ->
+		if not lex_opt(what)
+			if line == ls.line
+				err_expect(what)
 			else
+				err_instead(10, "%s expected to match %s at line %d", ls.astext(what), ls.astext(who), line)
+			return false
+		return true
+
+
+	var lex_str = ->
+		var loc = ls.loc()
+		var s
+		if ls.token ~= 'TK_name' and (LJ_52 or ls.token ~= 'TK_goto')
+			err_expect('TK_name')
+			-- no longer exiting, so cannot be nil
+			s = ls.tostr(ls.token)
+		else
+			s = ls.value
+		ls.step()
+		return s, loc
+
+
+	-- return true only if a real indent is eaten
+	var lex_indent = ->
+		if NewLine[ls.token] and ls.next() == 'TK_indent'
+			lex_opt('TK_newline')
+			ls.step()
+			return true
+		return false
+
+
+	-- return true only if a real dedent is eaten
+	var lex_dedent = ->
+		if ls.token == 'TK_dedent' or NewLine[ls.token] and ls.next() == 'TK_dedent'
+			lex_opt('TK_newline')
+			ls.step()
+			return true
+		return false
+
+
+	var lex_opt_dent = \dented ->
+		if not dented
+			dented = lex_indent()
+		else
+			dented = not lex_dedent()
+		lex_opt('TK_newline')
+		return dented
+
+
+	--- Type Declarations ------------------------------------------------
+	var parse_type, type_unary, type_binary, type_basic 
+
+	-- Only table type annotation can span multiple lines
+	var type_tbl = ->
+		var line = ls.line
+		ls.step()  -- skip '{'
+		var kvs = {}
+		var dented = false
+		while ls.token ~= '}'
+			dented = lex_opt_dent(dented)
+			-- catch common mistake that mess everything later
+			if not dented and ls.token == 'TK_dedent'
+				err_symbol()
+				ls.step()
+
+			-- in case the table ends immediately
+			if ls.token == '}'
+				break
+			var val = parse_type()
+			var key
+			if ls.token == ':'
+				ls.step()  -- skip ':'
+				key = val
+				val = parse_type()
+				
+			if key
 				for i = 1, #kvs
 					var arr = kvs[i]
-					if not arr[2] and ast.same(arr[1], val)
-						ls.error(ls, 10, "similar value type at position %i and %i in table type annotation", i, (#kvs + 1))
-
-		kvs[#kvs + 1] = { val, key }  -- key can be nil
-
-		dented = lex_opt_dent(ls, dented)
-		if not lex_opt(ls, ',')
-			break
-
-	if dented and not lex_dedent(ls)
-		err_instead(ls, 10, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), line)
-	lex_match(ls, '}', '{', line)
-	return ty.tbl(kvs)
-
-
-var type_list = \isparam, ls ->
-	var list = {}
-	if not (isparam and ls.token == '/' or ls.token == ']')
-		do
-			if ls.token == '...'
-				ls.step()
-				list[#list + 1] = parse_type(ls, true)
-				break
+					if ast.same(arr[2], key)
+						parse_error(10, "similar key type at position %i and %i in table type annotation", i, (#kvs + 1))
 			else
-				list[#list+1] = parse_type(ls)
-				--``
-				var which = "return"
-				if isparam
-					which = "parameter"
-				ls.error(ls, 10, "invalid %s type %s", which, ls.astext(ls.token))
-				``
-		until not lex_opt(ls, ',')
-	return list
+				if not val
+					err_instead(10, "type expected in table type annotation")
+				else
+					for i = 1, #kvs
+						var arr = kvs[i]
+						if not arr[2] and ast.same(arr[1], val)
+							parse_error(10, "similar value type at position %i and %i in table type annotation", i, (#kvs + 1))
+
+			kvs[#kvs + 1] = { val, key }  -- key can be nil
+
+			dented = lex_opt_dent(dented)
+			if not lex_opt(',')
+				break
+
+		if dented and not lex_dedent()
+			err_instead(10, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), line)
+		lex_match('}', '{', line)
+		return ty.tbl(kvs)
 
 
-var type_func = \ls ->
-	var line = ls.line
-	ls.step()  -- skip '['
-	var params = type_list(true, ls)
-	var returns
-	if ls.token == '/'
-		ls.step()
-		returns = type_list(false, ls)
-	
-	lex_match(ls, ']', '[', line)
-	return ty.func(params, returns)
+	var type_list = \isparam ->
+		var list = {}
+		if not (isparam and ls.token == '/' or ls.token == ']')
+			do
+				if ls.token == '...'
+					ls.step()
+					list[#list + 1] = parse_type(true)
+					break
+				else
+					list[#list+1] = parse_type()
+					--``
+					var which = "return"
+					if isparam
+						which = "parameter"
+					parse_error(10, "invalid %s type %s", which, ls.astext(ls.token))
+					``
+			until not lex_opt(',')
+		return list
 
 
-var type_prefix = \ls ->
-	var typ
-	if ls.token == 'TK_name'
-		typ = ty.custom(ls.value)
-		ls.step()
-	else if ls.token == '('
+	var type_func = ->
 		var line = ls.line
-		ls.step()
-		typ = ty.bracket(parse_type(ls))
-		lex_match(ls, ')', '(', line)
-	else
-		-- ls.error(ls, 10, "invalid type annotation %s", ls.astext(ls.token))
-		-- optional typing
+		ls.step()  -- skip '['
+		var params = type_list(true)
+		var returns
+		if ls.token == '/'
+			ls.step()
+			returns = type_list(false)
+		
+		lex_match(']', '[', line)
+		return ty.func(params, returns)
+
+
+	var type_prefix = ->
+		var typ
+		if ls.token == 'TK_name'
+			typ = ty.custom(ls.value)
+			ls.step()
+		else if ls.token == '('
+			var line = ls.line
+			ls.step()
+			typ = ty.bracket(parse_type())
+			lex_match(')', '(', line)
+		else
+			-- parse_error(10, "invalid type annotation %s", ls.astext(ls.token))
+			-- optional typing
+			return typ
+
+		-- Parse multiple type suffix
+		while ls.token == '.'  -- type name cannot have `-`, so no need to consider `[`
+			ls.step() 
+			if ls.token ~= 'TK_name'
+				break
+			typ = ty.index(typ, ls.value)
+			ls.step()  -- skip TK_name
+			
 		return typ
 
-	-- Parse multiple type suffix
-	while ls.token == '.'  -- type name cannot have `-`, so no need to consider `[`
-		ls.step() 
-		if ls.token ~= 'TK_name'
-			break
-		typ = ty.index(typ, ls.value)
-		ls.step()  -- skip TK_name
+
+	type_basic = ->
+		var typ
+		var val
+		if ls.token == 'TK_name'
+			val = ls.value
 		
-	return typ
-
-
-type_basic = \ls ->
-	var typ
-	var val
-	if ls.token == 'TK_name'
-		val = ls.value
-	
-	if val == 'any'
-		typ = ty.any()
-	else if val == 'num' or val == 'number'
-		typ = ty.num()
-		if val == 'number'
-			err_warn("use `num` instead of `number`")
-	else if val == 'str' or val == 'string'
-		typ = ty.str()
-		if val == 'string'
-			err_warn("use `str` instead of `string`")
-	else if val == 'bool' or val == 'boolean'
-		typ = ty.bool()
-		if val == 'boolean'
-			err_warn("use `bool` instead of `boolean`")
-	else
-		if ls.token == 'TK_nil'
-			typ = ty.nil()
+		if val == 'any'
+			typ = ty.any()
+		else if val == 'num' or val == 'number'
+			typ = ty.num()
+			if val == 'number'
+				err_warn("use `num` instead of `number`")
+		else if val == 'str' or val == 'string'
+			typ = ty.str()
+			if val == 'string'
+				err_warn("use `str` instead of `string`")
+		else if val == 'bool' or val == 'boolean'
+			typ = ty.bool()
+			if val == 'boolean'
+				err_warn("use `bool` instead of `boolean`")
 		else
-			if ls.token == '['
-				return type_func(ls)
-			if ls.token == '{'
-				return type_tbl(ls)
-			return type_prefix(ls)
-
-	ls.step()
-	return typ
-
-
-type_unary = \ls ->
-	var tk = ls.token
-	if tk == '!'
-		ls.step()
-		var t = type_binary(ls, operator.unary_priority)
-		return ty.not(t)
-	else
-		return type_basic(ls)
-
-
-type_binary = \ls, limit ->
-	var l = type_unary(ls)
-	var op = ls.token
-	while operator.is_typeop(op) and operator.left_priority(op) > limit
-		ls.step()
-		var r, nextop = type_binary(ls, operator.right_priority(op))
-		if op == '?'
-			l = ty.or(l, ty.nil())
-		else if op == '|'
-			l = ty.or(l, r)
-		else if op == '&'
-			l = ty.and(l, r)
-		else
-			ls.error(ls, 10, "unexpected %s", as_val(ls) or ls.astext(ls.token))
-			break
-		op = nextop
-	return l, op
-
-
-parse_type = \ls, varargs ->
-	var typ = type_binary(ls, 0) -- Priority 0: parse whole type
-	if typ and varargs
-		return ty.varargs(typ)
-	return typ
-
---- Expressions ------------------------------------------------
-var expr_primary, expr, expr_unop, expr_binop, expr_simple, expr_list, expr_table
-var parse_body, parse_args, parse_block
-
-
-var expr_bracket = \ls ->
-	ls.step() -- Skip '['
-	var v = expr(ls)
-	lex_check(ls, ']')
-	return v
-
-
-expr_table = \ls ->
-	var line = ls.line
-	var kvs = {}
-	var dented = false
-	lex_check(ls, '{')
-	while ls.token ~= '}'
-		dented = lex_opt_dent(ls, dented)
-		-- catch common mistake that mess everything later
-		if not dented and ls.token == 'TK_dedent'
-			err_symbol(ls)
-			ls.step()
-
-		-- in case the table ends immediately
-		if ls.token == '}'
-			break
-		var key
-		if ls.token == '['
-			key = expr_bracket(ls)
-			lex_check(ls, '=')
-		else if ls.next() == '='
-			if ls.token == 'TK_name'
-				var name = lex_str(ls)
-				key = Expr.string(name)
-			-- accept string
-			else if ls.token == 'TK_string'
-				key = Expr.string(ls.value)
-				ls.step()
-			-- accept keyword
+			if ls.token == 'TK_nil'
+				typ = ty.nil()
 			else
-				var name = is_keyword(ls)
-				if name
-					key = Expr.string(name)
-				else
-					err_syntax(ls, "invalid table key " .. as_val(ls) or ls.astext(ls.token))
-				ls.step()
-			lex_check(ls, '=')
-	
-		var val = expr(ls)
-		if key
-			for i = 1, #kvs
-				var arr = kvs[i]
-				if ast.same(arr[2], key)
-					err_warn(ls, "duplicate key at position " .. i .. " and " .. (#kvs + 1) .. " in table")
-	
-		kvs[#kvs + 1] = { val, key }  -- key can be nil
+				if ls.token == '['
+					return type_func()
+				if ls.token == '{'
+					return type_tbl()
+				return type_prefix()
 
-		dented = lex_opt_dent(ls, dented)
-		if ls.token == ';'
-			err_instead(ls, 3, "use `,`")
-		if not lex_opt(ls, ',') and not lex_opt(ls, ';')
-			break
-
-	if dented and not lex_dedent(ls)
-		err_instead(ls, 10, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), line)
-	lex_match(ls, '}', '{', line)
-	return Expr.table(kvs, line)
-
-
-var expr_function = \ls ->
-	var line = ls.line
-	if ls.token == '\\'
 		ls.step()
-	var curry, params, body, varargs = parse_body(ls, line)
-	var lambda = Expr.function(params, body, varargs, line)
-	if curry
-		var cargs = { Expr.number(#params), lambda }
-		return Expr.call(Expr.id('curry', line), cargs, line)
-	return lambda
-  
-
-expr_simple = \ls ->
-	var tk, val = ls.token, ls.value
-	var line = ls.line
-	var e
-	if tk == 'TK_number'
-		e = Expr.number(val, line)
-	else if tk == 'TK_string'
-		e = Expr.string(val, false, line)
-	else if tk == 'TK_longstring'
-		e = Expr.string(val, true, line)
-	else if tk == 'TK_nil'
-		e = Expr.null(line)
-	else if tk == 'TK_true'
-		e = Expr.bool(true, line)
-	else if tk == 'TK_false'
-		e = Expr.bool(false, line)
-	else if tk == '...'
-		e = Expr.vararg(line)
-	else if tk == '{'
-		return expr_table(ls)
-	else if tk == '\\' or tk == '->' or tk == '~>'
-		return expr_function(ls)
-	else
-		return expr_primary(ls)
-
-	ls.step()
-	return e
+		return typ
 
 
--- nmax checks the max number of expression expected
-expr_list = \ls, nmax ->
-	var exps = {}
-	exps[1] = expr(ls)
-	while ls.token == ','
-		ls.step()
-		exps[#exps + 1] = expr(ls)
-
-	var n = #exps
-	if nmax and n > nmax
-		err_warn(ls, "assigning " .. n .. " values to " .. nmax .. " variable(s)")
-	return exps
+	type_unary = ->
+		var tk = ls.token
+		if tk == '!'
+			ls.step()
+			var t = type_binary(operator.unary_priority)
+			return ty.not(t)
+		else
+			return type_basic()
 
 
-expr_unop = \ls ->
-	var tk = ls.token
-	if tk == 'TK_not' or tk == '-' or tk == '#'
-		var line = ls.line
-		ls.step()
-		var v = expr_binop(ls, operator.unary_priority)
-		return Expr.unary(ls.tostr(tk), v, line)
-	else
-		return expr_simple(ls)
-
-
--- Parse binary expressions with priority higher than the limit.
-expr_binop = \ls, limit ->
-	var v = expr_unop(ls)
-	var op = ls.tostr(ls.token)
-	while operator.is_binop(op) and operator.left_priority(op) > limit
-		var line = ls.line
-		ls.step()
-		var v2, nextop = expr_binop(ls, operator.right_priority(op))
-		v = Expr.binary(op, v, v2, line)
-		op = nextop
-	return v, op
-
-
-expr = \ls ->
-	return expr_binop(ls, 0) -- Priority 0: parse whole expression.
-
-
--- Parse primary and prefix expression
-expr_primary = \ls ->
-	var v, vk
-	if ls.token == '('
-		var line = ls.line
-		ls.step()
-		vk, v = Kind.Expr, ast.bracket(expr(ls))
-		lex_match(ls, ')', '(', line)
-	else --if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')    -- comment out coz err_symbol() will not quit, and v will be nil
-		v, vk = Expr.id(lex_str(ls), ls.line), Kind.Var
-	--else
-	--	err_symbol(ls)
-
-	var val, key
-	while true -- Parse multiple expression suffixes
-		var line = ls.line
-		if ls.token == '.'
-			ls.step() -- skip dot
-			val = v
-			var kw = is_keyword(ls)
-			if kw
-				ls.step()
-				key = Expr.string(kw)
-				vk, v = Kind.Index, Expr.index(val, key)
+	type_binary = \limit ->
+		var l = type_unary()
+		var op = ls.token
+		while operator.is_typeop(op) and operator.left_priority(op) > limit
+			ls.step()
+			var r, nextop = type_binary(operator.right_priority(op))
+			if op == '?'
+				l = ty.or(l, ty.nil())
+			else if op == '|'
+				l = ty.or(l, r)
+			else if op == '&'
+				l = ty.and(l, r)
 			else
-				key = lex_str(ls)
-				vk, v = Kind.Property, Expr.property(val, key)
-		else if ls.token == '['
-			key = expr_bracket(ls)
-			val = v
-			vk, v = Kind.Index, Expr.index(val, key)
-		else if ls.token == '(' -- or ls.token == 'TK_string' or ls.token == '{'
-			var args = parse_args(ls)
-			vk, v = Kind.Call, Expr.call(v, args, line)
-		else
-			break
-
-	return v, vk
-
-
---- Statements ------------------------------------------------
-var parse_return = \ls, line ->
-	ls.step() -- skip 'return'
-	var exps
-	if EndOfChunk[ls.token] or NewLine[ls.token] or EndOfFunction[ls.token]  -- or ls.token == ';'
-		exps = {}
-	else -- return with one or more values
-		exps = expr_list(ls)
-	return Stmt.return(exps, line)
-
-
--- Parse numeric 'for'
-var parse_for_num = \ls, idxname, line ->
-	lex_check(ls, '=')
-	var first = expr(ls)
-	lex_check(ls, ',')
-	var last = expr(ls)
-	var step
-	if lex_opt(ls, ',')
-		step = expr(ls)
-
-	var var = Expr.id(idxname, line)
-	var body = parse_block(ls, line, 'TK_for')
-	return Stmt.fornum(var, first, last, step, body, line)
-
-
--- Parse 'for .. in ..'
-var parse_for_in = \ls, idxname ->
-	var vars = { Expr.id(idxname, ls.line) }
-	while lex_opt(ls, ',')
-		vars[#vars + 1] = Expr.id(lex_str(ls), ls.line)
-
-	lex_check(ls, 'TK_in')
-	var line = ls.line
-	var exps = expr_list(ls)
-	var body = parse_block(ls, line, 'TK_for')
-	return Stmt.forin(vars, exps, body, line)
-
-
--- Parse 'for' statement
-var parse_for = \ls, line ->
-	ls.step()  -- Skip 'for'.
-	var idxname = lex_str(ls)  -- Get first variable name.
-	var stmt
-	if ls.token == '='
-		stmt = parse_for_num(ls, idxname, line)
-	else if ls.token == ',' or ls.token == 'TK_in'
-		stmt = parse_for_in(ls, idxname)
-	else
-		err_instead(ls, 10, "`=` or `in` expected")
-	return stmt
-
-
--- Parse function call argument list
-parse_args = \ls ->
-	var line = ls.line
-	lex_check(ls, '(')
-	if not LJ_52 and line ~= ls.prevline
-		err_warn(ls, "ambiguous syntax (function call x new statement)")
-
-	var dented = false
-	var args = {}
-	while ls.token ~= ')'
-		dented = lex_opt_dent(ls, dented)
-		-- catch common mistake that mess everything later
-		if not dented and ls.token == 'TK_dedent'
-			err_symbol(ls)
-			ls.step()
-		if ls.token == ')'
-			break
-		args[#args + 1] = expr(ls)
-		
-		dented = lex_opt_dent(ls, dented)
-		if not lex_opt(ls, ',')
-			break
-		
-	if dented and not lex_dedent(ls)
-		err_instead(ls, 10, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), line)
-	lex_match(ls, ')', '(', line)
-
-	return args
-
-
-var parse_assignment
-parse_assignment = \ls, lhs, v, vk ->
-	var line = ls.line
-	if vk ~= Kind.Var and vk ~= Kind.Property and vk ~= Kind.Index
-		err_symbol(ls)
-
-	lhs[#lhs+1] = v
-	if lex_opt(ls, ',')
-		var n_var, n_vk = expr_primary(ls)
-		return parse_assignment(ls, lhs, n_var, n_vk)
-	else -- Parse RHS.
-		lex_check(ls, '=')
-		var exps = expr_list(ls, #lhs)
-		return Stmt.assign(lhs, exps, line)
-
-
-var parse_call_assign = \ls ->
-	var v, vk = expr_primary(ls)
-	if vk == Kind.Call
-		return Stmt.expression(v, ls.line)
-	else
-		var lhs = {}
-		return parse_assignment(ls, lhs, v, vk)
-
-
-var parse_var = \ls ->
-	var line = ls.line
-	var names = {}
-
-	do
-		var name = lex_str(ls)
-		var typ = parse_type(ls)
-		names[#names+1] = name
-	until not lex_opt(ls, ',')
-
-	var rhs = {}
-	if lex_opt(ls, '=')
-		rhs = expr_list(ls, #names)
-	
-	var lhs = {}
-	for _, name in ipairs(names)
-		lhs[#lhs+1] = Expr.id(name, line)
-
-	return Stmt.local(lhs, rhs, line)
-
-
-var parse_while = \ls, line ->
-	ls.step() -- Skip 'while'
-	var cond = expr(ls)
-	var body = parse_block(ls, line, 'TK_while')
-	return Stmt.while(cond, body, line)
-
-
-var parse_then = \ls, tests, line ->
-	ls.step()
-	tests[#tests+1] = expr(ls)
-	if ls.token == 'TK_then'
-		err_warn(ls, "`then` is not needed")
-		ls.step()
-	return parse_block(ls, line, 'TK_if')
-
-
-var parse_if = \ls, line ->
-	var tests, blocks = {}, {}
-	blocks[#blocks+1] = parse_then(ls, tests, line)
-	var else_branch
-	while ls.token == 'TK_else' or NewLine[ls.token] and ls.next() == 'TK_else'
-		lex_opt(ls, 'TK_newline')
-		ls.step()
-		if ls.token == 'TK_if'
-			blocks[#blocks+1] = parse_then(ls, tests, line)
-		else
-			else_branch = parse_block(ls, ls.line, 'TK_else')
-			break
-	return Stmt.if(tests, blocks, else_branch, line)
-
-
-var parse_do = \ls, line ->
-	ls.step() -- Skip 'do'
-	var body = parse_block(ls, line, 'TK_do')
-	if lex_opt(ls, 'TK_until')
-		var cond = expr(ls) -- until condition
-		return Stmt.repeat(cond, body, line)
-	return Stmt.do(body, line)
-
-
-var parse_break = \ls, line ->
-	ls.step()
-	return Stmt.break(line)
-
-
-var parse_label = \ls, line ->
-	ls.step() -- Skip '::'
-	var name = lex_str(ls)
-	lex_check(ls, '::')
-	return Stmt.label(name, line)
-
-
-var parse_goto = \ls, line ->
-	var name = lex_str(ls)
-	return Stmt.goto(name, line)
-
-
--- Parse one statement
--- Returns the statement AST and a bool to indicate if it must be the last one in a chunk
-var parse_stmt
-parse_stmt = \ls ->
-	var line = ls.line
-	var stmt
-	if ls.token == 'TK_if'
-		stmt = parse_if(ls, line)
-	else if ls.token == 'TK_for'
-		stmt = parse_for(ls, line)
-	else if ls.token == 'TK_while'
-		stmt = parse_while(ls, line)
-	else if ls.token == 'TK_do'
-		stmt = parse_do(ls, line)
-	else if ls.token == 'TK_repeat'
-		err_symbol(ls)
-		stmt = parse_do(ls, line)
-	--else if ls.token == 'TK_function'
-	--	stmt = parse_func(ls, line)
-	else if ls.token == '\\' or ls.token == '->' or ls.token == '~>'
-		err_syntax(ls, "lambda must either be assigned or immediately invoked")
-		stmt = expr_function(ls)
-	else if ls.token == 'TK_name' and ls.value == 'var'
-		ls.step()
-		stmt = parse_var(ls, line)
-	else if ls.token == 'TK_local'
-		err_symbol(ls)
-		ls.step()
-		stmt = parse_var(ls, line)
-	else if ls.token == 'TK_return'
-		stmt = parse_return(ls, line)
-		return stmt, true -- Must be last
-	else if ls.token == 'TK_break'
-		stmt = parse_break(ls, line)
-		return stmt, not LJ_52 -- Must be last in Lua 5.1
-	else if ls.token == '::'
-		stmt = parse_label(ls, line)
-	else if ls.token == 'TK_goto'
-		if LJ_52 or ls.next() == 'TK_name'
-			ls.step()
-			stmt = parse_goto(ls, line)
-		-- else fall thru
-
-	-- is TK_name, must be function call or assignment
-	if not stmt
-		stmt = parse_call_assign(ls)
-	return stmt, false
-
-
--- Parse list of statements
-var parse_stmts = \ls ->
-	var skip_ends = ->
-		while ls.token == ';' or ls.token == 'TK_end'
-			err_symbol(ls)
-			ls.step()
-		lex_opt(ls, 'TK_newline')
-		
-	var firstline = ls.line
-	var stmt, islast = nil, false
-	var body = {}
-	while not islast and not EndOfChunk[ls.token]
-		stmted = ls.line
-		skip_ends()
-		stmt, islast = parse_stmt(ls)
-		body[#body + 1] = stmt
-		skip_ends()
-		-- disallow multiple statement in one line
-		if stmted == ls.line
-			if ls.token ~= 'TK_eof' and ls.token ~= 'TK_dedent' and ls.next() ~= 'TK_eof'
-				err_instead(ls, 5, "statement should end. %s expected", ls.astext('TK_newline'))
-	return body, firstline, ls.line
-
-
--- Parse indented single or multiple statements
-parse_block = \ls, line, match_token ->
-	var body = {}
-	if lex_indent(ls)
-		body = parse_stmts(ls)
-		if not lex_dedent(ls)
-			err_instead(ls, 10, "%s expected to end %s at line %d", ls.astext('TK_dedent'), ls.astext(match_token), line)
-	else
-		if not EndOfChunk[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
-			-- single line statement
-			body[1] = parse_stmt(ls)
-
-		if not EndOfChunk[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
-			err_instead(ls, 10, "statement should end near %s. %s expected", ls.astext(match_token), ls.astext('TK_newline'))
-		-- returning multiple values need ; if it stays with other expressions on the same line
-		else if EndOfFunction[ls.token]
-			lex_opt(ls, ';')
-	return body
-
-
--- Parse function parameters
-var parse_params = \ls ->
-	var params = {}
-	var rettyp = {}
-	var varargs = false
-	if ls.token ~= '->' and ls.token ~= '~>'
-		do
-			if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')
-				var name = lex_str(ls)
-				var typ = parse_type(ls)
-				params[#params+1] = Expr.id(name, ls.line)
-			else if ls.token == '...'
-				ls.step()
-				varargs = true
-				var typ = parse_type(ls, true)
-				params[#params + 1] = Expr.vararg(ls.line)
-				if ls.next() ~= '/'
-					break
-			else if ls.token == '/'
-				ls.step()  -- skip '/'
-				do
-					rettyp[#rettyp + 1] = parse_type(ls)
-				until not lex_opt(ls, ',')
+				parse_error(10, "unexpected %s", ls_value() or ls.astext(ls.token))
 				break
+			op = nextop
+		return l, op
+
+
+	parse_type = \varargs ->
+		var typ = type_binary(0) -- Priority 0: parse whole type
+		if typ and varargs
+			return ty.varargs(typ)
+		return typ
+
+	--- Expressions ------------------------------------------------
+	var expr_primary, expr, expr_unop, expr_binop, expr_simple, expr_list, expr_table
+	var parse_body, parse_args, parse_block
+
+
+	var expr_bracket = ->
+		ls.step() -- skip '['
+		var v = expr()
+		lex_check(']')
+		return v
+
+
+	expr_table = \loc ->
+		var kvs = {}
+		var dented = false
+		lex_check('{')
+		while ls.token ~= '}'
+			dented = lex_opt_dent(dented)
+			-- catch common mistake that mess everything later
+			if not dented and ls.token == 'TK_dedent'
+				err_symbol()
+				ls.step()
+
+			-- in case the table ends immediately
+			if ls.token == '}'
+				break
+			var key
+			if ls.token == '['
+				key = expr_bracket()
+				lex_check('=')
+			else if ls.next() == '='
+				if ls.token == 'TK_name'
+					var name, at = lex_str()
+					key = Expr.string(name, false, at)
+				-- accept string
+				else if ls.token == 'TK_string'
+					key = Expr.string(ls.value, false, ls)
+					ls.step()
+				-- accept keyword
+				else
+					var name = is_keyword()
+					if name
+						key = Expr.string(name, false, ls)
+					else
+						err_syntax("invalid table key " .. ls_value() or ls.astext(ls.token))
+					ls.step()
+				lex_check('=')
+		
+			var val = expr()
+			if key
+				for i = 1, #kvs
+					var arr = kvs[i]
+					if ast.same(arr[2], key)
+						err_warn("duplicate key at position " .. i .. " and " .. (#kvs + 1) .. " in table")
+		
+			kvs[#kvs + 1] = { val, key }  -- key can be nil
+
+			dented = lex_opt_dent(dented)
+			if ls.token == ';'
+				err_instead(3, "use `,`")
+			if not lex_opt(',') and not lex_opt(';')
+				break
+
+		if dented and not lex_dedent()
+			err_instead(10, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), loc.line)
+		lex_match('}', '{', loc.line)
+		return Expr.table(kvs, loc)
+
+
+	var expr_function = \loc ->
+		if ls.token == '\\'
+			ls.step()
+		var curry, params, body, varargs = parse_body(loc.line)
+		var lambda = Expr.function(params, body, varargs, loc)
+		if curry
+			var cargs = { Expr.number(#params, loc), lambda }
+			return Expr.call(Expr.id('curry', loc), cargs, loc)
+		return lambda
+
+
+	expr_simple = ->
+		var tk, val = ls.token, ls.value
+		var loc = ls.loc()
+		var e
+		if tk == 'TK_number'
+			e = Expr.number(val, loc)
+		else if tk == 'TK_string'
+			e = Expr.string(val, false, loc)
+		else if tk == 'TK_longstring'
+			e = Expr.string(val, true, loc)
+		else if tk == 'TK_nil'
+			e = Expr.null(loc)
+		else if tk == 'TK_true'
+			e = Expr.bool(true, loc)
+		else if tk == 'TK_false'
+			e = Expr.bool(false, loc)
+		else if tk == '...'
+			e = Expr.vararg(loc)
+		else if tk == '{'
+			return expr_table(loc)
+		else if tk == '\\' or tk == '->' or tk == '~>'
+			return expr_function(loc)
+		else
+			return expr_primary()
+
+		ls.step()
+		return e
+
+
+	-- nmax checks the max number of expression expected
+	expr_list = \nmax ->
+		var exps = {}
+		exps[1] = expr()
+		while ls.token == ','
+			ls.step()
+			exps[#exps + 1] = expr()
+
+		var n = #exps
+		if nmax and n > nmax
+			err_warn("assigning " .. n .. " values to " .. nmax .. " variable(s)")
+		return exps
+
+
+	expr_unop = ->
+		var tk = ls.token
+		if tk == 'TK_not' or tk == '-' or tk == '#'
+			ls.step()
+			var v = expr_binop(operator.unary_priority)
+			return Expr.unary(ls.tostr(tk), v, ls)
+		else
+			return expr_simple()
+
+
+	-- Parse binary expressions with priority higher than the limit.
+	expr_binop = \limit ->
+		var v = expr_unop()
+		var op = ls.tostr(ls.token)
+		while operator.is_binop(op) and operator.left_priority(op) > limit
+			ls.step()
+			var v2, nextop = expr_binop(operator.right_priority(op))
+			v = Expr.binary(op, v, v2, ls)
+			op = nextop
+		return v, op
+
+
+	expr = ->
+		return expr_binop(0) -- Priority 0: parse whole expression.
+
+
+	-- Parse primary and prefix expression
+	expr_primary = ->
+		var v, vk
+		if ls.token == '('
+			var line = ls.line
+			ls.step()
+			vk, v = Kind.Expr, ast.bracket(expr())
+			lex_match(')', '(', line)
+		else --if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')    -- comment out coz err_symbol() will not quit, and v will be nil
+			v, vk = Expr.id(lex_str()), Kind.Var
+		--else
+		--	err_symbol()
+
+		var key
+		while true -- Parse multiple expression suffixes
+			var at = ls.loc()
+			if ls.token == '.'
+				ls.step() -- skip dot
+				var kw = is_keyword()
+				if kw
+					key = Expr.string(kw, false, ls)
+					vk, v = Kind.Index, Expr.index(v, key, at)
+					ls.step()
+				else
+					key = lex_str()
+					vk, v = Kind.Property, Expr.property(v, key, at)
+			else if ls.token == '['
+				key = expr_bracket()
+				vk, v = Kind.Index, Expr.index(v, key, at)
+			else if ls.token == '(' -- or ls.token == 'TK_string' or ls.token == '{'
+				var args = parse_args()
+				vk, v = Kind.Call, Expr.call(v, args, at)
 			else
-				err_instead(ls, 10, "parameter expected for `->`")
-		until not lex_opt(ls, ',') and ls.token ~= '/'
+				break
 
-	if ls.token == '->'
+		return v, vk
+
+
+	--- Statements ------------------------------------------------
+	var parse_return = \loc ->
+		ls.step() -- skip 'return'
+		var exps
+		if EndOfChunk[ls.token] or NewLine[ls.token] or EndOfFunction[ls.token]  -- or ls.token == ';'
+			exps = {}
+		else -- return with one or more values
+			exps = expr_list()
+		return Stmt.return(exps, loc)
+
+
+	-- Parse numeric 'for'
+	var parse_for_num = \idxname, idxloc, loc ->
+		var var = Expr.id(idxname, idxloc)
+		lex_check('=')
+		var first = expr()
+		lex_check(',')
+		var last = expr()
+		var step
+		if lex_opt(',')
+			step = expr()
+		var body = parse_block(loc.line, 'TK_for')
+		return Stmt.fornum(var, first, last, step, body, loc)
+
+
+	-- Parse 'for .. in ..'
+	var parse_for_in = \idxname, idxloc, loc ->
+		var vars = { Expr.id(idxname, idxloc) }
+		while lex_opt(',')
+			vars[#vars + 1] = Expr.id(lex_str())
+		lex_check('TK_in')
+		var exps = expr_list()
+		var body = parse_block(loc.line, 'TK_for')
+		return Stmt.forin(vars, exps, body, loc)
+
+
+	-- Parse 'for' statement
+	var parse_for = \loc ->
+		ls.step()  -- skip 'for'
+		var idxname, idxloc = lex_str()  -- Get first variable name.
+		var stmt
+		if ls.token == '='
+			stmt = parse_for_num(idxname, idxloc, loc)
+		else if ls.token == ',' or ls.token == 'TK_in'
+			stmt = parse_for_in(idxname, idxloc, loc)
+		else
+			err_instead(10, "`=` or `in` expected")
+		return stmt
+
+
+	-- Parse function call argument list
+	parse_args = ->
+		var line = ls.line
+		lex_check('(')
+		if not LJ_52 and line ~= ls.prevline
+			err_warn("ambiguous syntax (function call x new statement)")
+
+		var dented = false
+		var args = {}
+		while ls.token ~= ')'
+			dented = lex_opt_dent(dented)
+			-- catch common mistake that mess everything later
+			if not dented and ls.token == 'TK_dedent'
+				err_symbol()
+				ls.step()
+			if ls.token == ')'
+				break
+			args[#args + 1] = expr()
+			
+			dented = lex_opt_dent(dented)
+			if not lex_opt(',')
+				break
+			
+		if dented and not lex_dedent()
+			err_instead(10, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), line)
+		lex_match(')', '(', line)
+
+		return args
+
+
+	var parse_assignment
+	parse_assignment = \lhs, v, vk ->
+		var loc = ls.loc()
+		if vk ~= Kind.Var and vk ~= Kind.Property and vk ~= Kind.Index
+			err_symbol()
+
+		lhs[#lhs+1] = v
+		if lex_opt(',')
+			var n_var, n_vk = expr_primary()
+			return parse_assignment(lhs, n_var, n_vk)
+		else -- Parse RHS.
+			lex_check('=')
+			var exps = expr_list(#lhs)
+			return Stmt.assign(lhs, exps, loc)
+
+
+	var parse_call_assign = \loc ->
+		var v, vk = expr_primary()
+		if vk == Kind.Call
+			return Stmt.expression(v, loc)
+		else
+			var lhs = {}
+			return parse_assignment(lhs, v, vk)
+
+
+	var parse_var = \loc ->
+		var names, locs = {}, {}
+		do
+			var name, at = lex_str()
+			var typ = parse_type()
+			names[#names+1] = name
+			locs[#locs+1] = at
+		until not lex_opt(',')
+
+		var rhs = {}
+		if lex_opt('=')
+			rhs = expr_list(#names)
+		
+		var lhs = {}
+		for i, name in ipairs(names)
+			lhs[i] = Expr.id(name, locs[i])
+
+		return Stmt.local(lhs, rhs, loc)
+
+
+	var parse_while = \loc ->
+		ls.step() -- skip 'while'
+		var cond = expr()
+		var body = parse_block(loc.line, 'TK_while')
+		return Stmt.while(cond, body, loc)
+
+
+	var parse_then = \tests, line ->
+		ls.step() -- skip 'if'
+		tests[#tests+1] = expr()
+		if ls.token == 'TK_then'
+			err_warn("`then` is not needed")
+			ls.step()
+		return parse_block(line, 'TK_if')
+
+
+	var parse_if = \loc ->
+		var tests, blocks = {}, {}
+		blocks[#blocks+1] = parse_then(tests, ls.line)
+		var else_branch
+		while ls.token == 'TK_else' or NewLine[ls.token] and ls.next() == 'TK_else'
+			lex_opt('TK_newline')
+			ls.step()
+			if ls.token == 'TK_if'
+				blocks[#blocks+1] = parse_then(tests, ls.line)
+			else
+				else_branch = parse_block(ls.line, 'TK_else')
+				break
+		return Stmt.if(tests, blocks, else_branch, loc)
+
+
+	var parse_do = \loc ->
+		ls.step() -- skip 'do'
+		var body = parse_block(loc.line, 'TK_do')
+		if lex_opt('TK_until')
+			var cond = expr() -- until condition
+			return Stmt.repeat(cond, body, loc)
+		return Stmt.do(body, loc)
+
+
+	var parse_break = \loc ->
 		ls.step()
-		return false, params, varargs
-	else if ls.token == '~>'
-		ls.step()
-		if varargs
-			err_syntax(ls, "cannot curry variadic parameters with `~>`")
-		if #params < 2
-			err_syntax(ls, "at least 2 parameters needed with `~>`")
-		return true, params, varargs
-	err_expect(ls, '->')
+		return Stmt.break(loc)
 
 
--- Parse function body
-parse_body = \ls, line ->
-	var curry, params, varargs = parse_params(ls)
-	var body = parse_block(ls, line, '->')
-	return curry, params, body, varargs
+	var parse_label = \loc ->
+		ls.step() -- skip '::'
+		var name = lex_str()
+		lex_check('::')
+		return Stmt.label(name, loc)
 
 
-var parse = \ls ->
+	var parse_goto = \loc ->
+		var name = lex_str()
+		return Stmt.goto(name, loc)
+
+
+	-- Parse one statement
+	-- Returns the statement AST and a bool to indicate if it must be the last one in a chunk
+	var parse_stmt
+	parse_stmt = ->
+		var loc = ls.loc()
+		var stmt
+		if ls.token == 'TK_if'
+			stmt = parse_if(loc)
+		else if ls.token == 'TK_for'
+			stmt = parse_for(loc)
+		else if ls.token == 'TK_while'
+			stmt = parse_while(loc)
+		else if ls.token == 'TK_do'
+			stmt = parse_do(loc)
+		else if ls.token == 'TK_repeat'
+			err_symbol()
+			stmt = parse_do(loc)
+		--else if ls.token == 'TK_function'
+		--	stmt = parse_func()
+		else if ls.token == '\\' or ls.token == '->' or ls.token == '~>'
+			err_syntax("lambda must either be assigned or immediately invoked")
+			stmt = expr_function(loc)
+		else if ls.token == 'TK_name' and ls.value == 'var'
+			ls.step()
+			stmt = parse_var(loc)
+		else if ls.token == 'TK_local'
+			err_symbol()
+			ls.step()
+			stmt = parse_var(loc)
+		else if ls.token == 'TK_return'
+			stmt = parse_return(loc)
+			return stmt, true -- Must be last
+		else if ls.token == 'TK_break'
+			stmt = parse_break(loc)
+			return stmt, not LJ_52 -- Must be last in Lua 5.1
+		else if ls.token == '::'
+			stmt = parse_label(loc)
+		else if ls.token == 'TK_goto'
+			if LJ_52 or ls.next() == 'TK_name'
+				ls.step()
+				stmt = parse_goto(loc)
+			-- else fall thru
+
+		-- is TK_name, must be function call or assignment
+		if not stmt
+			stmt = parse_call_assign(loc)
+		return stmt, false
+
+
+	-- Parse list of statements
+	var parse_stmts = ->
+		var skip_ends = ->
+			while ls.token == ';' or ls.token == 'TK_end'
+				err_symbol()
+				ls.step()
+			lex_opt('TK_newline')
+
+		var stmt, islast = nil, false
+		var body = {}
+		while not islast and not EndOfChunk[ls.token]
+			stmted = ls.line
+			skip_ends()
+			stmt, islast = parse_stmt()
+			body[#body + 1] = stmt
+			skip_ends()
+			-- disallow multiple statement in one line
+			if stmted == ls.line
+				if ls.token ~= 'TK_eof' and ls.token ~= 'TK_dedent' and ls.next() ~= 'TK_eof'
+					err_instead(5, "statement should end. %s expected", ls.astext('TK_newline'))
+		return body
+
+
+	-- Parse indented single or multiple statements
+	parse_block = \line, match_token ->
+		var body
+		if lex_indent()
+			body = parse_stmts()
+			if not lex_dedent()
+				err_instead(10, "%s expected to end %s at line %d", ls.astext('TK_dedent'), ls.astext(match_token), line)
+		else
+			if not EndOfChunk[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
+				-- single line statement, parenthesis needed coz parse_stmt() returns 2 values
+				body = { (parse_stmt()) }
+
+			if not EndOfChunk[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
+				err_instead(10, "statement should end near %s. %s expected", ls.astext(match_token), ls.astext('TK_newline'))
+			-- returning multiple values need ; if it stays with other expressions on the same line
+			else if EndOfFunction[ls.token]
+				lex_opt(';')
+		return body or {}
+
+
+	-- Parse function parameters
+	var parse_params = ->
+		var params = {}
+		var rettyp = {}
+		var varargs = false
+		if ls.token ~= '->' and ls.token ~= '~>'
+			do
+				if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')
+					var name, at = lex_str()
+					var typ = parse_type()
+					params[#params+1] = Expr.id(name, at)
+				else if ls.token == '...'
+					ls.step()
+					varargs = true
+					var typ = parse_type(true)
+					params[#params + 1] = Expr.vararg(ls)
+					if ls.next() ~= '/'
+						break
+				else if ls.token == '/'
+					ls.step()  -- skip '/'
+					do
+						rettyp[#rettyp + 1] = parse_type()
+					until not lex_opt(',')
+					break
+				else
+					err_instead(10, "parameter expected for `->`")
+			until not lex_opt(',') and ls.token ~= '/'
+
+		if ls.token == '->'
+			ls.step()
+			return false, params, varargs
+		else if ls.token == '~>'
+			ls.step()
+			if varargs
+				err_syntax("cannot curry variadic parameters with `~>`")
+			if #params < 2
+				err_syntax("at least 2 parameters needed with `~>`")
+			return true, params, varargs
+		err_expect('->')
+
+
+	-- Parse function body
+	parse_body = \line ->
+		var curry, params, varargs = parse_params()
+		var body = parse_block(line, '->')
+		return curry, params, body, varargs
+
+
+
 	ls.step()
-	lex_opt(ls, 'TK_newline')
-	var chunk = parse_stmts(ls)
+	lex_opt('TK_newline')
+	var chunk = parse_stmts()
 	if ls.token ~= 'TK_eof'
-		err_warn(ls, "code should end. unexpected extra " .. ls.astext(ls.token))
+		err_warn("code should end. unexpected extra " .. ls.astext(ls.token))
 	return chunk
 
 
-return parse
+

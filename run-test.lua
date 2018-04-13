@@ -94,7 +94,7 @@ for k, v in pairs(files) do
         print('\n' .. v .. ':')
         filename = folder .. slash .. v
         local code, warns = compile.file(filename, {}, color)
-        if string.len(warns) == 0 then
+        if not warns then
             failed()
         end
     end

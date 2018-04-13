@@ -33,13 +33,14 @@ local compile = function(reader, options, color)
             end
             warns[i] = string.format(" (%d,%d)" .. clr .. "  %s" .. color.reset, m.line, m.col, m.msg)
         end
-        return table.concat(warns, "\n")
+        if #warns > 0 then
+            return table.concat(warns, "\n")
+        end
     end
     local lexer = lex(reader, warn)
-    local tree = transform(parse(lexer))
-    local sc = scope(options.declares, function(severe, msg)
-        lexer.error(lexer, severe, "%s", msg)
-    end)
+    local tree = parse(lexer, warn)
+    tree = transform(tree)
+    local sc = scope(options.declares, warn)
     check(sc, tree, warn)
     for _, w in ipairs(warnings) do
         if w.severity >= 10 then

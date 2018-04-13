@@ -68,13 +68,13 @@ return function(stmts)
             if not func.bracketed then
                 if func.tag == TExpr.Property then
                     table.remove(node.args, 1)
-                    return ast.Expr.invoke(func.obj, func.prop, node.args, node.line)
+                    return ast.Expr.invoke(func.obj, func.prop, node.args, node)
                 elseif func.tag == TExpr.Index then
-                    local obj = ast.Expr.id("_0", node.line)
+                    local obj = ast.Expr.id("_self_", node)
                     node.args[1] = obj
-                    local body = {ast.Stmt["local"]({obj}, {func.obj}, node.line), ast.Stmt["return"]({ast.Expr.call(ast.Expr.index(obj, func.idx), node.args, node.line)}, node.line)}
-                    local lambda = ast.Expr["function"]({}, body, false)
-                    return ast.Expr.call(lambda, {}, node.line)
+                    local body = {ast.Stmt["local"]({obj}, {func.obj}, node), ast.Stmt["return"]({ast.Expr.call(ast.Expr.index(obj, func.idx, node), node.args, node)}, node)}
+                    local lambda = ast.Expr["function"]({}, body, false, node)
+                    return ast.Expr.call(lambda, {}, node)
                 end
             end
         end

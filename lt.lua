@@ -72,7 +72,7 @@ if run and not paths[1] then
             local str = table.concat(list, '\n')
             list = {}
             local code, warns = compile.string(str, {declares = decls}, color)
-            if string.len(warns) > 0 then
+            if warns then
                 io.stderr:write(warns .. "\n")
             end
             if code then
@@ -104,7 +104,7 @@ elseif paths[1] then
     end
     io.stderr:write(" >> " .. dest .. "\n")
     --io.stderr:write(color.magenta, "Error compiling " .. paths[1] .. "\n", color.reset)
-    if string.len(warns) > 0 then
+    if warns then
         io.stderr:write(warns .. "\n")
     end
 

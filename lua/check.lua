@@ -31,16 +31,16 @@ return function(scope, stmts, warn)
     end
     local declare = function(var, vtype)
         assert(var.tag == TExpr.Id)
-        scope.new_var(var.name, vtype, var.line)
+        scope.new_var(var.name, vtype, var.line, var.col)
     end
     Expr[TExpr.Vararg] = function(node)
         if not scope.is_varargs() then
-            warn(node.line, 1, 11, "cannot use `...` in a function without variable arguments")
+            warn(node.line, node.col, 11, "cannot use `...` in a function without variable arguments")
         end
     end
     Expr[TExpr.Id] = function(node)
         if scope.declared(node.name) == 0 then
-            warn(node.line, 1, 10, "undeclared identifier `" .. node.name .. "`")
+            warn(node.line, node.col, 10, "undeclared identifier `" .. node.name .. "`")
         end
     end
     Expr[TExpr.Function] = function(node)
@@ -146,13 +146,13 @@ return function(scope, stmts, warn)
         check_exprs(node.exprs)
     end
     Stmt[TStmt.Break] = function(node)
-        scope.new_break(node.line)
+        scope.new_break(node.line, node.col)
     end
     Stmt[TStmt.Goto] = function(node)
-        scope.new_goto(node.name, node.line)
+        scope.new_goto(node.name, node.line, node.col)
     end
     Stmt[TStmt.Label] = function(node)
-        scope.new_label(node.name, node.line)
+        scope.new_label(node.name, node.line, node.col)
     end
     scope.begin_func()
     scope.varargs()

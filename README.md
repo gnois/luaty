@@ -39,7 +39,9 @@ Shorter syntax
 Aside from having [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule), Luaty is skim on features. Here are the differences from Lua:
 
 - General
-  * no more `then`, `end`, `do`
+  * no more `end`, `then`
+  * no more `do` after `for` and `while`
+  * `repeat` becomes `do`
   * `local` becomes `var`
   * `elseif` becomes `else if`
   * `[[` and `]]` are replaced with backquote \` which can be repeatable multiple times

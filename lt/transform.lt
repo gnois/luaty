@@ -63,20 +63,20 @@ return \stmts ->
 			if not func.bracketed
 				if func.tag == TExpr.Property
 					table.remove(node.args, 1)
-					return ast.Expr.invoke(func.obj, func.prop, node.args, node.line)
+					return ast.Expr.invoke(func.obj, func.prop, node.args, node)
 
 				else if func.tag == TExpr.Index
 					-- simulate a wrapped self method call
-					var obj = ast.Expr.id('_0', node.line)  -- lets hope we dont shadow parent scope variable
+					var obj = ast.Expr.id('_self_', node)  -- lets hope we dont shadow parent scope variable
 					node.args[1] = obj
 					var body = {
-						ast.Stmt.local({obj}, {func.obj}, node.line)
+						ast.Stmt.local({obj}, {func.obj}, node)
 						, ast.Stmt.return({
-							ast.Expr.call(ast.Expr.index(obj, func.idx), node.args, node.line)
-						}, node.line)
+							ast.Expr.call(ast.Expr.index(obj, func.idx, node), node.args, node)
+						}, node)
 					}
-					var lambda = ast.Expr.function({}, body, false)
-					return ast.Expr.call(lambda, {}, node.line)
+					var lambda = ast.Expr.function({}, body, false, node)
+					return ast.Expr.call(lambda, {}, node)
 
 		node.args = visit_exprs(node.args)
 		return node

@@ -38,12 +38,14 @@ var compile = \reader, options, color ->
 			if m.severity >= 10
 				clr = color.red
 			warns[i] = string.format(" (%d,%d)" .. clr ..  "  %s" .. color.reset, m.line, m.col, m.msg)
-		return table.concat(warns, "\n")
+		if #warns > 0
+			return table.concat(warns, "\n")
 
 
 	var lexer = lex(reader, warn)
-	var tree = transform(parse(lexer))
-	var sc = scope(options.declares, \severe, msg -> lexer.error(lexer, severe, "%s", msg))
+	var tree = parse(lexer, warn)
+	tree = transform(tree)
+	var sc = scope(options.declares, warn)
 	check(sc, tree, warn)
 
 	-- not generating if severity >= 10

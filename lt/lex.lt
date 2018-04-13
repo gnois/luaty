@@ -34,7 +34,7 @@ return \read, warn ->
 	var data, n, p = nil, 0, 0
 	-- char and buffer under process
 	var ch, comment_buff = '', ''
-	var buff, bi = {}, 0
+	var buff, bi = {}, 1
 	var newline = nil -- remember the previously found newline
 	var indent = nil  -- current indent level
 	var minus = nil   -- are we at comment or minus
@@ -47,9 +47,9 @@ return \read, warn ->
 	-- state to be returned to caller
 	var state = {
 		prevline = 1
-		, prevpos = 1
+		, prevcol = 1
 		, line = 1
-		, pos = 1
+		, col = 1
 		, token = 'TK_eof'
 		, value = nil
 	}
@@ -67,17 +67,13 @@ return \read, warn ->
 		var tok = fmt_token(token)
 		if tok
 			em = em .. " near " .. tok
-		-- if the buff is too long, pos will be negative, so don't minus away the length of buff
-		var pos = #buff
-		if pos > state.pos
-			pos = state.pos
+		-- if the buff is too long, col will be negative, so don't minus away the length of buff
+		var col = #buff
+		if col > state.col
+			col = state.col
 		else
-			pos = state.pos - pos
-		warn(state.line, pos, 11, string.format(em, ...))
-
-
-	var parse_error = \st, severe, em, ... ->
-		warn(st.line, st.prevpos, severe, string.format(em, ...))
+			col = state.col - col
+		warn(state.line, col, 11, string.format(em, ...))
 
 
 	var popchar = ->
@@ -96,7 +92,7 @@ return \read, warn ->
 
 	var nextchar = ->
 		var c = n > 0 and popchar() or fill()
-		state.pos = state.pos + 1
+		state.col = state.col + 1
 		ch = c
 		return c
 
@@ -111,11 +107,11 @@ return \read, warn ->
 	--`
 	
 	var add_buffer = \c ->
-		bi = bi + 1
 		buff[bi] = c
+		bi = bi + 1
 
 	var clear_buffer = ->
-		buff, bi = {}, 0
+		buff, bi = {}, 1
 		
 	var get_buffer = \begin, last ->
 		return table.concat(buff, '', begin + 1, #buff - last) -- -(last + 1))
@@ -137,7 +133,7 @@ return \read, warn ->
 			-- skip `\n\r' or `\r\n'
 			nextchar()
 		state.line = state.line + 1
-		state.pos = 1
+		state.col = 1
 
 
 	var add_eq = ->
@@ -555,7 +551,7 @@ return \read, warn ->
 
 	var step = ->
 		state.prevline = state.line
-		state.prevpos = state.pos
+		state.prevcol = state.col
 		if lookahead.token == 'TK_eof' -- No lookahead token
 			state.token, state.value = lex()
 		else
@@ -568,13 +564,18 @@ return \read, warn ->
 			lookahead.token, lookahead.value = lex()
 		return lookahead.token, lookahead.value
 
+	var loc = ->
+		return {
+			line = state.line
+			, col = state.prevcol or state.col
+		}
 
 	var lexer = setmetatable(state, { __index = {
 		tostr = token2str
 		, astext = token2text
 		, step = step
 		, next = preview
-		, error = parse_error
+		, loc = loc
 	}})
 
 

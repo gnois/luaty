@@ -31,13 +31,13 @@ end
 return function(read, warn)
     local data, n, p = nil, 0, 0
     local ch, comment_buff = "", ""
-    local buff, bi = {}, 0
+    local buff, bi = {}, 1
     local newline = nil
     local indent = nil
     local minus = nil
     local tabs = nil
     local lookahead = {token = "TK_eof", value = nil}
-    local state = {prevline = 1, prevpos = 1, line = 1, pos = 1, token = "TK_eof", value = nil}
+    local state = {prevline = 1, prevcol = 1, line = 1, col = 1, token = "TK_eof", value = nil}
     local fmt_token = function(token)
         if token then
             if token == "TK_name" or token == "TK_string" or token == "TK_number" then
@@ -54,16 +54,13 @@ return function(read, warn)
         if tok then
             em = em .. " near " .. tok
         end
-        local pos = #buff
-        if pos > state.pos then
-            pos = state.pos
+        local col = #buff
+        if col > state.col then
+            col = state.col
         else
-            pos = state.pos - pos
+            col = state.col - col
         end
-        warn(state.line, pos, 11, string.format(em, ...))
-    end
-    local parse_error = function(st, severe, em, ...)
-        warn(st.line, st.prevpos, severe, string.format(em, ...))
+        warn(state.line, col, 11, string.format(em, ...))
     end
     local popchar = function()
         local k = p
@@ -82,7 +79,7 @@ return function(read, warn)
     end
     local nextchar = function()
         local c = n > 0 and popchar() or fill()
-        state.pos = state.pos + 1
+        state.col = state.col + 1
         ch = c
         return c
     end
@@ -91,11 +88,11 @@ return function(read, warn)
         return string.sub(data, k, k)
     end
     local add_buffer = function(c)
-        bi = bi + 1
         buff[bi] = c
+        bi = bi + 1
     end
     local clear_buffer = function()
-        buff, bi = {}, 0
+        buff, bi = {}, 1
     end
     local get_buffer = function(begin, last)
         return table.concat(buff, "", begin + 1, #buff - last)
@@ -115,7 +112,7 @@ return function(read, warn)
             nextchar()
         end
         state.line = state.line + 1
-        state.pos = 1
+        state.col = 1
     end
     local add_eq = function()
         local count = 0
@@ -547,7 +544,7 @@ return function(read, warn)
     end
     local step = function()
         state.prevline = state.line
-        state.prevpos = state.pos
+        state.prevcol = state.col
         if lookahead.token == "TK_eof" then
             state.token, state.value = lex()
         else
@@ -562,7 +559,10 @@ return function(read, warn)
         end
         return lookahead.token, lookahead.value
     end
-    local lexer = setmetatable(state, {__index = {tostr = token2str, astext = token2text, step = step, next = preview, error = parse_error}})
+    local loc = function()
+        return {line = state.line, col = state.prevcol or state.col}
+    end
+    local lexer = setmetatable(state, {__index = {tostr = token2str, astext = token2text, step = step, next = preview, loc = loc}})
     nextchar()
     if ch == "\xef" and n >= 2 and char(0) == "\xbb" and char(1) == "\xbf" then
         n = n - 2

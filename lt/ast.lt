@@ -3,99 +3,102 @@ var Tag = require('lua.tag')
 var TStmt = Tag.Stmt
 var TExpr = Tag.Expr
 
-var make = \tag, node, line ->
+var make = \tag, node, ls ->
 	assert('table' == type(node))
+	assert('number' == type(ls.line))
+	assert('number' == type(ls.col))
 	node.tag = tag
-	node.line = line
+	node.line = ls.line
+	node.col = ls.col
 	return node
 
 
 var Statement = {
 
-	expression = \expr, line ->
-		return make(TStmt.Expr, {expr = expr}, line)
+	expression = \expr, ls ->
+		return make(TStmt.Expr, {expr = expr}, ls)
 	
-	, assign = \lhs, rhs, line ->
-		return make(TStmt.Assign, {lefts = lhs, rights = rhs}, line)
+	, assign = \lhs, rhs, ls ->
+		return make(TStmt.Assign, {lefts = lhs, rights = rhs}, ls)
 
-	, local = \vars, exprs, line ->
-		return make(TStmt.Local, {vars = vars, exprs = exprs}, line)
+	, local = \vars, exprs, ls ->
+		return make(TStmt.Local, {vars = vars, exprs = exprs}, ls)
 
-	, do = \body, line ->
-		return make(TStmt.Do, {body = body}, line)
+	, do = \body, ls ->
+		return make(TStmt.Do, {body = body}, ls)
 
-	, if = \tests, thenss, elses, line ->
-		return make(TStmt.If, {tests = tests, thenss = thenss, elses = elses}, line)
+	, if = \tests, thenss, elses, ls ->
+		return make(TStmt.If, {tests = tests, thenss = thenss, elses = elses}, ls)
 
-	, forin = \vars, exprs, body, line ->
-		return make(TStmt.Forin, {vars = vars, exprs = exprs, body = body}, line)
+	, forin = \vars, exprs, body, ls ->
+		return make(TStmt.Forin, {vars = vars, exprs = exprs, body = body}, ls)
 
-	, fornum = \var, first, last, step, body, line ->
-		return make(TStmt.Fornum, {var = var, first = first, last = last, step = step, body = body}, line)
+	, fornum = \var, first, last, step, body, ls ->
+		return make(TStmt.Fornum, {var = var, first = first, last = last, step = step, body = body}, ls)
 
-	, while = \test, body, line ->
-		return make(TStmt.While, {test = test, body = body}, line)
+	, while = \test, body, ls ->
+		return make(TStmt.While, {test = test, body = body}, ls)
 
-	, repeat = \test, body, line ->
-		return make(TStmt.Repeat, {test = test, body = body}, line)
+	, repeat = \test, body, ls ->
+		return make(TStmt.Repeat, {test = test, body = body}, ls)
 
-	, return = \exprs, line ->
-		return make(TStmt.Return, {exprs = exprs}, line)
+	, return = \exprs, ls ->
+		return make(TStmt.Return, {exprs = exprs}, ls)
 
-	, break = \line ->
-		return make(TStmt.Break, {}, line)
+	, break = \ls ->
+		return make(TStmt.Break, {}, ls)
 
-	, goto = \name, line ->
-		return make(TStmt.Goto, {name = name}, line)
+	, goto = \name, ls ->
+		return make(TStmt.Goto, {name = name}, ls)
 
-	, label = \name, line ->
-		return make(TStmt.Label, {name = name}, line)
+	, label = \name, ls ->
+		return make(TStmt.Label, {name = name}, ls)
 
 }
 
 var Expression = {
 
-	null = \line ->
-		return make(TExpr.Nil, {}, line)
+	null = \ls ->
+		return make(TExpr.Nil, {}, ls)
 	
-	, vararg = \line ->
-		return make(TExpr.Vararg, {}, line)
+	, vararg = \ls ->
+		return make(TExpr.Vararg, {}, ls)
 
-	, id = \name, line ->
-		return make(TExpr.Id, {name = name}, line)
+	, id = \name, ls ->
+		return make(TExpr.Id, {name = name}, ls)
 
-	, bool = \val, line ->
-		return make(TExpr.Bool, {value = val}, line)
+	, bool = \val, ls ->
+		return make(TExpr.Bool, {value = val}, ls)
 
-	, number = \val, line ->
-		return make(TExpr.Number, {value = val}, line)
+	, number = \val, ls ->
+		return make(TExpr.Number, {value = val}, ls)
 
-	, string = \val, long, line ->
-		return make(TExpr.String, {value = val, long = long}, line)
+	, string = \val, long, ls ->
+		return make(TExpr.String, {value = val, long = long}, ls)
 
-	, function = \params, body, vararg, line ->
-		return make(TExpr.Function, {body = body, params = params, vararg = vararg}, line)
+	, function = \params, body, vararg, ls ->
+		return make(TExpr.Function, {body = body, params = params, vararg = vararg}, ls)
 
-	, table = \keyvals, line ->
-		return make(TExpr.Table, {keyvals = keyvals}, line)
+	, table = \keyvals, ls ->
+		return make(TExpr.Table, {keyvals = keyvals}, ls)
 
-	, index = \obj, index, line ->
-		return make(TExpr.Index, {obj = obj, idx = index}, line)
+	, index = \obj, index, ls ->
+		return make(TExpr.Index, {obj = obj, idx = index}, ls)
 
-	, property = \obj, prop, line ->
-		return make(TExpr.Property, {obj = obj, prop = prop}, line)
+	, property = \obj, prop, ls ->
+		return make(TExpr.Property, {obj = obj, prop = prop}, ls)
 
-	, invoke = \obj, prop, args, line ->
-		return make(TExpr.Invoke, {obj = obj, prop = prop, args = args}, line)
+	, invoke = \obj, prop, args, ls ->
+		return make(TExpr.Invoke, {obj = obj, prop = prop, args = args}, ls)
 
-	, call = \func, args, line ->
-		return make(TExpr.Call, {func = func, args = args}, line)
+	, call = \func, args, ls ->
+		return make(TExpr.Call, {func = func, args = args}, ls)
 
-	, unary = \op, left, line ->
-		return make(TExpr.Unary, {op = op, left = left}, line)
+	, unary = \op, left, ls ->
+		return make(TExpr.Unary, {op = op, left = left}, ls)
 
-	, binary = \op, left, right, line ->
-		return make(TExpr.Binary, {op = op, left = left, right = right}, line)
+	, binary = \op, left, right, ls ->
+		return make(TExpr.Binary, {op = op, left = left, right = right}, ls)
 
 }
 

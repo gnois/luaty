@@ -26,16 +26,16 @@ return \scope, stmts, warn ->
 
 	var declare = \var, vtype ->
 		assert(var.tag == TExpr.Id)
-		scope.new_var(var.name, vtype, var.line)
+		scope.new_var(var.name, vtype, var.line, var.col)
 			
 	--------- Expressions --------------------
 	Expr[TExpr.Vararg] = \node ->
 		if not scope.is_varargs()
-			warn(node.line, 1, 11, "cannot use `...` in a function without variable arguments")
+			warn(node.line, node.col, 11, "cannot use `...` in a function without variable arguments")
 
 	Expr[TExpr.Id] = \node ->
 		if scope.declared(node.name) == 0
-			warn(node.line, 1, 10, "undeclared identifier `" .. node.name .. "`")
+			warn(node.line, node.col, 10, "undeclared identifier `" .. node.name .. "`")
 		
 	Expr[TExpr.Function] = \node ->
 		scope.begin_func()
@@ -135,13 +135,13 @@ return \scope, stmts, warn ->
 		check_exprs(node.exprs)
 
 	Stmt[TStmt.Break] = \node ->
-		scope.new_break(node.line)
+		scope.new_break(node.line, node.col)
 
 	Stmt[TStmt.Goto] = \node ->
-		scope.new_goto(node.name, node.line)
+		scope.new_goto(node.name, node.line, node.col)
 		
 	Stmt[TStmt.Label] = \node ->
-		scope.new_label(node.name, node.line)
+		scope.new_label(node.name, node.line, node.col)
 
 
 	-- main chunk is always a vararg function
