@@ -13,35 +13,34 @@ var generate = require('lua.generate')
  }
 --`
 
-var warnings = {}
-
-var warn = \line, col, severity, msg ->
-	var w = { line = line, col = col, severity = severity, msg = msg }
-	
-	for i, m in ipairs(warnings)
-		-- skip errors at the same line with lower severity
-		if line == m.line and severity < m.severity -- and col == m.col and msg == m.msg
-			return
-		if line < m.line or (line == m.line and col < m.col)
-			-- insert
-			table.insert(warnings, i, w)
-			return
-	-- append
-	table.insert(warnings, w)
-
-
-var tostr = \color ->
-	var warns = {}
-	for i, m in ipairs(warnings)
-		var clr = color.yellow
-		if m.severity >= 10
-			clr = color.red
-		warns[i] = string.format(" (%d,%d)" .. clr ..  "  %s" .. color.reset, m.line, m.col, m.msg)
-	return table.concat(warns, "\n")
-
-
-
 var compile = \reader, options, color ->
+
+	var warnings = {}
+
+	var warn = \line, col, severity, msg ->
+		var w = { line = line, col = col, severity = severity, msg = msg }
+		
+		for i, m in ipairs(warnings)
+			-- skip errors at the same line with lower severity
+			if line == m.line and severity < m.severity -- and col == m.col and msg == m.msg
+				return
+			if line < m.line or (line == m.line and col < m.col)
+				-- insert
+				table.insert(warnings, i, w)
+				return
+		-- append
+		table.insert(warnings, w)
+
+	var tostr = ->
+		var warns = {}
+		for i, m in ipairs(warnings)
+			var clr = color.yellow
+			if m.severity >= 10
+				clr = color.red
+			warns[i] = string.format(" (%d,%d)" .. clr ..  "  %s" .. color.reset, m.line, m.col, m.msg)
+		return table.concat(warns, "\n")
+
+
 	var lexer = lex(reader, warn)
 	var tree = transform(parse(lexer))
 	var sc = scope(options.declares, \severe, msg -> lexer.error(lexer, severe, "%s", msg))

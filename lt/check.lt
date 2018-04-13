@@ -35,7 +35,7 @@ return \scope, stmts, warn ->
 
 	Expr[TExpr.Id] = \node ->
 		if scope.declared(node.name) == 0
-			warn(node.line, 1, 10, "undeclared identifier `" .. node.name)
+			warn(node.line, 1, 10, "undeclared identifier `" .. node.name .. "`")
 		
 	Expr[TExpr.Function] = \node ->
 		scope.begin_func()

@@ -40,7 +40,7 @@ return function(scope, stmts, warn)
     end
     Expr[TExpr.Id] = function(node)
         if scope.declared(node.name) == 0 then
-            warn(node.line, 1, 10, "undeclared identifier `" .. node.name)
+            warn(node.line, 1, 10, "undeclared identifier `" .. node.name .. "`")
         end
     end
     Expr[TExpr.Function] = function(node)
