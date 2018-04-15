@@ -156,8 +156,8 @@ do                              -- Ok, multiple child statements are indented
 
 print((-> return 'a', 1)())     -- Ok, immediately invoked one lined lambda expression
 
-if x == nil for y = 1, 10 repeat until true else if x == 0 p(x) else if x p(x) else assert(not x)
-                -- Ok, `repeat` is the sole children of `for`, which in turn is the sole children of `if`
+if x == nil for y = 1, 10 do until true else if x == 0 p(x) else if x p(x) else assert(not x)
+                -- Ok, `do` is the sole children of `for`, which in turn is the sole children of `if`
 
 ```
 

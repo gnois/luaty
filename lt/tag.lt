@@ -33,4 +33,19 @@ return {
 		, Binary = 36
 	}
 
+	-- nil is a bool property
+	, Kind = {
+		Any = 50
+		, Num = 51
+		, Str = 52
+		, Bool = 53
+		, Func = 54
+		, Tbl = 55
+		, Or = 60
+		, And = 61
+		, Not = 62
+		, Index = 70
+		, Keyed = 71
+		, Custom = 80
+	}
 }

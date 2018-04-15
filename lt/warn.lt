@@ -1,0 +1,34 @@
+
+-- array of warnings, ordered by line,col
+var warnings = {}
+
+var add = \line, col, severity, msg ->
+	var w = { line = line, col = col, severity = severity, msg = msg }
+	
+	for i, m in ipairs(warnings)
+		-- skip errors at the same line with lower severity
+		if line == m.line and severity < m.severity -- and col == m.col and msg == m.msg
+			return
+		if line < m.line or (line == m.line and col < m.col)
+			-- insert
+			table.insert(warnings, i, w)
+			return
+	-- append
+	table.insert(warnings, w)
+
+var format = \color ->
+	var warns = {}
+	for i, m in ipairs(warnings)
+		var clr = color.yellow
+		if m.severity >= 10
+			clr = color.red
+		warns[i] = string.format(" %d,%d:" .. clr ..  "  %s" .. color.reset, m.line, m.col, m.msg)
+	if #warns > 0
+		return table.concat(warns, "\n")
+
+
+return {
+	warnings = warnings
+	, add = add
+	, format = format
+}
