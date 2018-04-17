@@ -1,12 +1,12 @@
 -- Grammar spec refer to https://github.com/Microsoft/TypeScript/blob/master/doc/spec.md#38-specifying-types
 
 var ast = require('lua.ast')
-var ty = require('lua.type')
 var operator = require('lua.operator')
 var reserved = require('lua.reserved')
 
 var Stmt = ast.Stmt
 var Expr = ast.Expr
+var Type = ast.Type
 var Keyword = reserved.Keyword
 var LJ_52 = false
 
@@ -131,7 +131,7 @@ return \ls, warn ->
 	var type_tbl = ->
 		var line = ls.line
 		ls.step()  -- skip '{'
-		var kvs = {}
+		var vks = {}
 		var dented = false
 		while ls.token ~= '}'
 			dented = lex_opt_dent(dented)
@@ -150,21 +150,9 @@ return \ls, warn ->
 				key = val
 				val = parse_type()
 				
-			if key
-				for i = 1, #kvs
-					var arr = kvs[i]
-					if ast.same(arr[2], key)
-						parse_error(10, "similar key type at position %i and %i in table type annotation", i, (#kvs + 1))
-			else
-				if not val
-					err_instead(10, "type expected in table type annotation")
-				else
-					for i = 1, #kvs
-						var arr = kvs[i]
-						if not arr[2] and ast.same(arr[1], val)
-							parse_error(10, "similar value type at position %i and %i in table type annotation", i, (#kvs + 1))
-
-			kvs[#kvs + 1] = { val, key }  -- key can be nil
+			if key and not val
+				err_instead(10, "value type expected in table type annotation")
+			vks[#vks + 1] = { val, key }  -- key can be nil
 
 			dented = lex_opt_dent(dented)
 			if not lex_opt(',')
@@ -173,7 +161,7 @@ return \ls, warn ->
 		if dented and not lex_dedent()
 			err_instead(10, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), line)
 		lex_match('}', '{', line)
-		return ty.tbl(kvs)
+		return Type.tbl(vks)
 
 
 	var type_list = \isparam ->
@@ -206,18 +194,18 @@ return \ls, warn ->
 			returns = type_list(false)
 		
 		lex_match(']', '[', line)
-		return ty.func(params, returns)
+		return Type.func(params, returns)
 
 
 	var type_prefix = ->
 		var typ
 		if ls.token == 'TK_name'
-			typ = ty.custom(ls.value)
+			typ = Type.custom(ls.value)
 			ls.step()
 		else if ls.token == '('
 			var line = ls.line
 			ls.step()
-			typ = ty.bracket(parse_type())
+			typ = Type.bracket(parse_type())
 			lex_match(')', '(', line)
 		else
 			-- parse_error(10, "invalid type annotation %s", ls.astext(ls.token))
@@ -229,7 +217,7 @@ return \ls, warn ->
 			ls.step() 
 			if ls.token ~= 'TK_name'
 				break
-			typ = ty.index(typ, ls.value)
+			typ = Type.index(typ, ls.value)
 			ls.step()  -- skip TK_name
 			
 		return typ
@@ -242,28 +230,19 @@ return \ls, warn ->
 			val = ls.value
 		
 		if val == 'any'
-			typ = ty.any()
-		else if val == 'num' or val == 'number'
-			typ = ty.num()
-			if val == 'number'
-				err_warn("use `num` instead of `number`")
-		else if val == 'str' or val == 'string'
-			typ = ty.str()
-			if val == 'string'
-				err_warn("use `str` instead of `string`")
-		else if val == 'bool' or val == 'boolean'
-			typ = ty.bool()
-			if val == 'boolean'
-				err_warn("use `bool` instead of `boolean`")
+			typ = Type.any()
+		else if val == 'num'
+			typ = Type.num()
+		else if val == 'str'
+			typ = Type.str()
+		else if val == 'bool'
+			typ = Type.bool()
 		else
-			if ls.token == 'TK_nil'
-				typ = ty.nil()
-			else
-				if ls.token == '['
-					return type_func()
-				if ls.token == '{'
-					return type_tbl()
-				return type_prefix()
+			if ls.token == '['
+				return type_func()
+			if ls.token == '{'
+				return type_tbl()
+			return type_prefix()
 
 		ls.step()
 		return typ
@@ -274,7 +253,7 @@ return \ls, warn ->
 		if tk == '!'
 			ls.step()
 			var t = type_binary(operator.unary_priority)
-			return ty.not(t)
+			return Type.not(t)
 		else
 			return type_basic()
 
@@ -286,11 +265,13 @@ return \ls, warn ->
 			ls.step()
 			var r, nextop = type_binary(operator.right_priority(op))
 			if op == '?'
-				l = ty.or(l, ty.nil())
+				if Type.nillable(l)
+					parse_error(10, "type %s is already nullable")
+				l = Type.nils(l)
 			else if op == '|'
-				l = ty.or(l, r)
+				l = Type.or(l, r)
 			else if op == '&'
-				l = ty.and(l, r)
+				l = Type.and(l, r)
 			else
 				parse_error(10, "unexpected %s", ls_value() or ls.astext(ls.token))
 				break
@@ -301,7 +282,7 @@ return \ls, warn ->
 	parse_type = \varargs ->
 		var typ = type_binary(0) -- Priority 0: parse whole type
 		if typ and varargs
-			return ty.varargs(typ)
+			return Type.varargs(typ)
 		return typ
 
 	--- Expressions ------------------------------------------------
@@ -317,7 +298,7 @@ return \ls, warn ->
 
 
 	expr_table = \loc ->
-		var kvs = {}
+		var vks = {}
 		var dented = false
 		lex_check('{')
 		while ls.token ~= '}'
@@ -353,13 +334,7 @@ return \ls, warn ->
 				lex_check('=')
 		
 			var val = expr()
-			if key
-				for i = 1, #kvs
-					var arr = kvs[i]
-					if ast.same(arr[2], key)
-						err_warn("duplicate key at position " .. i .. " and " .. (#kvs + 1) .. " in table")
-		
-			kvs[#kvs + 1] = { val, key }  -- key can be nil
+			vks[#vks + 1] = { val, key }  -- key can be nil
 
 			dented = lex_opt_dent(dented)
 			if ls.token == ';'
@@ -370,7 +345,7 @@ return \ls, warn ->
 		if dented and not lex_dedent()
 			err_instead(10, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), loc.line)
 		lex_match('}', '{', loc.line)
-		return Expr.table(kvs, loc)
+		return Expr.table(vks, loc)
 
 
 	var expr_function = \loc ->
@@ -395,7 +370,7 @@ return \ls, warn ->
 		else if tk == 'TK_longstring'
 			e = Expr.string(val, true, loc)
 		else if tk == 'TK_nil'
-			e = Expr.null(loc)
+			e = Expr.nil(loc)
 		else if tk == 'TK_true'
 			e = Expr.bool(true, loc)
 		else if tk == 'TK_false'
@@ -461,10 +436,14 @@ return \ls, warn ->
 			ls.step()
 			vk, v = Kind.Expr, ast.bracket(expr())
 			lex_match(')', '(', line)
-		else --if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')    -- comment out coz err_symbol() will not quit, and v will be nil
-			v, vk = Expr.id(lex_str()), Kind.Var
-		--else
-		--	err_symbol()
+		else
+			var str
+			var loc = ls.loc()
+			if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')
+				str, loc = lex_str()
+			else
+				err_symbol()
+			v, vk = Expr.id(str, loc), Kind.Var
 
 		var key
 		while true -- Parse multiple expression suffixes

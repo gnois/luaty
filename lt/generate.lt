@@ -168,11 +168,11 @@ var generate = \stmts ->
 
 	Expr[TExpr.Table] = \node ->
 		var hash = {}
-		var last = #node.keyvals
+		var last = #node.valkeys
 		for i = 1, last
-			var kv = node.keyvals[i]
-			var val = expr_emit(kv[1])
-			var key = kv[2]
+			var vk = node.valkeys[i]
+			var val = expr_emit(vk[1])
+			var key = vk[2]
 			if key
 				if is_plain_string(key)
 					hash[i] = format("%s = %s", key.value, val)
@@ -180,7 +180,7 @@ var generate = \stmts ->
 					hash[i] = format("[%s] = %s", expr_emit(key), val)
 			
 			else
-				if i == last and kv[1].bracketed
+				if i == last and vk[1].bracketed
 					hash[i] = format("(%s)", val)
 				else
 					hash[i] = format("%s", val)

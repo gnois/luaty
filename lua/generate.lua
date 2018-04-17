@@ -165,11 +165,11 @@ local generate = function(stmts)
     end
     Expr[TExpr.Table] = function(node)
         local hash = {}
-        local last = #node.keyvals
+        local last = #node.valkeys
         for i = 1, last do
-            local kv = node.keyvals[i]
-            local val = expr_emit(kv[1])
-            local key = kv[2]
+            local vk = node.valkeys[i]
+            local val = expr_emit(vk[1])
+            local key = vk[2]
             if key then
                 if is_plain_string(key) then
                     hash[i] = format("%s = %s", key.value, val)
@@ -177,7 +177,7 @@ local generate = function(stmts)
                     hash[i] = format("[%s] = %s", expr_emit(key), val)
                 end
             else
-                if i == last and kv[1].bracketed then
+                if i == last and vk[1].bracketed then
                     hash[i] = format("(%s)", val)
                 else
                     hash[i] = format("%s", val)

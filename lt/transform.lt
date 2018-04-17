@@ -37,13 +37,13 @@ return \stmts ->
 		return node
 
 	Expr[TExpr.Table] = \node ->
-		var keyvals = {}
-		for i, kv in ipairs(node.keyvals)
-			keyvals[i] = {}
-			keyvals[i][1] = visit_expr(kv[1])
+		var valkeys = {}
+		for i, kv in ipairs(node.valkeys)
+			valkeys[i] = {}
+			valkeys[i][1] = visit_expr(kv[1])
 			if kv[2]
-				keyvals[i][2] = visit_expr(kv[2])
-		node.keyvals = keyvals
+				valkeys[i][2] = visit_expr(kv[2])
+		node.valkeys = valkeys
 		return node
 
 	Expr[TExpr.Index] = \node ->

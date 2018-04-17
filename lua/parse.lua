@@ -3,11 +3,11 @@
 --
 
 local ast = require("lua.ast")
-local ty = require("lua.type")
 local operator = require("lua.operator")
 local reserved = require("lua.reserved")
 local Stmt = ast.Stmt
 local Expr = ast.Expr
+local Type = ast.Type
 local Keyword = reserved.Keyword
 local LJ_52 = false
 local EndOfChunk = {TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true}
@@ -119,7 +119,7 @@ return function(ls, warn)
     local type_tbl = function()
         local line = ls.line
         ls.step()
-        local kvs = {}
+        local vks = {}
         local dented = false
         while ls.token ~= "}" do
             dented = lex_opt_dent(dented)
@@ -137,26 +137,10 @@ return function(ls, warn)
                 key = val
                 val = parse_type()
             end
-            if key then
-                for i = 1, #kvs do
-                    local arr = kvs[i]
-                    if ast.same(arr[2], key) then
-                        parse_error(10, "similar key type at position %i and %i in table type annotation", i, (#kvs + 1))
-                    end
-                end
-            else
-                if not val then
-                    err_instead(10, "type expected in table type annotation")
-                else
-                    for i = 1, #kvs do
-                        local arr = kvs[i]
-                        if not arr[2] and ast.same(arr[1], val) then
-                            parse_error(10, "similar value type at position %i and %i in table type annotation", i, (#kvs + 1))
-                        end
-                    end
-                end
+            if key and not val then
+                err_instead(10, "value type expected in table type annotation")
             end
-            kvs[#kvs + 1] = {val, key}
+            vks[#vks + 1] = {val, key}
             dented = lex_opt_dent(dented)
             if not lex_opt(",") then
                 break
@@ -166,7 +150,7 @@ return function(ls, warn)
             err_instead(10, "%s expected to match %s at line %d", ls.astext("TK_dedent"), ls.astext("TK_indent"), line)
         end
         lex_match("}", "{", line)
-        return ty.tbl(kvs)
+        return Type.tbl(vks)
     end
     local type_list = function(isparam)
         local list = {}
@@ -193,17 +177,17 @@ return function(ls, warn)
             returns = type_list(false)
         end
         lex_match("]", "[", line)
-        return ty.func(params, returns)
+        return Type.func(params, returns)
     end
     local type_prefix = function()
         local typ
         if ls.token == "TK_name" then
-            typ = ty.custom(ls.value)
+            typ = Type.custom(ls.value)
             ls.step()
         elseif ls.token == "(" then
             local line = ls.line
             ls.step()
-            typ = ty.bracket(parse_type())
+            typ = Type.bracket(parse_type())
             lex_match(")", "(", line)
         else
             return typ
@@ -213,7 +197,7 @@ return function(ls, warn)
             if ls.token ~= "TK_name" then
                 break
             end
-            typ = ty.index(typ, ls.value)
+            typ = Type.index(typ, ls.value)
             ls.step()
         end
         return typ
@@ -225,34 +209,21 @@ return function(ls, warn)
             val = ls.value
         end
         if val == "any" then
-            typ = ty.any()
-        elseif val == "num" or val == "number" then
-            typ = ty.num()
-            if val == "number" then
-                err_warn("use `num` instead of `number`")
-            end
-        elseif val == "str" or val == "string" then
-            typ = ty.str()
-            if val == "string" then
-                err_warn("use `str` instead of `string`")
-            end
-        elseif val == "bool" or val == "boolean" then
-            typ = ty.bool()
-            if val == "boolean" then
-                err_warn("use `bool` instead of `boolean`")
-            end
+            typ = Type.any()
+        elseif val == "num" then
+            typ = Type.num()
+        elseif val == "str" then
+            typ = Type.str()
+        elseif val == "bool" then
+            typ = Type.bool()
         else
-            if ls.token == "TK_nil" then
-                typ = ty["nil"]()
-            else
-                if ls.token == "[" then
-                    return type_func()
-                end
-                if ls.token == "{" then
-                    return type_tbl()
-                end
-                return type_prefix()
+            if ls.token == "[" then
+                return type_func()
             end
+            if ls.token == "{" then
+                return type_tbl()
+            end
+            return type_prefix()
         end
         ls.step()
         return typ
@@ -262,7 +233,7 @@ return function(ls, warn)
         if tk == "!" then
             ls.step()
             local t = type_binary(operator.unary_priority)
-            return ty["not"](t)
+            return Type["not"](t)
         else
             return type_basic()
         end
@@ -274,11 +245,14 @@ return function(ls, warn)
             ls.step()
             local r, nextop = type_binary(operator.right_priority(op))
             if op == "?" then
-                l = ty["or"](l, ty["nil"]())
+                if Type.nillable(l) then
+                    parse_error(10, "type %s is already nullable")
+                end
+                l = Type.nils(l)
             elseif op == "|" then
-                l = ty["or"](l, r)
+                l = Type["or"](l, r)
             elseif op == "&" then
-                l = ty["and"](l, r)
+                l = Type["and"](l, r)
             else
                 parse_error(10, "unexpected %s", ls_value() or ls.astext(ls.token))
                 break
@@ -290,7 +264,7 @@ return function(ls, warn)
     parse_type = function(varargs)
         local typ = type_binary(0)
         if typ and varargs then
-            return ty.varargs(typ)
+            return Type.varargs(typ)
         end
         return typ
     end
@@ -303,7 +277,7 @@ return function(ls, warn)
         return v
     end
     expr_table = function(loc)
-        local kvs = {}
+        local vks = {}
         local dented = false
         lex_check("{")
         while ls.token ~= "}" do
@@ -338,15 +312,7 @@ return function(ls, warn)
                 lex_check("=")
             end
             local val = expr()
-            if key then
-                for i = 1, #kvs do
-                    local arr = kvs[i]
-                    if ast.same(arr[2], key) then
-                        err_warn("duplicate key at position " .. i .. " and " .. #kvs + 1 .. " in table")
-                    end
-                end
-            end
-            kvs[#kvs + 1] = {val, key}
+            vks[#vks + 1] = {val, key}
             dented = lex_opt_dent(dented)
             if ls.token == ";" then
                 err_instead(3, "use `,`")
@@ -359,7 +325,7 @@ return function(ls, warn)
             err_instead(10, "%s expected to match %s at line %d", ls.astext("TK_dedent"), ls.astext("TK_indent"), loc.line)
         end
         lex_match("}", "{", loc.line)
-        return Expr.table(kvs, loc)
+        return Expr.table(vks, loc)
     end
     local expr_function = function(loc)
         if ls.token == "\\" then
@@ -384,7 +350,7 @@ return function(ls, warn)
         elseif tk == "TK_longstring" then
             e = Expr.string(val, true, loc)
         elseif tk == "TK_nil" then
-            e = Expr.null(loc)
+            e = Expr["nil"](loc)
         elseif tk == "TK_true" then
             e = Expr.bool(true, loc)
         elseif tk == "TK_false" then
@@ -446,7 +412,14 @@ return function(ls, warn)
             vk, v = Kind.Expr, ast.bracket(expr())
             lex_match(")", "(", line)
         else
-            v, vk = Expr.id(lex_str()), Kind.Var
+            local str
+            local loc = ls.loc()
+            if ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
+                str, loc = lex_str()
+            else
+                err_symbol()
+            end
+            v, vk = Expr.id(str, loc), Kind.Var
         end
         local key
         while true do

@@ -79,10 +79,10 @@ return function(stmts)
     Expr[TExpr.Table] = function(node)
         local body = {}
         local key, val
-        for i, kv in ipairs(node.keyvals) do
-            val = visit_expr(kv[1])
-            if kv[2] then
-                key = visit_expr(kv[2])
+        for i, vk in ipairs(node.valkeys) do
+            val = visit_expr(vk[1])
+            if vk[2] then
+                key = visit_expr(vk[2])
                 body[i] = key .. "=" .. val
             else
                 body[i] = val

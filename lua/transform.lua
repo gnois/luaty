@@ -40,15 +40,15 @@ return function(stmts)
         return node
     end
     Expr[TExpr.Table] = function(node)
-        local keyvals = {}
-        for i, kv in ipairs(node.keyvals) do
-            keyvals[i] = {}
-            keyvals[i][1] = visit_expr(kv[1])
+        local valkeys = {}
+        for i, kv in ipairs(node.valkeys) do
+            valkeys[i] = {}
+            valkeys[i][1] = visit_expr(kv[1])
             if kv[2] then
-                keyvals[i][2] = visit_expr(kv[2])
+                valkeys[i][2] = visit_expr(kv[2])
             end
         end
-        node.keyvals = keyvals
+        node.valkeys = valkeys
         return node
     end
     Expr[TExpr.Index] = function(node)

@@ -77,10 +77,10 @@ return \stmts ->
 	Expr[TExpr.Table] = \node ->
 		var body = {}
 		var key, val
-		for i, kv in ipairs(node.keyvals)
-			val = visit_expr(kv[1])
-			if kv[2]
-				key = visit_expr(kv[2])
+		for i, vk in ipairs(node.valkeys)
+			val = visit_expr(vk[1])
+			if vk[2]
+				key = visit_expr(vk[2])
 				body[i] = key .. "=" .. val
 			else
 				body[i] = val

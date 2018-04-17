@@ -34,7 +34,7 @@ return {
 	}
 
 	-- nil is a bool property
-	, Kind = {
+	, Type = {
 		Any = 50
 		, Num = 51
 		, Str = 52

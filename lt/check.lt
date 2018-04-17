@@ -1,13 +1,59 @@
 var Tag = require('lua.tag')
 var TStmt = Tag.Stmt
 var TExpr = Tag.Expr
+var TType = Tag.Type
+
+-- check if ast are the same
+var same
+same = \a, b ->
+	if a and b and a.tag == b.tag
+		-- http://stackoverflow.com/questions/27674367/lua-check-if-a-table-can-be-looped-through-via-ipairs-ipairs-starting-at-0
+		if #a ~= #b
+			return false
+
+		-- check array part
+		var last = 1
+		for i, v in ipairs(a)
+			last = i
+			if 'table' == type(v)
+				if not same(v, b[i])
+					return false
+			else if b[i] ~= v
+				return false
+	
+		-- check hashmap part
+		for k, v in pairs(a)
+			if 'number' ~= type(k) or k < 1 or k > last or math.floor(k) ~= k
+				-- ignore line,col
+				if k ~= 'line' and k ~= 'col'
+					if 'table' == type(v)
+						if not same(v, b[k])
+							return false
+					else if b[k] ~= v
+						return false
+	
+		-- b may have more keys than a
+		for k, v in pairs(b)
+			if 'number' ~= type(k) or k < 1 or k > last or math.floor(k) ~= k
+				-- ignore line,col
+				if k ~= 'line' and k ~= 'col'
+					if 'table' == type(v)
+						if not same(v, a[k])
+							return false
+					else if a[k] ~= v
+						return false
+	
+		return true
+	return false
+
 
 
 return \scope, stmts, warn ->
 
 	var Stmt = {}
 	var Expr = {}
-
+	var Type = {}
+	
 	var check_block = \nodes ->
 		scope.enter_block()
 		for _, node in ipairs(nodes)
@@ -23,18 +69,42 @@ return \scope, stmts, warn ->
 		for _, node in ipairs(nodes)
 			check_expr(node)
 
+	var check_type = \node ->
+		var rule = Type[node.tag]
+		if rule rule(node)
 
 	var declare = \var, vtype ->
 		assert(var.tag == TExpr.Id)
 		scope.new_var(var.name, vtype, var.line, var.col)
+	
+	--------- Types --------------------------
+	Type[TType.Tbl] = \node ->
+		var vals = {}
+		var keys = {}
+		for i, vk in ipairs(node.valkeys)
+			var key = vk[2]
+			if key
+				for n = 1, #keys
+					if keys[n] and same(keys[n], key)
+						warn(key.line, key.col, 10, "duplicate keys at position " .. i .. " and " .. n .. " in table type annotation")
+			keys[i] = key
 			
+			var val = vk[1]
+			if val and not key
+				for n = 1, #vals
+					if vals[n] and same(vals[n], val)
+						warn(val.line, val.col, 10, "similar value types at position " .. i .. " and " .. n .. " in table type annotation")
+				vals[i] = val
+
+	
 	--------- Expressions --------------------
 	Expr[TExpr.Vararg] = \node ->
 		if not scope.is_varargs()
 			warn(node.line, node.col, 11, "cannot use `...` in a function without variable arguments")
 
 	Expr[TExpr.Id] = \node ->
-		if scope.declared(node.name) == 0
+		-- node.name can be nil, bcoz the parser continues despite error
+		if node.name and scope.declared(node.name) == 0
 			warn(node.line, node.col, 10, "undeclared identifier `" .. node.name .. "`")
 		
 	Expr[TExpr.Function] = \node ->
@@ -48,10 +118,17 @@ return \scope, stmts, warn ->
 		scope.end_func()
 
 	Expr[TExpr.Table] = \node ->
-		for _, kv in ipairs(node.keyvals)
-			check_expr(kv[1])
-			if kv[2]
-				check_expr(kv[2])
+		-- collect keys to check for duplicate
+		var keys = {}
+		for i, vk in ipairs(node.valkeys)
+			check_expr(vk[1])
+			var key = vk[2]
+			if key
+				check_expr(key)
+				for n = 1, #keys
+					if keys[n] and same(key, keys[n])
+						warn(key.line, key.col, 10, "duplicate keys at position " .. i .. " and " .. n .. " in table")
+			keys[i] = key
 
 	Expr[TExpr.Index] = \node ->
 		check_expr(node.obj)
@@ -150,3 +227,4 @@ return \scope, stmts, warn ->
 	check_block(stmts)
 	scope.end_func()
 	
+

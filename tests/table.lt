@@ -84,10 +84,6 @@ assert(t[3] == 'boo')
 assert(t[4] == 21)
 
 
-var x, y = 3, 4
------------ var u = {[y-x] = 1, [2*x-y] = 4, [x] = 9, [y] = 16, [2*y-x] = 25, [2*x-y] = 36}  -- duplicate key at pos 2 and 6
---print(u[1], u[2], u[3], u[4], u[5])
-
 
 var s = '0'
 var con = {
@@ -95,12 +91,6 @@ var con = {
 	, ['a' .. s .. '0'] = 2
 }
 
---`
-var cat = {
-	['b' .. s] = 7
-	, ['b' .. s] = 8   -- duplicate at pos 1 and 2
-}  
---`
 
 var w = { pi = 3.14, ciao = 'hello', 1, list = {3, 7, 'boum'}, 4, 9}
 assert(#w.list == 3)

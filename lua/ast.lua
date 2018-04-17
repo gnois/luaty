@@ -5,6 +5,7 @@
 local Tag = require("lua.tag")
 local TStmt = Tag.Stmt
 local TExpr = Tag.Expr
+local TType = Tag.Type
 local make = function(tag, node, ls)
     assert("table" == type(node))
     assert("number" == type(ls.line))
@@ -41,7 +42,7 @@ end, ["goto"] = function(name, ls)
 end, label = function(name, ls)
     return make(TStmt.Label, {name = name}, ls)
 end}
-local Expression = {null = function(ls)
+local Expression = {["nil"] = function(ls)
     return make(TExpr.Nil, {}, ls)
 end, vararg = function(ls)
     return make(TExpr.Vararg, {}, ls)
@@ -55,8 +56,8 @@ end, string = function(val, long, ls)
     return make(TExpr.String, {value = val, long = long}, ls)
 end, ["function"] = function(params, body, vararg, ls)
     return make(TExpr.Function, {body = body, params = params, vararg = vararg}, ls)
-end, table = function(keyvals, ls)
-    return make(TExpr.Table, {keyvals = keyvals}, ls)
+end, table = function(valkeys, ls)
+    return make(TExpr.Table, {valkeys = valkeys}, ls)
 end, index = function(obj, index, ls)
     return make(TExpr.Index, {obj = obj, idx = index}, ls)
 end, property = function(obj, prop, ls)
@@ -70,52 +71,44 @@ end, unary = function(op, left, ls)
 end, binary = function(op, left, right, ls)
     return make(TExpr.Binary, {op = op, left = left, right = right}, ls)
 end}
+local Type = {any = function()
+    return make(TType.Any, {})
+end, num = function()
+    return make(TType.Num, {})
+end, str = function()
+    return make(TType.Str, {})
+end, bool = function()
+    return make(TType.Bool, {})
+end, func = function(params, returns)
+    return make(TType.Func, {params = params, returns = returns})
+end, tbl = function(valkeys)
+    return make(TType.Tbl, {valkeys = valkeys})
+end, ["or"] = function(left, right)
+    return make(TType.Or, {left = left, right = right})
+end, ["and"] = function(left, right)
+    return make(TType.And, {left = left, right = right})
+end, ["not"] = function(ty)
+    return make(TType.Not, {ty})
+end, index = function(obj, prop)
+    return make(TType.Index, {obj = obj, prop = prop})
+end, keyed = function(name)
+    return make(TType.Keyed, {name = name})
+end, custom = function(name)
+    return make(TType.Custom, {name = name})
+end}
 local bracket = function(node)
-    assert("table" == type(node))
     node.bracketed = true
     return node
 end
-local same
-same = function(a, b)
-    if a and b and a.tag == b.tag then
-        local last = 1
-        if #a ~= #b then
-            return false
-        end
-        for i, v in ipairs(a) do
-            last = i
-            if "table" == type(v) then
-                if not same(v, b[i]) then
-                    return false
-                end
-            elseif b[i] ~= v then
-                return false
-            end
-        end
-        for k, v in pairs(a) do
-            if "number" ~= type(k) or k < 1 or k > last or math.floor(k) ~= k then
-                if "table" == type(v) then
-                    if not same(v, b[k]) then
-                        return false
-                    end
-                elseif b[k] ~= v then
-                    return false
-                end
-            end
-        end
-        for k, v in pairs(b) do
-            if "number" ~= type(k) or k < 1 or k > last or math.floor(k) ~= k then
-                if "table" == type(v) then
-                    if not same(v, a[k]) then
-                        return false
-                    end
-                elseif a[k] ~= v then
-                    return false
-                end
-            end
-        end
-        return true
-    end
-    return false
+local nils = function(node)
+    node["nil"] = true
+    return node
 end
-return {Stmt = Statement, Expr = Expression, bracket = bracket, same = same}
+local varargs = function(node)
+    node.varargs = true
+    return node
+end
+local nillable = function(node)
+    return node["nil"]
+end
+return {Stmt = Statement, Expr = Expression, Type = Type, bracket = bracket, nils = nils, varargs = varargs, nillable = nillable}
