@@ -128,8 +128,7 @@ return \ls, warn ->
 	var parse_type, type_unary, type_binary, type_basic 
 
 	-- Only table type annotation can span multiple lines
-	var type_tbl = ->
-		var line = ls.line
+	var type_tbl = \loc ->
 		ls.step()  -- skip '{'
 		var vks = {}
 		var dented = false
@@ -159,21 +158,23 @@ return \ls, warn ->
 				break
 
 		if dented and not lex_dedent()
-			err_instead(10, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), line)
-		lex_match('}', '{', line)
-		return Type.tbl(vks)
+			err_instead(10, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), loc.line)
+		lex_match('}', '{', loc.line)
+		return Type.tbl(vks, loc)
 
 
 	var type_list = \isparam ->
-		var list = {}
-		if not (isparam and ls.token == '/' or ls.token == ']')
+		var list, l = {}, 0
+		if not (isparam and ls.token == ':' or ls.token == ']')
 			do
 				if ls.token == '...'
 					ls.step()
-					list[#list + 1] = parse_type(true)
+					l = l + 1
+					list[l] = parse_type(true)
 					break
 				else
-					list[#list+1] = parse_type()
+					l = l + 1
+					list[l] = parse_type()
 					--``
 					var which = "return"
 					if isparam
@@ -184,64 +185,63 @@ return \ls, warn ->
 		return list
 
 
-	var type_func = ->
-		var line = ls.line
+	var type_func = \loc ->
 		ls.step()  -- skip '['
 		var params = type_list(true)
 		var returns
-		if ls.token == '/'
+		if ls.token == ':'
 			ls.step()
 			returns = type_list(false)
 		
-		lex_match(']', '[', line)
-		return Type.func(params, returns)
+		lex_match(']', '[', loc.line)
+		return Type.func(params, returns, loc)
 
 
 	var type_prefix = ->
+		var loc = ls.loc()
 		var typ
 		if ls.token == 'TK_name'
-			typ = Type.custom(ls.value)
+			typ = Type.custom(ls.value, loc)
 			ls.step()
 		else if ls.token == '('
-			var line = ls.line
 			ls.step()
-			typ = Type.bracket(parse_type())
-			lex_match(')', '(', line)
+			typ = ast.bracket(parse_type())
+			lex_match(')', '(', loc.line)
 		else
 			-- parse_error(10, "invalid type annotation %s", ls.astext(ls.token))
 			-- optional typing
-			return typ
+			return
 
 		-- Parse multiple type suffix
 		while ls.token == '.'  -- type name cannot have `-`, so no need to consider `[`
 			ls.step() 
 			if ls.token ~= 'TK_name'
 				break
-			typ = Type.index(typ, ls.value)
+			typ = Type.index(typ, ls.value, ls.loc())
 			ls.step()  -- skip TK_name
 			
 		return typ
 
 
 	type_basic = ->
-		var typ
+		var loc = ls.loc()
 		var val
 		if ls.token == 'TK_name'
 			val = ls.value
-		
+		var typ
 		if val == 'any'
-			typ = Type.any()
+			typ = Type.any(loc)
 		else if val == 'num'
-			typ = Type.num()
+			typ = Type.num(loc)
 		else if val == 'str'
-			typ = Type.str()
+			typ = Type.str(loc)
 		else if val == 'bool'
-			typ = Type.bool()
+			typ = Type.bool(loc)
 		else
 			if ls.token == '['
-				return type_func()
+				return type_func(loc)
 			if ls.token == '{'
-				return type_tbl()
+				return type_tbl(loc)
 			return type_prefix()
 
 		ls.step()
@@ -252,8 +252,9 @@ return \ls, warn ->
 		var tk = ls.token
 		if tk == '!'
 			ls.step()
+			var loc = ls.loc()
 			var t = type_binary(operator.unary_priority)
-			return Type.not(t)
+			return Type.not(t, loc)
 		else
 			return type_basic()
 
@@ -263,15 +264,16 @@ return \ls, warn ->
 		var op = ls.token
 		while operator.is_typeop(op) and operator.left_priority(op) > limit
 			ls.step()
+			var loc = ls.loc()
 			var r, nextop = type_binary(operator.right_priority(op))
 			if op == '?'
-				if Type.nillable(l)
+				if ast.nillable(l)
 					parse_error(10, "type %s is already nullable")
-				l = Type.nils(l)
+				l = ast.nils(l)
 			else if op == '|'
-				l = Type.or(l, r)
+				l = Type.or(l, r, loc)
 			else if op == '&'
-				l = Type.and(l, r)
+				l = Type.and(l, r, loc)
 			else
 				parse_error(10, "unexpected %s", ls_value() or ls.astext(ls.token))
 				break
@@ -282,7 +284,7 @@ return \ls, warn ->
 	parse_type = \varargs ->
 		var typ = type_binary(0) -- Priority 0: parse whole type
 		if typ and varargs
-			return Type.varargs(typ)
+			return ast.varargs(typ)
 		return typ
 
 	--- Expressions ------------------------------------------------
@@ -351,8 +353,8 @@ return \ls, warn ->
 	var expr_function = \loc ->
 		if ls.token == '\\'
 			ls.step()
-		var curry, params, body, varargs = parse_body(loc.line)
-		var lambda = Expr.function(params, body, varargs, loc)
+		var curry, params, types, _, retypes, body = parse_body(loc.line)
+		var lambda = Expr.function(params, types, retypes, body, loc)
 		if curry
 			var cargs = { Expr.number(#params, loc), lambda }
 			return Expr.call(Expr.id('curry', loc), cargs, loc)
@@ -482,8 +484,8 @@ return \ls, warn ->
 
 
 	-- Parse numeric 'for'
-	var parse_for_num = \idxname, idxloc, loc ->
-		var var = Expr.id(idxname, idxloc)
+	var parse_for_num = \loc ->
+		var var = Expr.id(lex_str())
 		lex_check('=')
 		var first = expr()
 		lex_check(',')
@@ -495,29 +497,23 @@ return \ls, warn ->
 		return Stmt.fornum(var, first, last, step, body, loc)
 
 
-	-- Parse 'for .. in ..'
-	var parse_for_in = \idxname, idxloc, loc ->
-		var vars = { Expr.id(idxname, idxloc) }
-		while lex_opt(',')
-			vars[#vars + 1] = Expr.id(lex_str())
-		lex_check('TK_in')
-		var exps = expr_list()
-		var body = parse_block(loc.line, 'TK_for')
-		return Stmt.forin(vars, exps, body, loc)
-
-
 	-- Parse 'for' statement
 	var parse_for = \loc ->
 		ls.step()  -- skip 'for'
-		var idxname, idxloc = lex_str()  -- Get first variable name.
-		var stmt
-		if ls.token == '='
-			stmt = parse_for_num(idxname, idxloc, loc)
-		else if ls.token == ',' or ls.token == 'TK_in'
-			stmt = parse_for_in(idxname, idxloc, loc)
-		else
-			err_instead(10, "`=` or `in` expected")
-		return stmt
+		if ls.next() == '='
+			return parse_for_num(loc)
+
+		-- Parse 'for .. in ..'
+		var vars, types, n = {}, {}, 1
+		do
+			vars[n] = Expr.id(lex_str())
+			types[n] = parse_type()
+			n = n + 1
+		until not lex_opt(',')
+		lex_check('TK_in')
+		var exps = expr_list()
+		var body = parse_block(loc.line, 'TK_for')
+		return Stmt.forin(vars, types, exps, body, loc)
 
 
 	-- Parse function call argument list
@@ -576,23 +572,17 @@ return \ls, warn ->
 
 
 	var parse_var = \loc ->
-		var names, locs = {}, {}
+		var lhs, types, i = {}, {}, 1
 		do
-			var name, at = lex_str()
-			var typ = parse_type()
-			names[#names+1] = name
-			locs[#locs+1] = at
+			lhs[i] = Expr.id(lex_str())
+			types[i] = parse_type()
+			i = i + 1
 		until not lex_opt(',')
 
 		var rhs = {}
 		if lex_opt('=')
-			rhs = expr_list(#names)
-		
-		var lhs = {}
-		for i, name in ipairs(names)
-			lhs[i] = Expr.id(name, locs[i])
-
-		return Stmt.local(lhs, rhs, loc)
+			rhs = expr_list(i)
+		return Stmt.local(lhs, types, rhs, loc)
 
 
 	var parse_while = \loc ->
@@ -746,50 +736,55 @@ return \ls, warn ->
 
 	-- Parse function parameters
 	var parse_params = ->
-		var params = {}
-		var rettyp = {}
+		var params, types, n = {}, {}, 0
+		var retypes = {}
 		var varargs = false
+
 		if ls.token ~= '->' and ls.token ~= '~>'
 			do
 				if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')
-					var name, at = lex_str()
-					var typ = parse_type()
-					params[#params+1] = Expr.id(name, at)
+					n = n + 1
+					params[n] = Expr.id(lex_str())
+					types[n] = parse_type()
 				else if ls.token == '...'
 					ls.step()
 					varargs = true
-					var typ = parse_type(true)
-					params[#params + 1] = Expr.vararg(ls)
-					if ls.next() ~= '/'
+					n = n + 1
+					params[n] = Expr.vararg(ls)
+					types[n] = parse_type(true)
+					if ls.next() ~= ':'
 						break
-				else if ls.token == '/'
-					ls.step()  -- skip '/'
+				else if ls.token == ':'
+					ls.step()  -- skip ':'
 					do
-						rettyp[#rettyp + 1] = parse_type()
+						retypes[#retypes + 1] = parse_type()
 					until not lex_opt(',')
 					break
 				else
 					err_instead(10, "parameter expected for `->`")
-			until not lex_opt(',') and ls.token ~= '/'
+			until not lex_opt(',') and ls.token ~= ':'
 
+		var curry = false
 		if ls.token == '->'
 			ls.step()
-			return false, params, varargs
 		else if ls.token == '~>'
 			ls.step()
+			curry = true
 			if varargs
 				err_syntax("cannot curry variadic parameters with `~>`")
-			if #params < 2
+			if n < 2
 				err_syntax("at least 2 parameters needed with `~>`")
-			return true, params, varargs
-		err_expect('->')
+		else
+			err_expect('->')
+		return curry, params, types, varargs, retypes
+		
 
 
 	-- Parse function body
 	parse_body = \line ->
-		var curry, params, varargs = parse_params()
+		var curry, params, types, varargs, retypes = parse_params()
 		var body = parse_block(line, '->')
-		return curry, params, body, varargs
+		return curry, params, types, varargs, retypes, body
 
 
 

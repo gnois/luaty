@@ -72,8 +72,8 @@ return function(stmts)
                 elseif func.tag == TExpr.Index then
                     local obj = ast.Expr.id("_self_", node)
                     node.args[1] = obj
-                    local body = {ast.Stmt["local"]({obj}, {func.obj}, node), ast.Stmt["return"]({ast.Expr.call(ast.Expr.index(obj, func.idx, node), node.args, node)}, node)}
-                    local lambda = ast.Expr["function"]({}, body, false, node)
+                    local body = {ast.Stmt["local"]({obj}, {}, {func.obj}, node), ast.Stmt["return"]({ast.Expr.call(ast.Expr.index(obj, func.idx, node), node.args, node)}, node)}
+                    local lambda = ast.Expr["function"]({}, {}, {}, body, node)
                     return ast.Expr.call(lambda, {}, node)
                 end
             end

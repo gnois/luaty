@@ -22,8 +22,8 @@ var Statement = {
 	, assign = \lhs, rhs, ls ->
 		return make(TStmt.Assign, {lefts = lhs, rights = rhs}, ls)
 
-	, local = \vars, exprs, ls ->
-		return make(TStmt.Local, {vars = vars, exprs = exprs}, ls)
+	, local = \vars, types, exprs, ls ->
+		return make(TStmt.Local, {vars = vars, types = types, exprs = exprs}, ls)
 
 	, do = \body, ls ->
 		return make(TStmt.Do, {body = body}, ls)
@@ -31,8 +31,8 @@ var Statement = {
 	, if = \tests, thenss, elses, ls ->
 		return make(TStmt.If, {tests = tests, thenss = thenss, elses = elses}, ls)
 
-	, forin = \vars, exprs, body, ls ->
-		return make(TStmt.Forin, {vars = vars, exprs = exprs, body = body}, ls)
+	, forin = \vars, types, exprs, body, ls ->
+		return make(TStmt.Forin, {vars = vars, types = types, exprs = exprs, body = body}, ls)
 
 	, fornum = \var, first, last, step, body, ls ->
 		return make(TStmt.Fornum, {var = var, first = first, last = last, step = step, body = body}, ls)
@@ -77,8 +77,8 @@ var Expression = {
 	, string = \val, long, ls ->
 		return make(TExpr.String, {value = val, long = long}, ls)
 
-	, function = \params, body, vararg, ls ->
-		return make(TExpr.Function, {body = body, params = params, vararg = vararg}, ls)
+	, function = \params, types, retypes, body, ls ->
+		return make(TExpr.Function, {params = params, types = types, retypes = retypes, body = body}, ls)
 
 	, table = \valkeys, ls ->
 		return make(TExpr.Table, {valkeys = valkeys}, ls)
@@ -106,42 +106,42 @@ var Expression = {
 
 var Type = {
 	-- atomic
-	any = ->
-		return make(TType.Any, {})
+	any = \ls ->
+		return make(TType.Any, {}, ls)
 
-	, num = ->
-		return make(TType.Num, {})
+	, num = \ls ->
+		return make(TType.Num, {}, ls)
 
-	, str = ->
-		return make(TType.Str, {})
+	, str = \ls ->
+		return make(TType.Str, {}, ls)
 
-	, bool = ->
-		return make(TType.Bool, {})
+	, bool = \ls ->
+		return make(TType.Bool, {}, ls)
 
-	, func = \params, returns ->
-		return make(TType.Func, {params = params, returns = returns})
+	, func = \params, returns, ls ->
+		return make(TType.Func, {params = params, returns = returns}, ls)
 
-	, tbl = \valkeys ->
-		return make(TType.Tbl, {valkeys = valkeys})
+	, tbl = \valkeys, ls ->
+		return make(TType.Tbl, {valkeys = valkeys}, ls)
 
 	-- compound
-	, or = \left, right ->
-		return make(TType.Or, {left = left, right = right})
+	, or = \left, right, ls ->
+		return make(TType.Or, {left = left, right = right}, ls)
 
-	, and = \left, right ->
-		return make(TType.And, {left = left, right = right})
+	, and = \left, right, ls ->
+		return make(TType.And, {left = left, right = right}, ls)
 
-	, not = \ty ->
-		return make(TType.Not, {ty})
+	, not = \ty, ls ->
+		return make(TType.Not, {ty}, ls)
 
-	, index = \obj, prop ->
-		return make(TType.Index, {obj = obj, prop = prop})
+	, index = \obj, prop, ls ->
+		return make(TType.Index, {obj = obj, prop = prop}, ls)
 
-	, keyed = \name ->
-		return make(TType.Keyed, {name = name})
+	, keyed = \name, ls ->
+		return make(TType.Keyed, {name = name}, ls)
 
-	, custom = \name ->
-		return make(TType.Custom, {name = name})
+	, custom = \name, ls ->
+		return make(TType.Custom, {name = name}, ls)
 }
 
 
