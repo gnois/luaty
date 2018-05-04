@@ -17,75 +17,41 @@ var generate = \stmts ->
 	var Expr = {}
 
 	var proto = nil
+	var indent = -1
 
-	var proto_enter = \indent ->
-		var ind = 0
-		if indent
-			ind = indent
-		else if proto
-			ind = proto.indent
-		proto = { code = {}, indent = ind, parent = proto }
+	-- only this function returns table, not string
+	var emit_stmts = \nodes ->
+		var list = {}
+		for i, node in ipairs(nodes)
+			var rule = Stmt[node.tag]
+			list[i] = rule(node)
+		return list
 
-	var proto_leave = ->
-		proto = proto.parent
-
-	var indent_more = ->
-		proto.indent = proto.indent + 1
-
-	var indent_less = ->
-		proto.indent = proto.indent - 1
-
-
-	var proto_inline = ->
-		-- remove leading whitespaces from first line
-		if #proto.code > 0
-			proto.code[1] = string.gsub(proto.code[1], "^%s*", "")
-		return concat(proto.code, "\n")
-
-	var emit = \node ->
-		var rule = Stmt[node.tag]
-		if rule
-			return rule(node)
-		error("cannot find a statement rule for " .. (node.tag or "nil"))
-
-	var list_emit = \node_list ->
-		for i = 1, #node_list
-			emit(node_list[i])
-
-
-	var expr_emit = \node ->
+	var emit_expr = \node ->
 		var rule = Expr[node.tag]
-		if rule
-			return rule(node)
-		error("cannot find an expression rule for " .. (node.tag or "nil"))
+		return rule(node)
 
 	var to_expr = \node, bracket ->
-		var val = expr_emit(node)
+		var val = emit_expr(node)
 		if bracket
 			return "(" .. val .. ")"
 		return val
 
-	var expr_list = \exps ->
+	var emit_exprs = \exps ->
 		var strls = {}
 		var last = #exps
 		for k = 1, last
 			strls[k] = to_expr(exps[k], k == last and exps[k].bracketed)
 		return concat(strls, ", ")
 
-	var add_line = \line ->
-		var indent = string.rep("    ", proto.indent)
-		proto.code[#proto.code + 1] = indent .. line
-
-
-	var add_section = \header, body, omit_end ->
-		add_line(header)
-		indent_more()
-		list_emit(body)
-		indent_less()
-		if not omit_end
-			add_line("end")
-
-
+	var emit_block = \header, body, footer ->
+		indent = indent + 1
+		var spaces = string.rep("    ", indent)
+		var list = emit_stmts(body)
+		indent = indent - 1
+		return header .. "\n" .. spaces .. table.concat(list, "\n" .. spaces) .. "\n" .. string.rep("    ", indent) .. footer
+		
+		
 	---------------- Expressions -----
 	var is_plain_string = \node ->
 		if node.tag == TExpr.String and type(node.value) == "string"
@@ -158,32 +124,28 @@ var generate = \stmts ->
 
 
 	Expr[TExpr.Function] = \node ->
-		proto_enter()
-		var header = format("function(%s)", comma_sep_list(node.params, as_parameter))
-		add_section(header, node.body)
-		var code = proto_inline()
-		proto_leave()
+		var header = "function(" .. comma_sep_list(node.params, as_parameter) .. ")"
+		var code = emit_block(header, node.body, "end")
 		return code, 0
-
 
 	Expr[TExpr.Table] = \node ->
 		var hash = {}
 		var last = #node.valkeys
 		for i = 1, last
 			var vk = node.valkeys[i]
-			var val = expr_emit(vk[1])
+			var val = emit_expr(vk[1])
 			var key = vk[2]
 			if key
 				if is_plain_string(key)
 					hash[i] = format("%s = %s", key.value, val)
 				else
-					hash[i] = format("[%s] = %s", expr_emit(key), val)
+					hash[i] = format("[%s] = %s", emit_expr(key), val)
 			
 			else
 				if i == last and vk[1].bracketed
-					hash[i] = format("(%s)", val)
+					hash[i] = "(" .. val .. ")"
 				else
-					hash[i] = format("%s", val)
+					hash[i] = val
 
 		var content = ""
 		if #hash > 0
@@ -192,47 +154,42 @@ var generate = \stmts ->
 
 
 	var receiver = \target ->
-		var obj, prio = expr_emit(target)
+		var obj, prio = emit_expr(target)
 		var t = target.tag
 		if prio < operator.ident_priority or t == TExpr.String or t == TExpr.Number or t == TExpr.Bool or t == TExpr.Table
 			return "(" .. obj .. ")"
 		return obj
 
 	Expr[TExpr.Index] = \node ->
-		var exp = format("%s[%s]", receiver(node.obj), expr_emit(node.idx))
+		var exp = format("%s[%s]", receiver(node.obj), emit_expr(node.idx))
 		return priority(exp)
-
 
 	Expr[TExpr.Property] = \node ->
 		var exp = format("%s.%s", receiver(node.obj), node.prop)
 		return priority(exp)
 
-
 	Expr[TExpr.Invoke] = \node ->
-		var exp = format("%s:%s(%s)", receiver(node.obj), node.prop, expr_list(node.args))
+		var exp = format("%s:%s(%s)", receiver(node.obj), node.prop, emit_exprs(node.args))
 		return priority(exp)
-
 
 	Expr[TExpr.Call] = \node ->
-		var exp = format("%s(%s)", receiver(node.func), expr_list(node.args))
+		var exp = format("%s(%s)", receiver(node.func), emit_exprs(node.args))
 		return priority(exp)
 
-
 	Expr[TExpr.Unary] = \node ->
-		var arg, arg_prio = expr_emit(node.left)
+		var arg, arg_prio = emit_expr(node.left)
 		var op_prio = operator.unary_priority
 		if arg_prio < op_prio arg = format("(%s)", arg) 
 		var op = node.op
 		if op == 'not' op = 'not ' 
 		return format("%s%s", op, arg), operator.unary_priority
 
-
 	Expr[TExpr.Binary] = \node ->
 		var oper = node.op
 		var lprio = operator.left_priority(oper)
 		var rprio = operator.right_priority(oper)
-		var a, alprio, arprio = expr_emit(node.left)
-		var b, blprio, brprio = expr_emit(node.right)
+		var a, alprio, arprio = emit_expr(node.left)
+		var b, blprio, brprio = emit_expr(node.right)
 		if not arprio arprio = alprio 
 		if not brprio brprio = blprio 
 		var ap = arprio <  lprio and format("(%s)", a) or a
@@ -242,98 +199,66 @@ var generate = \stmts ->
 
 	---------------- Statements -----
 	Stmt[TStmt.Expr] = \node ->
-		var line = expr_emit(node.expr)
-		add_line(line)
-		
-		
-	Stmt[TStmt.Local] = \node ->
-		var line
-		var vars = comma_sep_list(node.vars, as_parameter)
-		if #node.exprs > 0
-			line = format("local %s = %s", vars, expr_list(node.exprs))
-		else
-			line = format("local %s", vars)
-		add_line(line)
+		return emit_expr(node.expr)
 
+	Stmt[TStmt.Local] = \node ->
+		var vars = comma_sep_list(node.vars, as_parameter)
+		var line = "local " .. vars
+		if #node.exprs > 0
+			line = line .. " = " ..  emit_exprs(node.exprs)
+		return line
 
 	Stmt[TStmt.Assign] = \node ->
-		var line = format("%s = %s", expr_list(node.lefts), expr_list(node.rights))
-		add_line(line)
-
+		return emit_exprs(node.lefts) .. " = " .. emit_exprs(node.rights)
 
 	Stmt[TStmt.Do] = \node ->
-		add_section("do", node.body)
-
+		return emit_block("do", node.body, "end")
 
 	Stmt[TStmt.If] = \node ->
+		var body = {}
 		var ncons = #node.tests
 		for i = 1, ncons
-			var header_tag = i == 1 and "if" or "elseif"
-			var test = expr_emit(node.tests[i])
-			var header = format("%s %s then", header_tag, test)
-			add_section(header, node.thenss[i], true)
-
+			var test = emit_expr(node.tests[i])
+			var header = format("%s %s then", i == 1 and "if" or "elseif", test)
+			body[i] = emit_block(header, node.thenss[i], i == ncons and not node.elses and "end" or "")
 		if node.elses
-			add_section("else", node.elses, true)
-
-		add_line("end")
-
+			body[#body + 1] = emit_block("else", node.elses, "end")
+		return table.concat(body)
 
 	Stmt[TStmt.Forin] = \node ->
 		var vars = comma_sep_list(node.vars, as_parameter)
-		var explist = expr_list(node.exprs)
-		var header = format("for %s in %s do", vars, explist)
-		add_section(header, node.body)
-
+		var header = format("for %s in %s do", vars, emit_exprs(node.exprs))
+		return emit_block(header, node.body, "end")
 
 	Stmt[TStmt.Fornum] = \node ->
-		var istart = expr_emit(node.first)
-		var iend = expr_emit(node.last)
-		var header
+		var istart = emit_expr(node.first)
+		var iend = emit_expr(node.last)
+		var header = format("for %s = %s, %s", node.var.name, istart, iend)
 		if node.step
-			var step = expr_emit(node.step)
-			header = format("for %s = %s, %s, %s do", node.var.name, istart, iend, step)
-		else
-			header = format("for %s = %s, %s do", node.var.name, istart, iend)
-		add_section(header, node.body)
-
+			header = header .. ", " .. emit_expr(node.step)
+		return emit_block(header .. " do", node.body, "end")
 
 	Stmt[TStmt.While] = \node ->
-		var test = expr_emit(node.test)
-		var header = format("while %s do", test)
-		add_section(header, node.body)
-
+		var header = "while " .. emit_expr(node.test) .. " do"
+		return emit_block(header, node.body, "end")
 
 	Stmt[TStmt.Repeat] = \node ->
-		add_section("repeat", node.body, true)
-		var test = expr_emit(node.test)
-		var until_line = format("until %s", test)
-		add_line(until_line)
-
+		return emit_block("repeat", node.body, "until ".. emit_expr(node.test))
 
 	Stmt[TStmt.Return] = \node ->
-		var line = format("return %s", expr_list(node.exprs))
-		add_line(line)
-
+		return "return " .. emit_exprs(node.exprs)
 
 	Stmt[TStmt.Break] = ->
-		add_line("break")
-
+		return "break"
 
 	Stmt[TStmt.Goto] = \node ->
-		add_line("goto " .. node.name)
-	
-		
+		return "goto " .. node.name
+
 	Stmt[TStmt.Label] = \node ->
-		add_line("::" .. node.name .. "::")
+		return "::" .. node.name .. "::"
 
 
-
-	proto_enter()
-	list_emit(stmts)
-	var code = proto_inline()
-	proto_leave()
-	return code
+	return emit_block("", stmts, "")
 
 
 return generate

@@ -2,6 +2,7 @@
 -- Generated from check.lt
 --
 
+
 local Tag = require("lua.tag")
 local TStmt = Tag.Stmt
 local TExpr = Tag.Expr
@@ -119,7 +120,7 @@ return function(scope, stmts, warn)
     end
     Expr[TExpr.Id] = function(node)
         if node.name and scope.declared(node.name) == 0 then
-            warn(node.line, node.col, 10, "undeclared identifier `" .. node.name .. "`")
+            warn(node.line, node.col, 8, "undeclared identifier `" .. node.name .. "`")
         end
     end
     Expr[TExpr.Function] = function(node)
@@ -175,15 +176,24 @@ return function(scope, stmts, warn)
     Stmt[TStmt.Expr] = function(node)
         check_expr(node.expr)
     end
+    local assign_check = function(lefts, rights)
+        local r = #rights
+        local l = #lefts
+        if r > l then
+            warn(rights[1].line, rights[1].col, 9, "assigning " .. r .. " values to " .. l .. " variable(s)")
+        end
+    end
     Stmt[TStmt.Local] = function(node)
         for _, var in ipairs(node.vars) do
             declare(var)
         end
         check_exprs(node.exprs)
+        assign_check(node.vars, node.exprs)
     end
     Stmt[TStmt.Assign] = function(node)
         check_exprs(node.lefts)
         check_exprs(node.rights)
+        assign_check(node.lefts, node.rights)
     end
     Stmt[TStmt.Do] = function(node)
         check_block(node.body)

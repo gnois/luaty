@@ -2,6 +2,7 @@
 -- Generated from parse.lt
 --
 
+
 local ast = require("lua.ast")
 local operator = require("lua.operator")
 local reserved = require("lua.reserved")
@@ -13,7 +14,7 @@ local LJ_52 = false
 local EndOfChunk = {TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true}
 local EndOfFunction = {["}"] = true, [")"] = true, [";"] = true, [","] = true}
 local NewLine = {TK_newline = true}
-local Kind = {Expr = 1, Var = 3, Property = 4, Index = 5, Call = 6}
+local Kind = {Expr = "Expr", Var = "Var", Property = "Property", Index = "Index", Call = "Call"}
 return function(ls, warn)
     local stmted
     local parse_error = function(severe, em, ...)
@@ -370,16 +371,12 @@ return function(ls, warn)
         ls.step()
         return e
     end
-    expr_list = function(nmax)
+    expr_list = function()
         local exps = {}
         exps[1] = expr()
         while ls.token == "," do
             ls.step()
             exps[#exps + 1] = expr()
-        end
-        local n = #exps
-        if nmax and n > nmax then
-            err_warn("assigning " .. n .. " values to " .. nmax .. " variable(s)")
         end
         return exps
     end
@@ -530,7 +527,7 @@ return function(ls, warn)
             return parse_assignment(lhs, n_var, n_vk)
         else
             lex_check("=")
-            local exps = expr_list(#lhs)
+            local exps = expr_list()
             return Stmt.assign(lhs, exps, loc)
         end
     end
@@ -552,7 +549,7 @@ return function(ls, warn)
         until not lex_opt(",")
         local rhs = {}
         if lex_opt("=") then
-            rhs = expr_list(i)
+            rhs = expr_list()
         end
         return Stmt["local"](lhs, types, rhs, loc)
     end
@@ -723,7 +720,7 @@ return function(ls, warn)
                     until not lex_opt(",")
                     break
                 else
-                    err_instead(10, "parameter expected for `->`")
+                    err_instead(10, "parameter expected in function declaration")
                 end
             until not lex_opt(",") and ls.token ~= ":"
         end

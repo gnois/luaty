@@ -2,6 +2,7 @@
 -- Generated from lex.lt
 --
 
+
 local bit = require("bit")
 local ffi = require("ffi")
 local chars = require("lua.chars")
@@ -277,6 +278,7 @@ return function(read, warn)
             add_buffer(c)
             nextchar()
         elseif c == END_OF_STREAM then
+            
         else
             if not is.digit(c) then
                 lex_error("TK_string", "invalid escape character \\" .. c)

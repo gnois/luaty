@@ -2,6 +2,7 @@
 -- Generated from compile.lt
 --
 
+
 local read = require("lua.read")
 local warn = require("lua.warn")
 local lex = require("lua.lex")

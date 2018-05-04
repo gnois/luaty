@@ -2,6 +2,7 @@
 -- Generated from chars.lt
 --
 
+
 local bit = require("bit")
 local ffi = require("ffi")
 local int64 = ffi.typeof("int64_t")

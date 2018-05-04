@@ -105,7 +105,7 @@ return \scope, stmts, warn ->
 	Expr[TExpr.Id] = \node ->
 		-- node.name can be nil, bcoz the parser continues despite error
 		if node.name and scope.declared(node.name) == 0
-			warn(node.line, node.col, 10, "undeclared identifier `" .. node.name .. "`")
+			warn(node.line, node.col, 8, "undeclared identifier `" .. node.name .. "`")
 		
 	Expr[TExpr.Function] = \node ->
 		scope.begin_func()
@@ -157,14 +157,22 @@ return \scope, stmts, warn ->
 	Stmt[TStmt.Expr] = \node ->
 		check_expr(node.expr)
 
+	var assign_check = \lefts, rights ->
+		var r = #rights
+		var l = #lefts
+		if r > l
+			warn(rights[1].line, rights[1].col, 9, "assigning " .. r .. " values to " .. l .. " variable(s)")
+
 	Stmt[TStmt.Local] = \node ->
 		for _, var in ipairs(node.vars)
 			declare(var)
 		check_exprs(node.exprs)
+		assign_check(node.vars, node.exprs)
 
 	Stmt[TStmt.Assign] = \node ->
 		check_exprs(node.lefts)
 		check_exprs(node.rights)
+		assign_check(node.lefts, node.rights)
 
 	Stmt[TStmt.Do] = \node ->
 		check_block(node.body)

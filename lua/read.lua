@@ -2,6 +2,7 @@
 -- Generated from read.lt
 --
 
+
 local Slab = 4096 - 32
 local string_reader = function(src)
     local pos = 1

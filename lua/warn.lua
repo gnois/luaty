@@ -2,6 +2,7 @@
 -- Generated from warn.lt
 --
 
+
 local warnings = {}
 local add = function(line, col, severity, msg)
     local w = {line = line, col = col, severity = severity, msg = msg}

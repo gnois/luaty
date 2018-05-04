@@ -14,7 +14,7 @@ var EndOfChunk = { TK_dedent = true, TK_else = true, TK_until = true, TK_eof = t
 var EndOfFunction = { ['}'] = true, [')'] = true, [';'] = true, [','] = true} -- `,` is to end function within a table
 var NewLine = { TK_newline = true }
 -- expr kind
-var Kind = { Expr = 1, Var = 3, Property = 4, Index = 5, Call = 6 }
+var Kind = { Expr = 'Expr', Var = 'Var', Property = 'Property', Index = 'Index', Call = 'Call' }
 
 
 return \ls, warn ->
@@ -390,17 +390,12 @@ return \ls, warn ->
 		return e
 
 
-	-- nmax checks the max number of expression expected
-	expr_list = \nmax ->
+	expr_list = ->
 		var exps = {}
 		exps[1] = expr()
 		while ls.token == ','
 			ls.step()
 			exps[#exps + 1] = expr()
-
-		var n = #exps
-		if nmax and n > nmax
-			err_warn("assigning " .. n .. " values to " .. nmax .. " variable(s)")
 		return exps
 
 
@@ -558,7 +553,7 @@ return \ls, warn ->
 			return parse_assignment(lhs, n_var, n_vk)
 		else -- Parse RHS.
 			lex_check('=')
-			var exps = expr_list(#lhs)
+			var exps = expr_list()
 			return Stmt.assign(lhs, exps, loc)
 
 
@@ -581,7 +576,7 @@ return \ls, warn ->
 
 		var rhs = {}
 		if lex_opt('=')
-			rhs = expr_list(i)
+			rhs = expr_list()
 		return Stmt.local(lhs, types, rhs, loc)
 
 
@@ -761,7 +756,7 @@ return \ls, warn ->
 					until not lex_opt(',')
 					break
 				else
-					err_instead(10, "parameter expected for `->`")
+					err_instead(10, "parameter expected in function declaration")
 			until not lex_opt(',') and ls.token ~= ':'
 
 		var curry = false
