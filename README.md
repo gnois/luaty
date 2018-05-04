@@ -1,8 +1,9 @@
+Alternative syntax for Lua, with static analyzer
 
-Luaty stands for *[Lua] with less [ty]ping*. It's like a rudimentary version of [Moonscript](http://moonscript.org), but comes with a linter.
+Luaty stands for *[Lua] with more or less [ty]ping*. It's like a rudimentary version of [Moonscript](http://moonscript.org), but comes with a static analyzer.
 
 
-Builtin linter
+Builtin static analyzer
 ---
 
 During transpiling, Luaty warns about:
@@ -36,16 +37,17 @@ var tbl = {
 Shorter syntax
 ---
 
-Aside from having [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule), Luaty is skim on features. Here are the differences from Lua:
+Aside from having [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule), Luaty has several syntactical differences:
 
 - General
-  * no more `end`, `then`
+  * no more `end`
   * no more `do` after `for` and `while`
   * `repeat` becomes `do`
-  * `local` becomes `var`
   * `elseif` becomes `else if`
-  * `[[` and `]]` are replaced with backquote \` which can be repeatable multiple times
-  * table keys can accept string or keyword
+  * no more `then` after `if`
+  * `local` becomes `var`
+  * `[[` and `]]` are replaced with backquote(s) \` that can be repeated multiple times
+  * table keys can be string or keyword
   
 ```
 var x = false               -- `var` compiles to `local`
