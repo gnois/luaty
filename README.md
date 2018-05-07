@@ -1,6 +1,5 @@
-Alternative syntax for Lua, with static analyzer
-
-Luaty stands for *[Lua] with more or less [ty]ping*. It's like a rudimentary version of [Moonscript](http://moonscript.org), but comes with a static analyzer.
+Luaty is like a rudimentary version of [Moonscript](http://moonscript.org), but comes with a static analyzer.
+The name comes from *[Lua] with more or less [ty]ping*.
 
 
 Builtin static analyzer

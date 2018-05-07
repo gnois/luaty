@@ -16,7 +16,6 @@ local is = chars.is
 local generate = function(stmts)
     local Stmt = {}
     local Expr = {}
-    local proto = nil
     local indent = -1
     local emit_stmts = function(nodes)
         local list = {}
@@ -46,11 +45,15 @@ local generate = function(stmts)
         return concat(strls, ", ")
     end
     local emit_block = function(header, body, footer)
+        local spaces = function()
+            return "\n" .. string.rep("    ", indent)
+        end
         indent = indent + 1
-        local spaces = string.rep("    ", indent)
+        local more = spaces()
         local list = emit_stmts(body)
         indent = indent - 1
-        return header .. "\n" .. spaces .. table.concat(list, "\n" .. spaces) .. "\n" .. string.rep("    ", indent) .. footer
+        local less = spaces()
+        return header .. more .. concat(list, more) .. less .. footer
     end
     local is_plain_string = function(node)
         if node.tag == TExpr.String and type(node.value) == "string" then
@@ -232,7 +235,7 @@ local generate = function(stmts)
         if node.elses then
             body[#body + 1] = emit_block("else", node.elses, "end")
         end
-        return table.concat(body)
+        return concat(body)
     end
     Stmt[TStmt.Forin] = function(node)
         local vars = comma_sep_list(node.vars, as_parameter)

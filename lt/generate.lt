@@ -15,11 +15,9 @@ var generate = \stmts ->
 	
 	var Stmt = {}
 	var Expr = {}
-
-	var proto = nil
 	var indent = -1
 
-	-- only this function returns table, not string
+	-- only this function returns table instead of string
 	var emit_stmts = \nodes ->
 		var list = {}
 		for i, node in ipairs(nodes)
@@ -45,11 +43,13 @@ var generate = \stmts ->
 		return concat(strls, ", ")
 
 	var emit_block = \header, body, footer ->
+		var spaces = -> return "\n" .. string.rep("    ", indent)
 		indent = indent + 1
-		var spaces = string.rep("    ", indent)
+		var more = spaces()
 		var list = emit_stmts(body)
 		indent = indent - 1
-		return header .. "\n" .. spaces .. table.concat(list, "\n" .. spaces) .. "\n" .. string.rep("    ", indent) .. footer
+		var less = spaces()
+		return header .. more .. concat(list, more) .. less .. footer
 		
 		
 	---------------- Expressions -----
@@ -223,7 +223,7 @@ var generate = \stmts ->
 			body[i] = emit_block(header, node.thenss[i], i == ncons and not node.elses and "end" or "")
 		if node.elses
 			body[#body + 1] = emit_block("else", node.elses, "end")
-		return table.concat(body)
+		return concat(body)
 
 	Stmt[TStmt.Forin] = \node ->
 		var vars = comma_sep_list(node.vars, as_parameter)
