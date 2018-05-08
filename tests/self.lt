@@ -85,9 +85,13 @@ t['h-a'] = \@, n ->
 	return @.num + n
 
 assert(t['h-a'](@, 40) == 50)
+
+var i = 0
 var ret_t = ->
+	i = i + 1
 	return t
 print(ret_t()['h-a'](@, 10) == 20)
+assert(i == 1)
 
 
 -- self and @ is interchangeable

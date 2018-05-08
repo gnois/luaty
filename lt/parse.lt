@@ -10,8 +10,7 @@ var Type = ast.Type
 var Keyword = reserved.Keyword
 var LJ_52 = false
 
-var EndOfChunk = { TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true }
-var EndOfFunction = { ['}'] = true, [')'] = true, [';'] = true, [','] = true} -- `,` is to end function within a table
+var EndOfBlock = { TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true, ['}'] = true, [')'] = true, [';'] = true, [','] = true }
 var NewLine = { TK_newline = true }
 -- expr kind
 var Kind = { Expr = 'Expr', Var = 'Var', Property = 'Property', Index = 'Index', Call = 'Call' }
@@ -471,7 +470,7 @@ return \ls, warn ->
 	var parse_return = \loc ->
 		ls.step() -- skip 'return'
 		var exps
-		if EndOfChunk[ls.token] or NewLine[ls.token] or EndOfFunction[ls.token]  -- or ls.token == ';'
+		if EndOfBlock[ls.token] or NewLine[ls.token]
 			exps = {}
 		else -- return with one or more values
 			exps = expr_list()
@@ -696,7 +695,7 @@ return \ls, warn ->
 
 		var stmt, islast = nil, false
 		var body = {}
-		while not islast and not EndOfChunk[ls.token]
+		while not islast and not EndOfBlock[ls.token]
 			stmted = ls.line
 			skip_ends()
 			stmt, islast = parse_stmt()
@@ -717,15 +716,13 @@ return \ls, warn ->
 			if not lex_dedent()
 				err_instead(10, "%s expected to end %s at line %d", ls.astext('TK_dedent'), ls.astext(match_token), line)
 		else
-			if not EndOfChunk[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
-				-- single line statement, parenthesis needed coz parse_stmt() returns 2 values
-				body = { (parse_stmt()) }
+			if not EndOfBlock[ls.token] and not NewLine[ls.token]
+				body = { (parse_stmt()) }  -- single line statement, parenthesis needed coz parse_stmt() returns 2 values
 
-			if not EndOfChunk[ls.token] and not NewLine[ls.token] and not EndOfFunction[ls.token]
-				err_instead(10, "statement should end near %s. %s expected", ls.astext(match_token), ls.astext('TK_newline'))
-			-- returning multiple values need ; if it stays with other expressions on the same line
-			else if EndOfFunction[ls.token]
+			if EndOfBlock[ls.token] or NewLine[ls.token]
 				lex_opt(';')
+			else
+				err_instead(10, "statement should end near %s. %s expected", ls.astext(match_token), ls.astext('TK_newline'))
 		return body or {}
 
 

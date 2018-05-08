@@ -34,7 +34,7 @@ var tbl = {
 ```
 
 
-Shorter syntax
+Differences from Lua
 ---
 
 Aside from having [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule), Luaty has less syntax boilerplate than Lua:
@@ -88,16 +88,16 @@ print('a')                          -- ok, obviously
 var obj = {
    value = 3
    , foo = \@, k ->
-      return k * @.value                    -- `@` compiles to `self`
-   , ['long-name'] = \@, n ->               -- this function has some long-name
+      return k * @.value            -- `@` compiles to `self`
+   , ['long-name'] = \@, n ->       -- notice this function has some special name
       return n + @.value
 }
 
-print(obj:foo(2))                           -- error: ')' expected instead of ':'
-assert(obj.foo(@, 2) == 6)                  -- ok, compiles to obj:foo(2)
+print(obj:foo(2))                   -- error: ')' expected instead of ':'
+assert(obj.foo(@, 2) == 6)          -- ok, compiles to obj:foo(2)
 
 var get = -> return obj
-assert(get()['long-name'](@, 10) == 20)     -- now `:` cannot be used in Lua, but `@` *just works*, get() is only called once
+print(get()['long-name'](@, 10))    -- now `:` cannot be used in Lua, but `@` *just works*, get() is only called once
 ```
 
 
@@ -175,7 +175,7 @@ print(
 
 ```
 
-5. A extra semicolon `;` can be used as a terminator for single-lined function if it causes ambiguity in a list of expressions
+5. A extra semicolon `;` can be used to terminate single-lined function if it causes ambiguity in a list of expressions
 ```
 print(pcall(\x-> return x, 10))                 -- multiple return values. Prints true, nil, 10
 
@@ -185,10 +185,11 @@ print(pcall(\x ->
    return x
 , 10))                                          -- ok, function ended with dedent. Prints true, 10
 
+var o = { fn = -> return 1, 2;, 3, 4 }          -- use `;` to terminate single-lined function
+assert(o[2] == 4)
 
-var a, b, c = -> var d, e, f = 2, -> return -> return 9;;, 5;, 7
-assert(b == 7)                                  -- `;` used to disambiguate multiple assignment/return values
-
+var a, b = -> var d, e, f = 2, -> return -> return 9;;, 5;, 7
+assert(b == 7)                                  -- each `;` terminates one single-lined function
 ```
 
 

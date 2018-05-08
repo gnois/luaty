@@ -79,12 +79,6 @@ return function(scope, stmts, warn)
             check_expr(node)
         end
     end
-    local check_type = function(node)
-        local rule = Type[node.tag]
-        if rule then
-            rule(node)
-        end
-    end
     local declare = function(var, vtype)
         assert(var.tag == TExpr.Id)
         scope.new_var(var.name, vtype, var.line, var.col)

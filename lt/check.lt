@@ -69,10 +69,6 @@ return \scope, stmts, warn ->
 		for _, node in ipairs(nodes)
 			check_expr(node)
 
-	var check_type = \node ->
-		var rule = Type[node.tag]
-		if rule rule(node)
-
 	var declare = \var, vtype ->
 		assert(var.tag == TExpr.Id)
 		scope.new_var(var.name, vtype, var.line, var.col)
