@@ -1,5 +1,6 @@
 Luaty is like a rudimentary version of [Moonscript](http://moonscript.org), but comes with a static analyzer.
-The name comes from *[Lua] with more or less [ty]ping*.
+
+Luaty stands for *[Lua] with more or less [ty]ping*.
 
 
 Builtin static analyzer
@@ -36,9 +37,7 @@ var tbl = {
 Shorter syntax
 ---
 
-Aside from having [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule), Luaty has several syntactical differences:
-
-- General
+Aside from having [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule), Luaty has less syntax boilerplate than Lua:
   * no more `end`
   * no more `do` after `for` and `while`
   * `repeat` becomes `do`
@@ -68,43 +67,38 @@ assert(z.if(z.goto)[2] == false)             -- ditto
 
 ```
 
-- Functions
-  * function declaration is always a [lambda expression](https://www.lua.org/manual/5.1/manual.html#2.5.9) using  `->` or `\arg1, arg2, ... ->`
+
+Unlike Lua, functions in Luaty are mostly desugared:
+  * function declaration is always a [lambda expression](https://www.lua.org/manual/5.1/manual.html#2.5.9) using  `->` or `\param1, param2, ... ->`
   * function call always require parenthesis
+  * colon `:` is never used. `self` or `@` should be specified as the first paramenter or call argument instead
+  * specifying `@` as the first call argument compiles to colon call syntax `:` in Lua, if possible
 
 ```
 
 function f(x)                       -- error: use '->' instead of 'function'
 \x -> print(x)                      -- error: lambda expression by itself not allowed
 (\x -> print(x))(3)                 -- ok, immediately invoked lambda
-var f = -> print(3)                 -- ok, lambda with assignment statement
+var f = -> print(3)                 -- ok, lambda with assignment statement, \ optional if no parameter
 
-print 'a'                           -- error: '=' expected instead of 'a'. This is valid in Lua
+print 'a'                           -- error: '=' expected instead of 'a'; but this is valid in Lua
 print('a')                          -- ok, obviously
-```
 
-- Methods
-  * `self` can be `@`
-  * colon `:` is never used. `@` specified as the first call argument instead
 
-```
 var obj = {
    value = 3
    , foo = \@, k ->
-      return k * @.value                    -- @ is equivalent to `self`
-   , ['long-name'] = \@, n ->
+      return k * @.value                    -- `@` compiles to `self`
+   , ['long-name'] = \@, n ->               -- this function has some long-name
       return n + @.value
 }
 
-var ret_o = -> return obj
-assert(ret_o()['long-name'](@, 10) == 20)   -- @ *just works*
+print(obj:foo(2))                           -- error: ')' expected instead of ':'
+assert(obj.foo(@, 2) == 6)                  -- ok, compiles to obj:foo(2)
 
-assert(obj.foo(@, 2) == 6)                  -- compiles to obj:foo(2)
-p(obj:foo(2))                               -- error: ')' expected instead of ':'
+var get = -> return obj
+assert(get()['long-name'](@, 10) == 20)     -- now `:` cannot be used in Lua, but `@` *just works*, get() is only called once
 ```
-
-Lua code is not generated if there is syntax error.
-
 
 
 
