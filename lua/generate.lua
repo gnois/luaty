@@ -16,14 +16,20 @@ local is = chars.is
 local generate = function(stmts)
     local Stmt = {}
     local Expr = {}
-    local indent = -1
-    local emit_stmts = function(nodes)
+    local dent = -1
+    local indent = function(i)
+        dent = dent + i
+        return "\n" .. string.rep("    ", dent)
+    end
+    local emit_block = function(header, body, footer)
+        local more = indent(1)
         local list = {}
-        for i, node in ipairs(nodes) do
+        for i, node in ipairs(body) do
             local rule = Stmt[node.tag]
             list[i] = rule(node)
         end
-        return list
+        local less = indent(-1)
+        return concat({header, more, concat(list, more), less, footer})
     end
     local emit_expr = function(node)
         local rule = Expr[node.tag]
@@ -43,17 +49,6 @@ local generate = function(stmts)
             strls[k] = to_expr(exps[k], k == last and exps[k].bracketed)
         end
         return concat(strls, ", ")
-    end
-    local emit_block = function(header, body, footer)
-        local spaces = function()
-            return "\n" .. string.rep("    ", indent)
-        end
-        indent = indent + 1
-        local more = spaces()
-        local list = emit_stmts(body)
-        indent = indent - 1
-        local less = spaces()
-        return header .. more .. concat(list, more) .. less .. footer
     end
     local is_plain_string = function(node)
         if node.tag == TExpr.String and type(node.value) == "string" then
@@ -214,7 +209,7 @@ local generate = function(stmts)
         local vars = comma_sep_list(node.vars, as_parameter)
         local line = "local " .. vars
         if #node.exprs > 0 then
-            line = line .. " = " .. emit_exprs(node.exprs)
+            return line .. " = " .. emit_exprs(node.exprs)
         end
         return line
     end

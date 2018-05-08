@@ -15,15 +15,19 @@ var generate = \stmts ->
 	
 	var Stmt = {}
 	var Expr = {}
-	var indent = -1
+	var dent = -1
+	var indent = \i ->
+		dent = dent + i
+		return "\n" .. string.rep("    ", dent)
 
-	-- only this function returns table instead of string
-	var emit_stmts = \nodes ->
+	var emit_block = \header, body, footer ->
+		var more = indent(1)
 		var list = {}
-		for i, node in ipairs(nodes)
+		for i, node in ipairs(body)
 			var rule = Stmt[node.tag]
 			list[i] = rule(node)
-		return list
+		var less = indent(-1)
+		return concat({header, more, concat(list, more), less, footer})
 
 	var emit_expr = \node ->
 		var rule = Expr[node.tag]
@@ -42,16 +46,6 @@ var generate = \stmts ->
 			strls[k] = to_expr(exps[k], k == last and exps[k].bracketed)
 		return concat(strls, ", ")
 
-	var emit_block = \header, body, footer ->
-		var spaces = -> return "\n" .. string.rep("    ", indent)
-		indent = indent + 1
-		var more = spaces()
-		var list = emit_stmts(body)
-		indent = indent - 1
-		var less = spaces()
-		return header .. more .. concat(list, more) .. less .. footer
-		
-		
 	---------------- Expressions -----
 	var is_plain_string = \node ->
 		if node.tag == TExpr.String and type(node.value) == "string"
@@ -205,7 +199,7 @@ var generate = \stmts ->
 		var vars = comma_sep_list(node.vars, as_parameter)
 		var line = "local " .. vars
 		if #node.exprs > 0
-			line = line .. " = " ..  emit_exprs(node.exprs)
+			return line .. " = " ..  emit_exprs(node.exprs)
 		return line
 
 	Stmt[TStmt.Assign] = \node ->
