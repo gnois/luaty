@@ -1,11 +1,39 @@
 var read = require('lua.read')
-var warn = require('lua.warn')
 var lex = require('lua.lex')
 var scope = require('lua.scope')
 var parse = require('lua.parse')
 var check = require('lua.check')
 var transform = require('lua.transform')
 var generate = require('lua.generate')
+
+-- array of warnings, ordered by line,col
+var warnings = {}
+
+var warn = \line, col, severity, msg ->
+	var w = { line = line, col = col, severity = severity, msg = msg }
+	
+	for i, m in ipairs(warnings)
+		-- skip errors at the same line with lower severity
+		if line == m.line and severity < m.severity -- and col == m.col and msg == m.msg
+			return
+		if line < m.line or (line == m.line and col < m.col)
+			-- insert
+			table.insert(warnings, i, w)
+			return
+	-- append
+	table.insert(warnings, w)
+
+var warning = \color ->
+	var warns = {}
+	for i, m in ipairs(warnings)
+		var clr = color.yellow
+		if m.severity >= 10
+			clr = color.red
+		warns[i] = string.format(" %d,%d:" .. clr ..  "  %s" .. color.reset, m.line, m.col, m.msg)
+	if #warns > 0
+		return table.concat(warns, "\n")
+
+
 
 --`
 options is a table:
@@ -15,21 +43,20 @@ options is a table:
  }
  color is a table of ansi color values to display warnings
 --`
-
 var compile = \reader, options, color ->
 
-	var lexer = lex(reader, warn.add)
-	var tree = parse(lexer, warn.add)
+	var lexer = lex(reader, warn)
+	var tree = parse(lexer, warn)
 	tree = transform(tree)
-	var sc = scope(options.declares, warn.add)
-	check(sc, tree, warn.add)
+	var sc = scope(options.declares, warn)
+	check(sc, tree, warn)
 
 	-- not generating if severity >= 10
-	for _, w in ipairs(warn.warnings)
+	for _, w in ipairs(warnings)
 		if w.severity >= 10
-			return nil, warn.format(color)
+			return nil, warning(color)
 
-	return generate(tree), warn.format(color)
+	return generate(tree), warning(color)
 
 
 return {
