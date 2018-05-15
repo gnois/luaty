@@ -90,7 +90,16 @@ local generate = function(stmts)
         return priority("...")
     end
     local escape = function(s)
-        local replace = {["\""] = [[\"]], ["\a"] = [[\a]], ["\b"] = [[\b]], ["\f"] = [[\f]], ["\n"] = [[\n]], ["\r"] = [[\r]], ["\t"] = [[\t]], ["\v"] = [[\v]]}
+        local replace = {
+            ["\""] = [[\"]]
+            , ["\a"] = [[\a]]
+            , ["\b"] = [[\b]]
+            , ["\f"] = [[\f]]
+            , ["\n"] = [[\n]]
+            , ["\r"] = [[\r]]
+            , ["\t"] = [[\t]]
+            , ["\v"] = [[\v]]
+        }
         return string.gsub(s, "[\"\a\b\f\n\r\t\v]", replace)
     end
     Expr[TExpr.String] = function(node)
@@ -102,7 +111,15 @@ local generate = function(stmts)
                 local p, q = string.find(val, "`+$")
                 assert(q - p == m - n)
                 local eq = string.rep("=", m - n)
-                local ls = {"[", eq, "[", string.sub(val, m + 1, p - 1), "]", eq, "]"}
+                local ls = {
+                    "["
+                    , eq
+                    , "["
+                    , string.sub(val, m + 1, p - 1)
+                    , "]"
+                    , eq
+                    , "]"
+                }
                 text = priority(concat(ls))
             end
         else
@@ -118,10 +135,7 @@ local generate = function(stmts)
     Expr[TExpr.Table] = function(node)
         local hash = {}
         local last = #node.valkeys
-        local more = ""
-        if last > 9 then
-            more = indent(1)
-        end
+        local more = last > 5 and indent(1) or ""
         for i = 1, last do
             local vk = node.valkeys[i]
             local val = emit_expr(vk[1])
@@ -140,12 +154,9 @@ local generate = function(stmts)
                 end
             end
         end
+        local less = last > 5 and indent(-1) or ""
         local content = ""
-        local less = ""
-        if last > 9 then
-            less = indent(-1)
-        end
-        if #hash > 0 then
+        if last > 0 then
             content = more .. concat(hash, more .. ", ") .. less
         end
         return priority("{" .. content .. "}")

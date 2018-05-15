@@ -36,4 +36,11 @@ local right_priority = function(op)
     local val = binop[op] or typeop[op]
     return bit.band(val, 0xff)
 end
-return {is_binop = is_binop, is_typeop = is_typeop, left_priority = left_priority, right_priority = right_priority, unary_priority = unary_priority, ident_priority = ident_priority}
+return {
+    is_binop = is_binop
+    , is_typeop = is_typeop
+    , left_priority = left_priority
+    , right_priority = right_priority
+    , unary_priority = unary_priority
+    , ident_priority = ident_priority
+}

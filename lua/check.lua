@@ -117,11 +117,11 @@ return function(scope, stmts, warn)
     end
     Expr[TExpr.Function] = function(node)
         scope.begin_func()
-        for _, var in ipairs(node.params) do
+        for i, var in ipairs(node.params) do
             if var.tag == TExpr.Vararg then
                 scope.varargs()
             else
-                declare(var)
+                declare(var, node.types[i])
             end
         end
         check_block(node.body)
@@ -176,8 +176,8 @@ return function(scope, stmts, warn)
         end
     end
     Stmt[TStmt.Local] = function(node)
-        for _, var in ipairs(node.vars) do
-            declare(var)
+        for i, var in ipairs(node.vars) do
+            declare(var, node.types[i])
         end
         check_exprs(node.exprs)
         assign_check(node.vars, node.exprs)
@@ -202,8 +202,8 @@ return function(scope, stmts, warn)
     Stmt[TStmt.Forin] = function(node)
         scope.enter_block("ForIn")
         check_exprs(node.exprs)
-        for _, var in ipairs(node.vars) do
-            declare(var)
+        for i, var in ipairs(node.vars) do
+            declare(var, node.types[i])
         end
         check_block(node.body)
         scope.leave_block()
@@ -215,7 +215,7 @@ return function(scope, stmts, warn)
         if node.step then
             check_expr(node.step)
         end
-        declare(node.var)
+        declare(node.var, node.type)
         check_block(node.body)
         scope.leave_block()
     end

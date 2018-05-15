@@ -35,7 +35,9 @@ return {
 
 	-- nil is a bool property
 	, Type = {
-		Any = 'Any'
+		Var = 'Var'
+		, Any = 'Any'
+		, Nil= 'Nil'
 		, Num = 'Num'
 		, Str = 'Str'
 		, Bool = 'Bool'

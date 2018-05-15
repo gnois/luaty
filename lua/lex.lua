@@ -13,7 +13,15 @@ local build = chars.build
 local END_OF_STREAM = -1
 local TokenSymbol = {TK_name = "identifier", TK_indent = "<indent>", TK_dedent = "<dedent>", TK_newline = "<newline>", TK_eof = "<eof>"}
 local IsNewLine = {["\n"] = true, ["\r"] = true}
-local IsEscape = {a = true, b = true, f = true, n = true, r = true, t = true, v = true}
+local IsEscape = {
+    a = true
+    , b = true
+    , f = true
+    , n = true
+    , r = true
+    , t = true
+    , v = true
+}
 local token2str = function(tok)
     if string.match(tok, "^TK_") then
         return string.sub(tok, 4)
@@ -36,7 +44,14 @@ return function(read, warn)
     local minus = nil
     local tabs = nil
     local lookahead = {token = "TK_eof", value = nil}
-    local state = {prevline = 1, prevcol = 1, line = 1, col = 1, token = "TK_eof", value = nil}
+    local state = {
+        prevline = 1
+        , prevcol = 1
+        , line = 1
+        , col = 1
+        , token = "TK_eof"
+        , value = nil
+    }
     local fmt_token = function(token)
         if token then
             if token == "TK_name" or token == "TK_string" or token == "TK_number" then

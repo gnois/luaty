@@ -117,9 +117,7 @@ var generate = \stmts ->
 	Expr[TExpr.Table] = \node ->
 		var hash = {}
 		var last = #node.valkeys
-		var more = ""
-		if last > 9
-			more = indent(1)
+		var more = last > 5 and indent(1) or ""
 		
 		for i = 1, last
 			var vk = node.valkeys[i]
@@ -137,11 +135,9 @@ var generate = \stmts ->
 				else
 					hash[i] = val
 
+		var less = last > 5 and indent(-1) or ""
 		var content = ""
-		var less = ""
-		if last > 9
-			less = indent(-1)
-		if #hash > 0
+		if last > 0
 			content = more .. concat(hash, more .. ", ") .. less
 		return priority("{" .. content .. "}")
 

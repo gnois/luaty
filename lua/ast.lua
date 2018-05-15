@@ -14,6 +14,46 @@ local make = function(tag, node, ls)
     node.col = ls.col
     return node
 end
+local id = 0
+local Type = {
+    var = function(ls)
+        id = id + 1
+        return make(TType.Var, {name = "T" .. id}, ls)
+    end
+    , any = function(ls)
+        return make(TType.Any, {}, ls)
+    end
+    , ["nil"] = function(ls)
+        return make(TType.Nil, {}, ls)
+    end
+    , num = function(ls)
+        return make(TType.Num, {}, ls)
+    end
+    , str = function(ls)
+        return make(TType.Str, {}, ls)
+    end
+    , bool = function(ls)
+        return make(TType.Bool, {}, ls)
+    end
+    , func = function(params, returns, ls)
+        return make(TType.Func, {params = params, returns = returns}, ls)
+    end
+    , tbl = function(valkeys, ls)
+        return make(TType.Tbl, {valkeys = valkeys}, ls)
+    end
+    , ["or"] = function(left, right, ls)
+        return make(TType.Or, {left = left, right = right}, ls)
+    end
+    , ["and"] = function(left, right, ls)
+        return make(TType.And, {left = left, right = right}, ls)
+    end
+    , index = function(obj, prop, ls)
+        return make(TType.Index, {obj = obj, prop = prop}, ls)
+    end
+    , custom = function(name, ls)
+        return make(TType.Custom, {name = name}, ls)
+    end
+}
 local Statement = {
     expression = function(expr, ls)
         return make(TStmt.Expr, {expr = expr}, ls)
@@ -34,7 +74,14 @@ local Statement = {
         return make(TStmt.Forin, {vars = vars, types = types, exprs = exprs, body = body}, ls)
     end
     , fornum = function(var, first, last, step, body, ls)
-        return make(TStmt.Fornum, {var = var, first = first, last = last, step = step, body = body}, ls)
+        return make(TStmt.Fornum, {
+            var = var
+            , type = Type.num(ls)
+            , first = first
+            , last = last
+            , step = step
+            , body = body
+        }, ls)
     end
     , ["while"] = function(test, body, ls)
         return make(TStmt.While, {test = test, body = body}, ls)
@@ -99,43 +146,6 @@ local Expression = {
         return make(TExpr.Binary, {op = op, left = left, right = right}, ls)
     end
 }
-local build = function(ty, obj, node)
-    obj.type = ty
-    obj.node = node
-    return obj
-end
-local Type = {
-    any = function(node)
-        return build(TType.Any, {}, node)
-    end
-    , num = function(node)
-        return build(TType.Num, {}, node)
-    end
-    , str = function(node)
-        return build(TType.Str, {}, node)
-    end
-    , bool = function(node)
-        return build(TType.Bool, {}, node)
-    end
-    , func = function(params, returns, node)
-        return build(TType.Func, {params = params, returns = returns}, node)
-    end
-    , tbl = function(valkeys, node)
-        return build(TType.Tbl, {valkeys = valkeys}, node)
-    end
-    , ["or"] = function(left, right, node)
-        return build(TType.Or, {left = left, right = right}, node)
-    end
-    , ["and"] = function(left, right, node)
-        return build(TType.And, {left = left, right = right}, node)
-    end
-    , index = function(obj, prop, node)
-        return build(TType.Index, {obj = obj, prop = prop}, node)
-    end
-    , custom = function(name, node)
-        return build(TType.Custom, {name = name}, node)
-    end
-}
 local bracket = function(node)
     assert(TExpr[node.tag] or TType[node.type])
     node.bracketed = true
@@ -155,4 +165,12 @@ local nillable = function(node)
     assert(TType[node.type])
     return node["nil"]
 end
-return {Stmt = Statement, Expr = Expression, Type = Type, bracket = bracket, nils = nils, varargs = varargs, nillable = nillable}
+return {
+    Stmt = Statement
+    , Expr = Expression
+    , Type = Type
+    , bracket = bracket
+    , nils = nils
+    , varargs = varargs
+    , nillable = nillable
+}

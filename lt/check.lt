@@ -105,11 +105,11 @@ return \scope, stmts, warn ->
 		
 	Expr[TExpr.Function] = \node ->
 		scope.begin_func()
-		for _, var in ipairs(node.params)
+		for i, var in ipairs(node.params)
 			if var.tag == TExpr.Vararg
 				scope.varargs()
 			else
-				declare(var)
+				declare(var, node.types[i])
 		check_block(node.body)
 		scope.end_func()
 
@@ -160,8 +160,8 @@ return \scope, stmts, warn ->
 			warn(rights[1].line, rights[1].col, 9, "assigning " .. r .. " values to " .. l .. " variable(s)")
 
 	Stmt[TStmt.Local] = \node ->
-		for _, var in ipairs(node.vars)
-			declare(var)
+		for i, var in ipairs(node.vars)
+			declare(var, node.types[i])
 		check_exprs(node.exprs)
 		assign_check(node.vars, node.exprs)
 
@@ -184,8 +184,8 @@ return \scope, stmts, warn ->
 		scope.enter_block('ForIn')
 		check_exprs(node.exprs)
 		-- declare var into scope after rhs
-		for _, var in ipairs(node.vars)
-			declare(var)
+		for i, var in ipairs(node.vars)
+			declare(var, node.types[i])
 		check_block(node.body)
 		scope.leave_block()
 		
@@ -196,7 +196,7 @@ return \scope, stmts, warn ->
 		if node.step
 			check_expr(node.step)
 		-- declare var into scope after rhs
-		declare(node.var)
+		declare(node.var, node.type)
 		check_block(node.body)
 		scope.leave_block()
 		

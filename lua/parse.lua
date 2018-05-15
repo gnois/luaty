@@ -9,7 +9,16 @@ local Expr = ast.Expr
 local Type = ast.Type
 local Keyword = reserved.Keyword
 local LJ_52 = false
-local EndOfBlock = {TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true, ["}"] = true, [")"] = true, [";"] = true, [","] = true}
+local EndOfBlock = {
+    TK_dedent = true
+    , TK_else = true
+    , TK_until = true
+    , TK_eof = true
+    , ["}"] = true
+    , [")"] = true
+    , [";"] = true
+    , [","] = true
+}
 local NewLine = {TK_newline = true}
 local Kind = {Expr = "Expr", Var = "Var", Property = "Property", Index = "Index", Call = "Call"}
 return function(ls, warn)
@@ -693,7 +702,7 @@ return function(ls, warn)
     end
     local parse_params = function()
         local params, types, n = {}, {}, 0
-        local retypes = {}
+        local retypes, r = {}, 0
         local varargs = false
         if ls.token ~= "->" and ls.token ~= "~>" then
             repeat
@@ -713,7 +722,8 @@ return function(ls, warn)
                 elseif ls.token == ":" then
                     ls.step()
                     repeat
-                        retypes[#retypes + 1] = parse_type()
+                        r = r + 1
+                        retypes[r] = parse_type()
                     until not lex_opt(",")
                     break
                 else

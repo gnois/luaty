@@ -729,7 +729,7 @@ return \ls, warn ->
 	-- Parse function parameters
 	var parse_params = ->
 		var params, types, n = {}, {}, 0
-		var retypes = {}
+		var retypes, r = {}, 0
 		var varargs = false
 
 		if ls.token ~= '->' and ls.token ~= '~>'
@@ -749,7 +749,8 @@ return \ls, warn ->
 				else if ls.token == ':'
 					ls.step()  -- skip ':'
 					do
-						retypes[#retypes + 1] = parse_type()
+						r = r + 1
+						retypes[r] = parse_type()
 					until not lex_opt(',')
 					break
 				else

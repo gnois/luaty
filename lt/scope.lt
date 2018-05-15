@@ -21,7 +21,7 @@ return \decls, warn ->
 			var v = vstack[i]
 			if v.name == name
 				v.used = true
-				return v.line
+				return v.line, v.type
 		if Builtin[name]
 			return -1
 		if decls and decls[name]

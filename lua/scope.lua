@@ -13,7 +13,7 @@ return function(decls, warn)
             local v = vstack[i]
             if v.name == name then
                 v.used = true
-                return v.line
+                return v.line, v.type
             end
         end
         if Builtin[name] then
