@@ -1,8 +1,6 @@
 --
 -- Generated from stack.lt
 --
-
-
 local stack = {}
 local top = function()
     return stack[#stack]

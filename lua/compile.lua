@@ -1,8 +1,6 @@
 --
 -- Generated from compile.lt
 --
-
-
 local read = require("lua.read")
 local lex = require("lua.lex")
 local scope = require("lua.scope")

@@ -1,8 +1,6 @@
 --
 -- Generated from check.lt
 --
-
-
 local Tag = require("lua.tag")
 local TStmt = Tag.Stmt
 local TExpr = Tag.Expr

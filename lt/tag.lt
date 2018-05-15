@@ -43,9 +43,13 @@ return {
 		, Tbl = 'Table'
 		, Or = 'Or'
 		, And = 'And'
-		, Not = 'Not'
 		, Index = 'Index'
-		, Keyed = 'Keyed'
 		, Custom = 'Custom'
+	}
+
+	, Constraint = {
+		Eq = 'Eq'
+		, Sub = 'Sub'
+		, Opt = 'Opt'
 	}
 }

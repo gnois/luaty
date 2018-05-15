@@ -1,8 +1,6 @@
 --
 -- Generated from lex.lt
 --
-
-
 local bit = require("bit")
 local ffi = require("ffi")
 local chars = require("lua.chars")

@@ -1,8 +1,6 @@
 --
 -- Generated from generate.lt
 --
-
-
 local Tag = require("lua.tag")
 local reserved = require("lua.reserved")
 local operator = require("lua.operator")
@@ -50,6 +48,13 @@ local generate = function(stmts)
         end
         return concat(strls, ", ")
     end
+    local emit_params = function(nodes)
+        local t = {}
+        for i, node in ipairs(nodes) do
+            t[i] = node.tag == TExpr.Vararg and "..." or node.name
+        end
+        return concat(t, ", ")
+    end
     local is_plain_string = function(node)
         if node.tag == TExpr.String and type(node.value) == "string" then
             local str = node.value
@@ -65,19 +70,6 @@ local generate = function(stmts)
             end
             return not Keyword[str]
         end
-    end
-    local comma_sep_list = function(ls, f)
-        local strls = ls
-        if f then
-            strls = {}
-            for k = 1, #ls do
-                strls[k] = f(ls[k])
-            end
-        end
-        return concat(strls, ", ")
-    end
-    local as_parameter = function(node)
-        return node.tag == TExpr.Vararg and "..." or node.name
     end
     local priority = function(val)
         return val, operator.ident_priority
@@ -119,13 +111,17 @@ local generate = function(stmts)
         return priority(text)
     end
     Expr[TExpr.Function] = function(node)
-        local header = "function(" .. comma_sep_list(node.params, as_parameter) .. ")"
+        local header = "function(" .. emit_params(node.params) .. ")"
         local code = emit_block(header, node.body, "end")
         return code, 0
     end
     Expr[TExpr.Table] = function(node)
         local hash = {}
         local last = #node.valkeys
+        local more = ""
+        if last > 9 then
+            more = indent(1)
+        end
         for i = 1, last do
             local vk = node.valkeys[i]
             local val = emit_expr(vk[1])
@@ -145,8 +141,12 @@ local generate = function(stmts)
             end
         end
         local content = ""
+        local less = ""
+        if last > 9 then
+            less = indent(-1)
+        end
         if #hash > 0 then
-            content = comma_sep_list(hash)
+            content = more .. concat(hash, more .. ", ") .. less
         end
         return priority("{" .. content .. "}")
     end
@@ -206,8 +206,7 @@ local generate = function(stmts)
         return emit_expr(node.expr)
     end
     Stmt[TStmt.Local] = function(node)
-        local vars = comma_sep_list(node.vars, as_parameter)
-        local line = "local " .. vars
+        local line = "local " .. emit_params(node.vars)
         if #node.exprs > 0 then
             return line .. " = " .. emit_exprs(node.exprs)
         end
@@ -233,8 +232,7 @@ local generate = function(stmts)
         return concat(body)
     end
     Stmt[TStmt.Forin] = function(node)
-        local vars = comma_sep_list(node.vars, as_parameter)
-        local header = format("for %s in %s do", vars, emit_exprs(node.exprs))
+        local header = format("for %s in %s do", emit_params(node.vars), emit_exprs(node.exprs))
         return emit_block(header, node.body, "end")
     end
     Stmt[TStmt.Fornum] = function(node)

@@ -1,8 +1,6 @@
 --
 -- Generated from scope.lt
 --
-
-
 local reserved = require("lua.reserved")
 local Builtin = reserved.Builtin
 local unused = {_ = true, __ = true, ___ = true}
@@ -191,5 +189,17 @@ return function(decls, warn)
         end
         unused_goto(this)
     end
-    return {begin_func = begin_func, end_func = end_func, enter_block = enter_block, leave_block = leave_block, varargs = varargs, is_varargs = is_varargs, declared = declared, new_var = new_var, new_goto = new_goto, new_label = new_label, new_break = new_break}
+    return {
+        begin_func = begin_func
+        , end_func = end_func
+        , enter_block = enter_block
+        , leave_block = leave_block
+        , varargs = varargs
+        , is_varargs = is_varargs
+        , declared = declared
+        , new_var = new_var
+        , new_goto = new_goto
+        , new_label = new_label
+        , new_break = new_break
+    }
 end

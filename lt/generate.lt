@@ -46,7 +46,12 @@ var generate = \stmts ->
 			strls[k] = to_expr(exps[k], k == last and exps[k].bracketed)
 		return concat(strls, ", ")
 
-	---------------- Expressions -----
+	var emit_params = \nodes ->
+		var t = {}
+		for i, node in ipairs(nodes)
+			t[i] = node.tag == TExpr.Vararg and "..." or node.name
+		return concat(t, ", ")
+
 	var is_plain_string = \node ->
 		if node.tag == TExpr.String and type(node.value) == "string"
 			var str = node.value
@@ -60,19 +65,6 @@ var generate = \stmts ->
 					return false
 
 			return not Keyword[str]
-
-
-	var comma_sep_list = \ls, f ->
-		var strls = ls
-		if f
-			strls = {}
-			for k = 1, #ls
-				strls[k] = f(ls[k]) 
-		return concat(strls, ", ")
-
-
-	var as_parameter = \node ->
-		return node.tag == TExpr.Vararg and "..." or node.name
 
 	var priority = \val ->
 		return val, operator.ident_priority
@@ -118,13 +110,17 @@ var generate = \stmts ->
 
 
 	Expr[TExpr.Function] = \node ->
-		var header = "function(" .. comma_sep_list(node.params, as_parameter) .. ")"
+		var header = "function(" .. emit_params(node.params) .. ")"
 		var code = emit_block(header, node.body, "end")
 		return code, 0
 
 	Expr[TExpr.Table] = \node ->
 		var hash = {}
 		var last = #node.valkeys
+		var more = ""
+		if last > 9
+			more = indent(1)
+		
 		for i = 1, last
 			var vk = node.valkeys[i]
 			var val = emit_expr(vk[1])
@@ -142,8 +138,11 @@ var generate = \stmts ->
 					hash[i] = val
 
 		var content = ""
+		var less = ""
+		if last > 9
+			less = indent(-1)
 		if #hash > 0
-			content = comma_sep_list(hash)
+			content = more .. concat(hash, more .. ", ") .. less
 		return priority("{" .. content .. "}")
 
 
@@ -196,8 +195,7 @@ var generate = \stmts ->
 		return emit_expr(node.expr)
 
 	Stmt[TStmt.Local] = \node ->
-		var vars = comma_sep_list(node.vars, as_parameter)
-		var line = "local " .. vars
+		var line = "local " .. emit_params(node.vars)
 		if #node.exprs > 0
 			return line .. " = " ..  emit_exprs(node.exprs)
 		return line
@@ -220,8 +218,7 @@ var generate = \stmts ->
 		return concat(body)
 
 	Stmt[TStmt.Forin] = \node ->
-		var vars = comma_sep_list(node.vars, as_parameter)
-		var header = format("for %s in %s do", vars, emit_exprs(node.exprs))
+		var header = format("for %s in %s do", emit_params(node.vars), emit_exprs(node.exprs))
 		return emit_block(header, node.body, "end")
 
 	Stmt[TStmt.Fornum] = \node ->

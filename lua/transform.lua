@@ -1,8 +1,6 @@
 --
 -- Generated from transform.lt
 --
-
-
 local Tag = require("lua.tag")
 local ast = require("lua.ast")
 local TStmt = Tag.Stmt

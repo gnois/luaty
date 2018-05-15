@@ -125,7 +125,7 @@ elseif paths[1] then
             
             -- get the filename without path
             local basename = string.gsub(paths[1], "(.*[/\\])(.*)", "%2")
-            f:write("--\n-- Generated from " .. basename .. "\n--\n\n")
+            f:write("--\n-- Generated from " .. basename .. "\n--")
             f:write(code)
         end
     else
