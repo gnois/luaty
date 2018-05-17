@@ -4,6 +4,7 @@
 local reserved = require("lua.reserved")
 local Builtin = reserved.Builtin
 local unused = {_ = true, __ = true, ___ = true}
+local loop = {While = true, Repeat = true, ForIn = true, ForNum = true}
 return function(decls, warn)
     local vstack, vtop = {}, 0
     local bptr = nil
@@ -35,7 +36,7 @@ return function(decls, warn)
             end
             local msg = "shadowing " .. which .. " variable `" .. name .. "`"
             if ln > 0 then
-                msg = msg .. " declared on line " .. ln
+                msg = msg .. " on line " .. ln
             end
             warn(line, col, 3, msg)
         end
@@ -48,12 +49,31 @@ return function(decls, warn)
         assert(type(col) == "number")
         local blk = bptr
         while blk.tag ~= "Function" do
-            if ({While = true, Repeat = true, ForIn = true, ForNum = true})[blk.tag] then
+            if loop[blk.tag] then
                 return 
             end
             blk = blk.outer
         end
         warn(line, col, 10, "`break` must be inside a loop")
+    end
+    local find_goto = function(golas, lbl)
+        for _, g in ipairs(golas) do
+            if lbl.label == g.go then
+                if lbl.vtop > g.vtop then
+                    warn(g.line, g.col, 9, "goto <" .. g.go .. "> jumps over variable '" .. vstack[lbl.vtop].name .. "' declared at line " .. vstack[lbl.vtop].line)
+                end
+                g.match = true
+                lbl.used = true
+            end
+        end
+    end
+    local find_label = function(golas, go)
+        for _, lbl in ipairs(golas) do
+            if lbl.label == go.go then
+                lbl.used = true
+                go.match = true
+            end
+        end
     end
     local new_label = function(name, line, col)
         assert(type(name) == "string")
@@ -63,18 +83,23 @@ return function(decls, warn)
             bptr.golas = {}
         end
         local blk = bptr
+        local severity = 14
         while blk do
             if blk.golas then
                 for _, gl in ipairs(blk.golas) do
                     if gl.label == name then
-                        warn(line, col, 4, "duplicate label ::" .. name .. ":: on line " .. gl.line)
+                        local msg = severity > 10 and "duplicate" or "similar"
+                        warn(line, col, severity, msg .. " label ::" .. name .. ":: on line " .. gl.line)
                         break
                     end
                 end
             end
             blk = blk.outer
+            severity = 4
         end
-        table.insert(bptr.golas, {label = name, used = false, line = line, col = col, vtop = vtop})
+        local label = {label = name, used = false, line = line, col = col, vtop = vtop}
+        find_goto(bptr.golas, label)
+        table.insert(bptr.golas, label)
     end
     local new_goto = function(name, line, col)
         assert(type(name) == "string")
@@ -83,7 +108,9 @@ return function(decls, warn)
         if not bptr.golas then
             bptr.golas = {}
         end
-        table.insert(bptr.golas, {go = name, match = false, line = line, col = col, vtop = vtop})
+        local go = {go = name, match = false, line = line, col = col, vtop = vtop}
+        find_label(bptr.golas, go)
+        table.insert(bptr.golas, go)
     end
     local enter_block = function(tag)
         local newb = {tag = tag, vstart = vtop + 1, outer = bptr, blocks = nil, golas = nil}
@@ -106,31 +133,15 @@ return function(decls, warn)
         end
         local test_goto
         test_goto = function(blocks, lbl)
-            if blocks then
-                for _, b in ipairs(blocks) do
+            for _, b in ipairs(blocks) do
+                if b.blocks then
                     test_goto(b.blocks, lbl)
-                    if b.golas then
-                        for __, g in ipairs(b.golas) do
-                            if lbl.label == g.go then
-                                if lbl.vtop >= b.vstart then
-                                    warn(g.line, g.col, 9, "goto <" .. g.go .. "> jumps into the scope of variable '" .. vstack[lbl.vtop].name .. "' at line " .. vstack[lbl.vtop].line)
-                                end
-                                lbl.used = true
-                                g.match = true
-                            end
-                        end
-                    end
                 end
-            end
-        end
-        local golas = bptr.golas
-        if golas then
-            for _, g in ipairs(golas) do
-                if g.go then
-                    for __, lbl in ipairs(golas) do
+                if b.golas then
+                    for __, g in ipairs(b.golas) do
                         if lbl.label == g.go then
-                            if lbl.vtop > g.vtop then
-                                warn(g.line, g.col, 9, "goto <" .. g.go .. "> jumps over the variable '" .. vstack[lbl.vtop].name .. "' declared at line " .. vstack[lbl.vtop].line)
+                            if lbl.vtop >= b.vstart then
+                                warn(g.line, g.col, 9, "goto <" .. g.go .. "> jumps into the scope of variable '" .. vstack[lbl.vtop].name .. "' at line " .. vstack[lbl.vtop].line)
                             end
                             lbl.used = true
                             g.match = true
@@ -138,12 +149,16 @@ return function(decls, warn)
                     end
                 end
             end
-            for _, gl in ipairs(golas) do
-                if gl.label then
-                    test_goto(bptr.blocks, gl)
+        end
+        if bptr.golas then
+            if bptr.blocks then
+                for _, gl in ipairs(bptr.golas) do
+                    if gl.label then
+                        test_goto(bptr.blocks, gl)
+                    end
                 end
             end
-            for _, gl in ipairs(golas) do
+            for _, gl in ipairs(bptr.golas) do
                 if gl.label and not gl.used then
                     warn(gl.line, gl.col, 3, "unused label ::" .. gl.label .. "::")
                 end
