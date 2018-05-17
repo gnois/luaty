@@ -1,6 +1,7 @@
 --
 -- Generated from check.lt
 --
+local ast = require("lua.ast")
 local Tag = require("lua.tag")
 local TStmt = Tag.Stmt
 local TExpr = Tag.Expr
@@ -105,14 +106,33 @@ return function(scope, stmts, warn)
             end
         end
     end
+    Expr[TExpr.Nil] = function(node)
+        return ast.Type["nil"](node)
+    end
+    Expr[TExpr.Bool] = function(node)
+        return ast.Type.bool(node)
+    end
+    Expr[TExpr.Number] = function(node)
+        return ast.Type.num(node)
+    end
+    Expr[TExpr.String] = function(node)
+        return ast.Type.str(node)
+    end
     Expr[TExpr.Vararg] = function(node)
         if not scope.is_varargs() then
             warn(node.line, node.col, 11, "cannot use `...` in a function without variable arguments")
         end
     end
     Expr[TExpr.Id] = function(node)
-        if node.name and scope.declared(node.name) == 0 then
-            warn(node.line, node.col, 8, "undeclared identifier `" .. node.name .. "`")
+        if node.name then
+            local line, ty = scope.declared(node.name)
+            if line == 0 then
+                warn(node.line, node.col, 8, "undeclared identifier `" .. node.name .. "`")
+            end
+            if not ty then
+                ty = ast.Type.new(node)
+            end
+            return ty
         end
     end
     Expr[TExpr.Function] = function(node)
@@ -215,7 +235,7 @@ return function(scope, stmts, warn)
         if node.step then
             check_expr(node.step)
         end
-        declare(node.var, node.type)
+        declare(node.var, ast.Type.num(node))
         check_block(node.body)
         scope.leave_block()
     end

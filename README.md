@@ -44,7 +44,7 @@ Aside from having [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule),
   * `elseif` becomes `else if`
   * no more `then` after `if`
   * `local` becomes `var`
-  * `[[` and `]]` are replaced with backquote(s) \` that can be repeated multiple times
+  * `[[` and `]]` become backquote(s) \` that can be repeated multiple times
   * table keys can be string or keyword
   
 ```
@@ -52,6 +52,8 @@ var x = false               -- `var` compiles to `local`
 if not x
    print(`"nay"`)           -- `then` and `end` not needed, `"nay"` compiles to [["nay"]]
 
+--`a long string
+comment`
 var z = {
    'a-str' = 'a-str'                         -- string as key
    , var = 7                                 -- works as in Lua
@@ -69,9 +71,9 @@ assert(z.if(z.goto)[2] == false)             -- ditto
 
 
 Unlike Lua, functions in Luaty are mostly desugared:
-  * function declaration is always a [lambda expression](https://www.lua.org/manual/5.1/manual.html#2.5.9) using  `->` or `\param1, param2, ... ->`
+  * function is defined using [lambda expression](https://www.lua.org/manual/5.1/manual.html#2.5.9) with `->` or `\param1, param2, ... ->`
   * function call always require parenthesis
-  * colon `:` is never used. `self` or `@` should be specified as the first paramenter or call argument instead
+  * colon `:` is never used. `self` or `@` is specified as the first paramenter or call argument instead
   * specifying `@` as the first call argument compiles to colon call syntax `:` in Lua, if possible
 
 ```

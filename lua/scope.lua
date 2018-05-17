@@ -5,11 +5,10 @@ local reserved = require("lua.reserved")
 local Builtin = reserved.Builtin
 local unused = {_ = true, __ = true, ___ = true}
 return function(decls, warn)
-    local vstack = {}
-    local vtop = 1
+    local vstack, vtop = {}, 0
     local bptr = nil
     local declared = function(name)
-        for i = vtop - 1, 1, -1 do
+        for i = vtop, 1, -1 do
             local v = vstack[i]
             if v.name == name then
                 v.used = true
@@ -40,8 +39,8 @@ return function(decls, warn)
             end
             warn(line, col, 3, msg)
         end
-        vstack[vtop] = {name = name, type = vtype, used = false, line = line, col = col}
         vtop = vtop + 1
+        vstack[vtop] = {name = name, type = vtype, used = false, line = line, col = col}
         return vtop
     end
     local new_break = function(line, col)
@@ -87,7 +86,7 @@ return function(decls, warn)
         table.insert(bptr.golas, {go = name, match = false, line = line, col = col, vtop = vtop})
     end
     local enter_block = function(tag)
-        local newb = {tag = tag, vstart = vtop, outer = bptr, blocks = nil, golas = nil}
+        local newb = {tag = tag, vstart = vtop + 1, outer = bptr, blocks = nil, golas = nil}
         if bptr then
             if not bptr.blocks then
                 bptr.blocks = {}
@@ -97,7 +96,7 @@ return function(decls, warn)
         bptr = newb
     end
     local leave_block = function()
-        for n = bptr.vstart, vtop - 1 do
+        for n = bptr.vstart, vtop do
             local v = vstack[n]
             if not v.used then
                 if not unused[v.name] then
@@ -113,8 +112,8 @@ return function(decls, warn)
                     if b.golas then
                         for __, g in ipairs(b.golas) do
                             if lbl.label == g.go then
-                                if lbl.vtop > b.vstart then
-                                    warn(g.line, g.col, 12, "goto <" .. g.go .. "> jumps into the scope of variable " .. vstack[lbl.vtop - 1].name .. " at line " .. vstack[lbl.vtop - 1].line)
+                                if lbl.vtop >= b.vstart then
+                                    warn(g.line, g.col, 9, "goto <" .. g.go .. "> jumps into the scope of variable '" .. vstack[lbl.vtop].name .. "' at line " .. vstack[lbl.vtop].line)
                                 end
                                 lbl.used = true
                                 g.match = true
@@ -131,7 +130,7 @@ return function(decls, warn)
                     for __, lbl in ipairs(golas) do
                         if lbl.label == g.go then
                             if lbl.vtop > g.vtop then
-                                warn(g.line, g.col, 12, "goto <" .. g.go .. "> jumps into the scope of variable " .. vstack[lbl.vtop - 1].name .. " at line " .. vstack[lbl.vtop - 1].line)
+                                warn(g.line, g.col, 9, "goto <" .. g.go .. "> jumps over the variable '" .. vstack[lbl.vtop].name .. "' declared at line " .. vstack[lbl.vtop].line)
                             end
                             lbl.used = true
                             g.match = true
@@ -150,8 +149,8 @@ return function(decls, warn)
                 end
             end
         end
-        vtop = bptr.vstart
-        assert(vtop >= 1)
+        vtop = bptr.vstart - 1
+        assert(vtop >= 0)
         bptr = bptr.outer
     end
     local varargs = function()
@@ -177,7 +176,7 @@ return function(decls, warn)
             if block.golas then
                 for __, gl in ipairs(block.golas) do
                     if gl.go and not gl.match then
-                        warn(gl.line, gl.col, 12, "goto undefined label <" .. gl.go .. ">")
+                        warn(gl.line, gl.col, 12, "no visible label for goto <" .. gl.go .. ">")
                     end
                 end
             end

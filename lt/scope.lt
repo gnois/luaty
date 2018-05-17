@@ -11,13 +11,12 @@ var unused = {
 return \decls, warn ->
 
 	-- variable stacks during parse
-	var vstack = {}
-	var vtop = 1
+	var vstack, vtop = {}, 0
 	-- block pointer during parse
 	var bptr = nil
 
 	var declared = \name ->
-		for i = vtop - 1, 1, -1
+		for i = vtop, 1, -1
 			var v = vstack[i]
 			if v.name == name
 				v.used = true
@@ -42,8 +41,8 @@ return \decls, warn ->
 			if ln > 0
 				msg = msg .. " declared on line " .. ln
 			warn(line, col, 3, msg)
-		vstack[vtop] = { name = name, type = vtype, used = false, line = line, col = col }
 		vtop = vtop + 1
+		vstack[vtop] = { name = name, type = vtype, used = false, line = line, col = col }
 		return vtop
 
 	-- Note: loop block tags must be spelled correctly
@@ -78,8 +77,8 @@ return \decls, warn ->
 			blk = blk.outer
 
 		table.insert(bptr.golas, { label = name, used = false, line = line, col = col, vtop = vtop })
-	
-	
+
+
 	var new_goto = \name, line, col ->
 		assert(type(name) == 'string')
 		assert(type(line) == 'number')
@@ -87,17 +86,16 @@ return \decls, warn ->
 		if not bptr.golas
 			bptr.golas = {}
 		table.insert(bptr.golas, { go = name, match = false, line = line, col = col, vtop = vtop })
-		
+
 
 	var enter_block = \tag ->
 		--assert(tag) -- enforce later
 		var newb = {
 			tag = tag
-			, vstart = vtop    -- current stack pointer
-			, outer = bptr     -- point to outer block
-			, blocks = nil     -- child blocks in this block
-			, golas = nil      -- list of gotos and labels
-			
+			, vstart = vtop + 1   -- current stack pointer
+			, outer = bptr        -- point to outer block
+			, blocks = nil        -- child blocks in this block
+			, golas = nil         -- list of gotos and labels
 		}
 		
 		-- add to outer
@@ -109,9 +107,9 @@ return \decls, warn ->
 
 	var leave_block = ->
 		-- report unused variables
-		for n = bptr.vstart, vtop - 1
+		for n = bptr.vstart, vtop
 			var v = vstack[n]
-			if not v.used 
+			if not v.used
 				if not unused[v.name]
 					warn(v.line, v.col, 3, "unused variable `" .. v.name .. "`")
 	
@@ -126,8 +124,8 @@ return \decls, warn ->
 					if b.golas
 						for __, g in ipairs(b.golas)
 							if lbl.label == g.go
-								if lbl.vtop > b.vstart -- start of block
-									warn(g.line, g.col, 12, "goto <" .. g.go .. "> jumps into the scope of variable " .. vstack[lbl.vtop - 1].name .. " at line " .. vstack[lbl.vtop - 1].line)
+								if lbl.vtop >= b.vstart -- start of block
+									warn(g.line, g.col, 9, "goto <" .. g.go .. "> jumps into the scope of variable '" .. vstack[lbl.vtop].name .. "' at line " .. vstack[lbl.vtop].line)
 								lbl.used = true
 								g.match = true
 
@@ -140,7 +138,7 @@ return \decls, warn ->
 					for __, lbl in ipairs(golas)
 						if lbl.label == g.go
 							if lbl.vtop > g.vtop
-								warn(g.line, g.col, 12, "goto <" .. g.go .. "> jumps into the scope of variable " .. vstack[lbl.vtop - 1].name .. " at line " .. vstack[lbl.vtop - 1].line)
+								warn(g.line, g.col, 9, "goto <" .. g.go .. "> jumps over the variable '" .. vstack[lbl.vtop].name .. "' declared at line " .. vstack[lbl.vtop].line)
 							lbl.used = true
 							g.match = true
 
@@ -155,8 +153,8 @@ return \decls, warn ->
 					warn(gl.line, gl.col, 3, "unused label ::" .. gl.label .. "::")
 
 		-- pop the vstack
-		vtop = bptr.vstart
-		assert(vtop >= 1)
+		vtop = bptr.vstart - 1
+		assert(vtop >= 0)
 		bptr = bptr.outer
 
 
@@ -190,7 +188,7 @@ return \decls, warn ->
 			if block.golas
 				for __, gl in ipairs(block.golas)
 					if gl.go and not gl.match
-						warn(gl.line, gl.col, 12, "goto undefined label <" .. gl.go .. ">")
+						warn(gl.line, gl.col, 12, "no visible label for goto <" .. gl.go .. ">")
 
 			if block.blocks
 				for _, b in ipairs(block.blocks)

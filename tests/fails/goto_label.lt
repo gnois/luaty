@@ -1,14 +1,25 @@
-goto a       -- undefined label <a>
+goto a       -- goto undefined label <a>
 ::b::
 
-do ::a::        --  unused label <a>
+do ::a::     -- unused label <a>
 
 do
 	while true
 		goto c
-
+		goto b
 ::c::
-goto d          -- goto <d> jumps into the scope of variable dd at line 13
+::e::
 
-var dd = 10     -- unused variable `dd` declared
+do
+	goto e
+
+goto d          -- goto <d> jumps into the scope of variable dd at line 18
+var dd = 10     -- unused variable `dd`
 ::d::
+
+goto e
+(->
+	goto c       -- goto undefined label <c>
+)()
+
+

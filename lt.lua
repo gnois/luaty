@@ -102,7 +102,9 @@ elseif paths[1] then
     while dest == paths[1] do
         dest = dest .. '.lua'
     end
-    io.stderr:write(" >> " .. dest .. "\n")
+    if not run then
+        io.stderr:write(" Making " .. dest .. " ...\n")
+    end
     --io.stderr:write(color.magenta, "Error compiling " .. paths[1] .. "\n", color.reset)
     if warns then
         io.stderr:write(warns .. "\n")

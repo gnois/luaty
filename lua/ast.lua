@@ -16,7 +16,7 @@ local make = function(tag, node, ls)
 end
 local id = 0
 local Type = {
-    var = function(ls)
+    new = function(ls)
         id = id + 1
         return make(TType.Var, {name = "T" .. id}, ls)
     end
@@ -74,14 +74,7 @@ local Statement = {
         return make(TStmt.Forin, {vars = vars, types = types, exprs = exprs, body = body}, ls)
     end
     , fornum = function(var, first, last, step, body, ls)
-        return make(TStmt.Fornum, {
-            var = var
-            , type = Type.num(ls)
-            , first = first
-            , last = last
-            , step = step
-            , body = body
-        }, ls)
+        return make(TStmt.Fornum, {var = var, first = first, last = last, step = step, body = body}, ls)
     end
     , ["while"] = function(test, body, ls)
         return make(TStmt.While, {test = test, body = body}, ls)
@@ -147,22 +140,22 @@ local Expression = {
     end
 }
 local bracket = function(node)
-    assert(TExpr[node.tag] or TType[node.type])
+    assert(TExpr[node.tag] or TType[node.tag])
     node.bracketed = true
     return node
 end
 local nils = function(node)
-    assert(TType[node.type])
+    assert(TType[node.tag])
     node["nil"] = true
     return node
 end
 local varargs = function(node)
-    assert(TType[node.type])
+    assert(TType[node.tag])
     node.varargs = true
     return node
 end
 local nillable = function(node)
-    assert(TType[node.type])
+    assert(TType[node.tag])
     return node["nil"]
 end
 return {
