@@ -129,7 +129,7 @@ return \ls, warn ->
 	-- Only table type annotation can span multiple lines
 	var type_tbl = \loc ->
 		ls.step()  -- skip '{'
-		var vks = {}
+		var vks, n = {}, 0
 		var dented = false
 		while ls.token ~= '}'
 			dented = lex_opt_dent(dented)
@@ -150,7 +150,8 @@ return \ls, warn ->
 				
 			if key and not val
 				err_instead(10, "value type expected in table type annotation")
-			vks[#vks + 1] = { val, key }  -- key can be nil
+			n = n + 1
+			vks[n] = { val, key }  -- key can be nil
 
 			dented = lex_opt_dent(dented)
 			if not lex_opt(',')
@@ -290,7 +291,6 @@ return \ls, warn ->
 	var expr_primary, expr, expr_unop, expr_binop, expr_simple, expr_list, expr_table
 	var parse_body, parse_args, parse_block
 
-
 	var expr_bracket = ->
 		ls.step() -- skip '['
 		var v = expr()
@@ -299,7 +299,7 @@ return \ls, warn ->
 
 
 	expr_table = \loc ->
-		var vks = {}
+		var vks, n = {}, 0
 		var dented = false
 		lex_check('{')
 		while ls.token ~= '}'
@@ -335,7 +335,8 @@ return \ls, warn ->
 				lex_check('=')
 		
 			var val = expr()
-			vks[#vks + 1] = { val, key }  -- key can be nil
+			n = n + 1
+			vks[n] = { val, key }  -- key can be nil
 
 			dented = lex_opt_dent(dented)
 			if ls.token == ';'
@@ -498,11 +499,11 @@ return \ls, warn ->
 			return parse_for_num(loc)
 
 		-- Parse 'for .. in ..'
-		var vars, types, n = {}, {}, 1
+		var vars, types, n = {}, {}, 0
 		do
+			n = n + 1
 			vars[n] = Expr.id(lex_str())
 			types[n] = parse_type()
-			n = n + 1
 		until not lex_opt(',')
 		lex_check('TK_in')
 		var exps = expr_list()
@@ -518,7 +519,7 @@ return \ls, warn ->
 			err_warn("ambiguous syntax (function call x new statement)")
 
 		var dented = false
-		var args = {}
+		var args, a = {}, 0
 		while ls.token ~= ')'
 			dented = lex_opt_dent(dented)
 			-- catch common mistake that mess everything later
@@ -527,8 +528,9 @@ return \ls, warn ->
 				ls.step()
 			if ls.token == ')'
 				break
-			args[#args + 1] = expr()
-			
+			a = a + 1
+			args[a] = expr()
+
 			dented = lex_opt_dent(dented)
 			if not lex_opt(',')
 				break
@@ -550,27 +552,26 @@ return \ls, warn ->
 		if lex_opt(',')
 			var n_var, n_vk = expr_primary()
 			return parse_assignment(lhs, n_var, n_vk)
-		else -- Parse RHS.
-			lex_check('=')
-			var exps = expr_list()
-			return Stmt.assign(lhs, exps, loc)
+		-- Parse RHS
+		lex_check('=')
+		var exps = expr_list()
+		return Stmt.assign(lhs, exps, loc)
 
 
 	var parse_call_assign = \loc ->
 		var v, vk = expr_primary()
 		if vk == Kind.Call
 			return Stmt.expression(v, loc)
-		else
-			var lhs = {}
-			return parse_assignment(lhs, v, vk)
+		var lhs = {}
+		return parse_assignment(lhs, v, vk)
 
 
 	var parse_var = \loc ->
-		var lhs, types, i = {}, {}, 1
+		var lhs, types, i = {}, {}, 0
 		do
+			i = i + 1
 			lhs[i] = Expr.id(lex_str())
 			types[i] = parse_type()
-			i = i + 1
 		until not lex_opt(',')
 
 		var rhs = {}
@@ -658,7 +659,7 @@ return \ls, warn ->
 		else if ls.token == '\\' or ls.token == '->' or ls.token == '~>'
 			err_syntax("lambda must either be assigned or immediately invoked")
 			stmt = expr_function(loc)
-		else if ls.token == 'TK_name' and ls.value == 'var'
+		else if ls.token == 'TK_name' and ls.value == 'var' and ls.next() == 'TK_name'
 			ls.step()
 			stmt = parse_var(loc)
 		else if ls.token == 'TK_local'
@@ -694,12 +695,13 @@ return \ls, warn ->
 			lex_opt('TK_newline')
 
 		var stmt, islast = nil, false
-		var body = {}
+		var body, b = {}, 0
 		while not islast and not EndOfBlock[ls.token]
 			stmted = ls.line
 			skip_ends()
 			stmt, islast = parse_stmt()
-			body[#body + 1] = stmt
+			b = b + 1
+			body[b] = stmt
 			skip_ends()
 			-- disallow multiple statement in one line
 			if stmted == ls.line

@@ -125,7 +125,7 @@ return function(ls, warn)
     local parse_type, type_unary, type_binary, type_basic
     local type_tbl = function(loc)
         ls.step()
-        local vks = {}
+        local vks, n = {}, 0
         local dented = false
         while ls.token ~= "}" do
             dented = lex_opt_dent(dented)
@@ -146,7 +146,8 @@ return function(ls, warn)
             if key and not val then
                 err_instead(10, "value type expected in table type annotation")
             end
-            vks[#vks + 1] = {val, key}
+            n = n + 1
+            vks[n] = {val, key}
             dented = lex_opt_dent(dented)
             if not lex_opt(",") then
                 break
@@ -287,7 +288,7 @@ return function(ls, warn)
         return v
     end
     expr_table = function(loc)
-        local vks = {}
+        local vks, n = {}, 0
         local dented = false
         lex_check("{")
         while ls.token ~= "}" do
@@ -322,7 +323,8 @@ return function(ls, warn)
                 lex_check("=")
             end
             local val = expr()
-            vks[#vks + 1] = {val, key}
+            n = n + 1
+            vks[n] = {val, key}
             dented = lex_opt_dent(dented)
             if ls.token == ";" then
                 err_instead(3, "use `,`")
@@ -481,11 +483,11 @@ return function(ls, warn)
         if ls.next() == "=" then
             return parse_for_num(loc)
         end
-        local vars, types, n = {}, {}, 1
+        local vars, types, n = {}, {}, 0
         repeat
+            n = n + 1
             vars[n] = Expr.id(lex_str())
             types[n] = parse_type()
-            n = n + 1
         until not lex_opt(",")
         lex_check("TK_in")
         local exps = expr_list()
@@ -499,7 +501,7 @@ return function(ls, warn)
             err_warn("ambiguous syntax (function call x new statement)")
         end
         local dented = false
-        local args = {}
+        local args, a = {}, 0
         while ls.token ~= ")" do
             dented = lex_opt_dent(dented)
             if not dented and ls.token == "TK_dedent" then
@@ -509,7 +511,8 @@ return function(ls, warn)
             if ls.token == ")" then
                 break
             end
-            args[#args + 1] = expr()
+            a = a + 1
+            args[a] = expr()
             dented = lex_opt_dent(dented)
             if not lex_opt(",") then
                 break
@@ -531,27 +534,25 @@ return function(ls, warn)
         if lex_opt(",") then
             local n_var, n_vk = expr_primary()
             return parse_assignment(lhs, n_var, n_vk)
-        else
-            lex_check("=")
-            local exps = expr_list()
-            return Stmt.assign(lhs, exps, loc)
         end
+        lex_check("=")
+        local exps = expr_list()
+        return Stmt.assign(lhs, exps, loc)
     end
     local parse_call_assign = function(loc)
         local v, vk = expr_primary()
         if vk == Kind.Call then
             return Stmt.expression(v, loc)
-        else
-            local lhs = {}
-            return parse_assignment(lhs, v, vk)
         end
+        local lhs = {}
+        return parse_assignment(lhs, v, vk)
     end
     local parse_var = function(loc)
-        local lhs, types, i = {}, {}, 1
+        local lhs, types, i = {}, {}, 0
         repeat
+            i = i + 1
             lhs[i] = Expr.id(lex_str())
             types[i] = parse_type()
-            i = i + 1
         until not lex_opt(",")
         local rhs = {}
         if lex_opt("=") then
@@ -631,7 +632,7 @@ return function(ls, warn)
         elseif ls.token == "\\" or ls.token == "->" or ls.token == "~>" then
             err_syntax("lambda must either be assigned or immediately invoked")
             stmt = expr_function(loc)
-        elseif ls.token == "TK_name" and ls.value == "var" then
+        elseif ls.token == "TK_name" and ls.value == "var" and ls.next() == "TK_name" then
             ls.step()
             stmt = parse_var(loc)
         elseif ls.token == "TK_local" then
@@ -666,12 +667,13 @@ return function(ls, warn)
             lex_opt("TK_newline")
         end
         local stmt, islast = nil, false
-        local body = {}
+        local body, b = {}, 0
         while not islast and not EndOfBlock[ls.token] do
             stmted = ls.line
             skip_ends()
             stmt, islast = parse_stmt()
-            body[#body + 1] = stmt
+            b = b + 1
+            body[b] = stmt
             skip_ends()
             if stmted == ls.line then
                 if ls.token ~= "TK_eof" and ls.token ~= "TK_dedent" and ls.next() ~= "TK_eof" then
