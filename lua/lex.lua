@@ -359,13 +359,14 @@ return function(read, warn)
                 indent = nil
             end
             return "TK_dedent"
-        elseif minus then
-            minus = nil
-            return "-"
         end
         local tab = nil
         local mixed = false
         while true do
+            if minus then
+                minus = nil
+                return "-"
+            end
             local c = ch
             if IsNewLine[ch] then
                 tab = nil
@@ -434,6 +435,7 @@ return function(read, warn)
                     return "->"
                 elseif newline then
                     minus = true
+                    return "TK_newline"
                 else
                     return "-"
                 end

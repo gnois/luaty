@@ -1,14 +1,17 @@
 --
 -- Generated from stack.lt
 --
-local stack = {}
+local stack, s = {}, 0
 local top = function()
-    return stack[#stack]
+    return stack[s]
 end
 local push = function(input)
-    table.insert(stack, input)
+    s = s + 1
+    stack[s] = input
 end
 local pop = function()
-    return table.remove(stack)
+    local output = stack[s]
+    s = s - 1
+    return output
 end
 return {top = top, push = push, pop = pop}

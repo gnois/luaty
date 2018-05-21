@@ -69,7 +69,7 @@ for k, v in pairs(files) do
     if #v > 0 and string.sub(v, -string.len('.lt'))=='.lt' then
         print('\n' .. v .. ':')
         filename = folder .. slash .. v
-        local code, warn = compile.file(filename, {}, color)
+        local code, warns = compile.file(filename, {}, color)
         if not code then
             io.stderr:write(warns .. "\n")
             failed()

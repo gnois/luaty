@@ -134,7 +134,7 @@ elseif paths[1] then
         if run then
             io.stderr:write(" Fail to run " .. paths[1] .. "\n")
         else
-            io.stderr:write(" Fail to generate " .. dest .. "\n")
+            io.stderr:write(" Fail to make " .. dest .. "\n")
         end
     end
 else

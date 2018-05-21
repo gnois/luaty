@@ -364,15 +364,15 @@ return \read, warn ->
 				indent = nil
 		
 			return 'TK_dedent'
-		else if minus
-			minus = nil
-			return '-'
 
 		var tab = nil   -- tab char of the current line
 		var mixed = false  -- mixing tab and space?
 		while true
+			if minus
+				minus = nil
+				return '-'
+
 			var c = ch
-			
 			if IsNewLine[ch]
 				tab = nil  -- if come back here, is an empty line, reset tab space tracker
 				inc_line()
@@ -400,6 +400,7 @@ return \read, warn ->
 			else if ch == ' ' or ch == '\t' or ch == '\b' or ch == '\f'
 				-- skip space in between characters
 				nextchar()
+			-- comment must be earlier than newline check, bcoz we ignore newline, indents, space/tab for comment line
 			else if ch == '-'
 				nextchar()
 				if ch == '-'
@@ -437,10 +438,12 @@ return \read, warn ->
 					nextchar()
 					return '->'
 				else if newline
+					-- owe a minus
 					minus = true
+					return 'TK_newline'
 				else
 					return '-'
-			
+
 			else if newline
 				if not mixed and tab
 					if not tabs 

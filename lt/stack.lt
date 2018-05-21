@@ -1,13 +1,16 @@
-var stack = {}
+var stack, s = {}, 0
  
 var top = ->
-	return stack[#stack]
+	return stack[s]
 
 var push = \input ->
-	table.insert(stack, input)
+	s = s + 1
+	stack[s] = input
 
 var pop = ->
-	return table.remove(stack)
+	var output = stack[s]
+	s = s - 1
+	return output
 
 return {
 	top = top
