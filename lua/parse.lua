@@ -55,6 +55,11 @@ return function(ls, warn)
             parse_error(10, "unexpected %s", ls_value() or ls.astext(ls.token))
         end
     end
+    local skip_stmt = function()
+        while not EndOfBlock[ls.token] and not NewLine[ls.token] and ls.token ~= "TK_eof" do
+            ls.step()
+        end
+    end
     local is_keyword = function()
         local str = ls.tostr(ls.token)
         if Keyword[str] then
@@ -548,6 +553,42 @@ return function(ls, warn)
         return parse_assignment(lhs, v, vk)
     end
     local parse_var = function(loc)
+        if ls.next() == "=>" then
+            local lhs = Expr.id(lex_str())
+            ls.step()
+            local variants, v = {}, 0
+            local line = ls.line
+            if lex_indent() then
+                repeat
+                    if ls.token ~= "TK_name" then
+                        break
+                    end
+                    local ctor = Expr.id(lex_str())
+                    local params, n = {}, 0
+                    if lex_opt(":") then
+                        repeat
+                            if ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
+                                n = n + 1
+                                params[n] = Expr.id(lex_str())
+                            else
+                                err_instead(10, "parameter expected for variant constructor")
+                            end
+                        until not lex_opt(",")
+                    end
+                    v = v + 1
+                    variants[v] = {ctor = ctor, params = params or {}}
+                until not lex_opt("TK_newline")
+                if not lex_dedent() then
+                    err_instead(10, "%s expected to match %s at line %d", ls.astext("TK_dedent"), ls.astext("TK_indent"), line)
+                end
+                if v < 2 then
+                    err_syntax("variant must have more than one constructor")
+                end
+            else
+                err_instead(10, "%s required for variant type", ls.astext("TK_indent"), loc.line)
+            end
+            return Stmt.data(lhs, variants, loc)
+        end
         local lhs, types, i = {}, {}, 0
         repeat
             i = i + 1

@@ -4,6 +4,7 @@
 return {Stmt = {
     Expr = "Expr"
     , Local = "Local"
+    , Data = "Data"
     , Assign = "Assign"
     , Do = "Do"
     , If = "If"

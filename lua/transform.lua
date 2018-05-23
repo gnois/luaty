@@ -98,6 +98,26 @@ return function(stmts)
         node.exprs = visit_exprs(node.exprs)
         return node
     end
+    Stmt[TStmt.Data] = function(node)
+        local vks = {}
+        for i, v in ipairs(node.variants) do
+            local key = ast.Expr.string(v.ctor.name, false, v.ctor)
+            local params = {{ast.Expr.string(node.name.name .. ":" .. v.ctor.name, false, v.ctor), ast.Expr.string("^", false, v.ctor)}}
+            for n, p in ipairs(v.params) do
+                params[n + 1] = {p}
+            end
+            local tbl = ast.Expr.table(params, v.ctor)
+            local val = ast.Expr["function"](v.params, {}, {}, {ast.Stmt["return"]({tbl}, v.ctor)}, node)
+            vks[i] = {val, key}
+        end
+        local tbl = ast.Expr.table(vks, node)
+        local idvar = ast.Expr.id("var", node)
+        local body = {ast.Expr.binary("and", ast.Expr.binary("==", ast.Expr.call(ast.Expr.id("type", node), {idvar}, node), ast.Expr.string("table", false, node), node), ast.Expr.call(ast.Expr.property(ast.Expr.id("string", node), "find", node), {ast.Expr.index(idvar, ast.Expr.string("^", false, node), node), ast.Expr.string(node.name.name .. ":", false, node)}, node), node)}
+        local test = ast.Expr["function"]({idvar}, {}, {}, {ast.Stmt["return"](body, node)}, node)
+        local metatb = ast.Expr.table({{test, ast.Expr.string("__call", false, node)}}, node)
+        local setmetatb = ast.Expr.call(ast.Expr.id("setmetatable", node), {tbl, metatb}, node)
+        return ast.Stmt["local"]({node.name}, {}, {setmetatb}, node)
+    end
     Stmt[TStmt.Assign] = function(node)
         node.lefts = visit_exprs(node.lefts)
         node.rights = visit_exprs(node.rights)

@@ -484,12 +484,14 @@ return function(read, warn)
                     return "TK_longstring", str
                 elseif ch == "=" then
                     nextchar()
-                    if ch ~= "=" then
-                        return "="
-                    else
+                    if ch == "=" then
                         nextchar()
                         return "=="
+                    elseif ch == ">" then
+                        nextchar()
+                        return "=>"
                     end
+                    return "="
                 elseif ch == "<" then
                     nextchar()
                     if ch ~= "=" then

@@ -490,10 +490,13 @@ return \read, warn ->
 
 				else if ch == '='
 					nextchar()
-					if ch ~= '=' return '='
-					else
+					if ch == '='
 						nextchar()
-						return '==' 
+						return '=='
+					else if ch == '>'
+						nextchar()
+						return '=>'
+					return '='
 				else if ch == '<'
 					nextchar()
 					if ch ~= '=' return '<'
@@ -508,10 +511,10 @@ return \read, warn ->
 						return '>=' 
 				else if ch == '~'
 					nextchar()
-					if ch == '=' 
+					if ch == '='
 						nextchar()
 						return '~='
-					else if ch == '>' 
+					else if ch == '>'
 						nextchar()
 						return '~>'
 					return '~'

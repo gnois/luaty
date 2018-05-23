@@ -6,53 +6,6 @@ local Tag = require("lua.tag")
 local TStmt = Tag.Stmt
 local TExpr = Tag.Expr
 local TType = Tag.Type
-local same
-same = function(a, b)
-    if a and b and a.tag == b.tag then
-        if #a ~= #b then
-            return false
-        end
-        local last = 1
-        for i, v in ipairs(a) do
-            last = i
-            if "table" == type(v) then
-                if not same(v, b[i]) then
-                    return false
-                end
-            elseif b[i] ~= v then
-                return false
-            end
-        end
-        for k, v in pairs(a) do
-            if "number" ~= type(k) or k < 1 or k > last or math.floor(k) ~= k then
-                if k ~= "line" and k ~= "col" then
-                    if "table" == type(v) then
-                        if not same(v, b[k]) then
-                            return false
-                        end
-                    elseif b[k] ~= v then
-                        return false
-                    end
-                end
-            end
-        end
-        for k, v in pairs(b) do
-            if "number" ~= type(k) or k < 1 or k > last or math.floor(k) ~= k then
-                if k ~= "line" and k ~= "col" then
-                    if "table" == type(v) then
-                        if not same(v, a[k]) then
-                            return false
-                        end
-                    elseif a[k] ~= v then
-                        return false
-                    end
-                end
-            end
-        end
-        return true
-    end
-    return false
-end
 return function(scope, stmts, warn)
     local Stmt = {}
     local Expr = {}
@@ -61,22 +14,23 @@ return function(scope, stmts, warn)
         scope.enter_block()
         for _, node in ipairs(nodes) do
             local rule = Stmt[node.tag]
-            if rule then
-                rule(node)
+            if not rule then
+                error(node.tag)
             end
+            rule(node)
         end
         scope.leave_block()
     end
     local check_expr = function(node)
         local rule = Expr[node.tag]
-        if rule then
-            rule(node)
-        end
+        return rule(node)
     end
     local check_exprs = function(nodes)
-        for _, node in ipairs(nodes) do
-            check_expr(node)
+        local cons, subs = {}, {}
+        for i, node in ipairs(nodes) do
+            cons[i], subs[i] = check_expr(node)
         end
+        return cons, subs
     end
     local declare = function(var, vtype)
         assert(var.tag == TExpr.Id)
@@ -89,7 +43,7 @@ return function(scope, stmts, warn)
             local key = vk[2]
             if key then
                 for n = 1, #keys do
-                    if keys[n] and same(keys[n], key) then
+                    if keys[n] and ast.same(keys[n], key) then
                         warn(key.line, key.col, 10, "duplicate keys at position " .. i .. " and " .. n .. " in table type annotation")
                     end
                 end
@@ -98,7 +52,7 @@ return function(scope, stmts, warn)
             local val = vk[1]
             if val and not key then
                 for n = 1, #vals do
-                    if vals[n] and same(vals[n], val) then
+                    if vals[n] and ast.same(vals[n], val) then
                         warn(val.line, val.col, 10, "similar value types at position " .. i .. " and " .. n .. " in table type annotation")
                     end
                 end
@@ -122,6 +76,7 @@ return function(scope, stmts, warn)
         if not scope.is_varargs() then
             warn(node.line, node.col, 11, "cannot use `...` in a function without variable arguments")
         end
+        return ast.varargs(ast.Type.any(node))
     end
     Expr[TExpr.Id] = function(node)
         if node.name then
@@ -137,15 +92,19 @@ return function(scope, stmts, warn)
     end
     Expr[TExpr.Function] = function(node)
         scope.begin_func()
+        local params = {}
         for i, var in ipairs(node.params) do
             if var.tag == TExpr.Vararg then
                 scope.varargs()
+                params[i] = node.types[i] or ast.Type.new(node) or ast.varargs(ast.Type.any(node))
             else
                 declare(var, node.types[i])
+                params[i] = ast.Type.new(node)
             end
         end
         check_block(node.body)
         scope.end_func()
+        return ast.Type.func(params, {}, node)
     end
     Expr[TExpr.Table] = function(node)
         local keys = {}
@@ -155,7 +114,7 @@ return function(scope, stmts, warn)
             if key then
                 check_expr(key)
                 for n = 1, #keys do
-                    if keys[n] and same(key, keys[n]) then
+                    if keys[n] and ast.same(key, keys[n]) then
                         warn(key.line, key.col, 10, "duplicate keys at position " .. i .. " and " .. n .. " in table")
                     end
                 end
@@ -201,6 +160,9 @@ return function(scope, stmts, warn)
         end
         check_exprs(node.exprs)
         assign_check(node.vars, node.exprs)
+    end
+    Stmt[TStmt.Data] = function(node)
+        
     end
     Stmt[TStmt.Assign] = function(node)
         check_exprs(node.lefts)

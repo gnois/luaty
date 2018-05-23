@@ -100,6 +100,42 @@ return \stmts ->
 		node.exprs = visit_exprs(node.exprs)
 		return node
 
+	Stmt[TStmt.Data] = \node ->
+		var vks = {}
+		for i, v in ipairs(node.variants)
+			var key = ast.Expr.string(v.ctor.name, false, v.ctor)
+			var params = {
+				{ ast.Expr.string(node.name.name .. ":" .. v.ctor.name, false, v.ctor), ast.Expr.string("^", false, v.ctor) }
+			}
+			for n, p in ipairs(v.params)
+				params[n+1] = { p }
+			var tbl = ast.Expr.table(params, v.ctor)
+			var val = ast.Expr.function(v.params, {}, {}, { ast.Stmt.return({tbl}, v.ctor) }, node)
+			vks[i] = { val, key }
+		
+		var tbl = ast.Expr.table(vks, node)
+		var idvar = ast.Expr.id("var", node)
+		var body = {
+			ast.Expr.binary('and'
+				, ast.Expr.binary('=='
+					, ast.Expr.call(ast.Expr.id("type", node), {idvar}, node)
+					, ast.Expr.string("table", false, node)
+					, node
+				)
+				, ast.Expr.call(ast.Expr.property(ast.Expr.id("string", node), "find", node), {
+					ast.Expr.index(idvar, ast.Expr.string("^", false, node), node)
+					, ast.Expr.string(node.name.name .. ":", false, node)
+				}, node)
+				, node
+			)
+		}
+		var test = ast.Expr.function({idvar}, {}, {}, { ast.Stmt.return(body, node) }, node)
+		var metatb = ast.Expr.table({
+			{ test, ast.Expr.string("__call", false, node) }
+		}, node)
+		var setmetatb = ast.Expr.call(ast.Expr.id("setmetatable", node), {tbl, metatb}, node)
+		return ast.Stmt.local({node.name}, {}, {setmetatb}, node)
+
 	Stmt[TStmt.Assign] = \node ->
 		node.lefts = visit_exprs(node.lefts)
 		node.rights = visit_exprs(node.rights)

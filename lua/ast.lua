@@ -14,46 +14,6 @@ local make = function(tag, node, ls)
     node.col = ls.col
     return node
 end
-local id = 0
-local Type = {
-    new = function(ls)
-        id = id + 1
-        return make(TType.Var, {name = "T" .. id}, ls)
-    end
-    , any = function(ls)
-        return make(TType.Any, {}, ls)
-    end
-    , ["nil"] = function(ls)
-        return make(TType.Nil, {}, ls)
-    end
-    , num = function(ls)
-        return make(TType.Num, {}, ls)
-    end
-    , str = function(ls)
-        return make(TType.Str, {}, ls)
-    end
-    , bool = function(ls)
-        return make(TType.Bool, {}, ls)
-    end
-    , func = function(params, returns, ls)
-        return make(TType.Func, {params = params, returns = returns}, ls)
-    end
-    , tbl = function(valkeys, ls)
-        return make(TType.Tbl, {valkeys = valkeys}, ls)
-    end
-    , ["or"] = function(left, right, ls)
-        return make(TType.Or, {left = left, right = right}, ls)
-    end
-    , ["and"] = function(left, right, ls)
-        return make(TType.And, {left = left, right = right}, ls)
-    end
-    , index = function(obj, prop, ls)
-        return make(TType.Index, {obj = obj, prop = prop}, ls)
-    end
-    , custom = function(name, ls)
-        return make(TType.Custom, {name = name}, ls)
-    end
-}
 local Statement = {
     expression = function(expr, ls)
         return make(TStmt.Expr, {expr = expr}, ls)
@@ -63,6 +23,9 @@ local Statement = {
     end
     , ["local"] = function(vars, types, exprs, ls)
         return make(TStmt.Local, {vars = vars, types = types, exprs = exprs}, ls)
+    end
+    , data = function(name, variants, ls)
+        return make(TStmt.Data, {name = name, variants = variants}, ls)
     end
     , ["do"] = function(body, ls)
         return make(TStmt.Do, {body = body}, ls)
@@ -139,14 +102,49 @@ local Expression = {
         return make(TExpr.Binary, {op = op, left = left, right = right}, ls)
     end
 }
+local id = 0
+local Type = {
+    new = function(ls)
+        id = id + 1
+        return make(TType.Var, {name = "T" .. id}, ls)
+    end
+    , any = function(ls)
+        return make(TType.Any, {}, ls)
+    end
+    , ["nil"] = function(ls)
+        return make(TType.Nil, {}, ls)
+    end
+    , num = function(ls)
+        return make(TType.Num, {}, ls)
+    end
+    , str = function(ls)
+        return make(TType.Str, {}, ls)
+    end
+    , bool = function(ls)
+        return make(TType.Bool, {}, ls)
+    end
+    , func = function(params, returns, ls)
+        return make(TType.Func, {params = params, returns = returns}, ls)
+    end
+    , tbl = function(valkeys, ls)
+        return make(TType.Tbl, {valkeys = valkeys}, ls)
+    end
+    , ["or"] = function(left, right, ls)
+        return make(TType.Or, {left = left, right = right}, ls)
+    end
+    , ["and"] = function(left, right, ls)
+        return make(TType.And, {left = left, right = right}, ls)
+    end
+    , index = function(obj, prop, ls)
+        return make(TType.Index, {obj = obj, prop = prop}, ls)
+    end
+    , custom = function(name, ls)
+        return make(TType.Custom, {name = name}, ls)
+    end
+}
 local bracket = function(node)
     assert(TExpr[node.tag] or TType[node.tag])
     node.bracketed = true
-    return node
-end
-local nils = function(node)
-    assert(TType[node.tag])
-    node["nil"] = true
     return node
 end
 local varargs = function(node)
@@ -154,16 +152,64 @@ local varargs = function(node)
     node.varargs = true
     return node
 end
-local nillable = function(node)
+local nils = function(node)
     assert(TType[node.tag])
-    return node["nil"]
+    node["nil"] = true
+    return node
+end
+local same
+same = function(a, b)
+    if a and b and a.tag == b.tag then
+        if #a ~= #b then
+            return false
+        end
+        local last = 1
+        for i, v in ipairs(a) do
+            last = i
+            if "table" == type(v) then
+                if not same(v, b[i]) then
+                    return false
+                end
+            elseif b[i] ~= v then
+                return false
+            end
+        end
+        for k, v in pairs(a) do
+            if "number" ~= type(k) or k < 1 or k > last or math.floor(k) ~= k then
+                if k ~= "line" and k ~= "col" then
+                    if "table" == type(v) then
+                        if not same(v, b[k]) then
+                            return false
+                        end
+                    elseif b[k] ~= v then
+                        return false
+                    end
+                end
+            end
+        end
+        for k, v in pairs(b) do
+            if "number" ~= type(k) or k < 1 or k > last or math.floor(k) ~= k then
+                if k ~= "line" and k ~= "col" then
+                    if "table" == type(v) then
+                        if not same(v, a[k]) then
+                            return false
+                        end
+                    elseif a[k] ~= v then
+                        return false
+                    end
+                end
+            end
+        end
+        return true
+    end
+    return false
 end
 return {
     Stmt = Statement
     , Expr = Expression
     , Type = Type
     , bracket = bracket
-    , nils = nils
     , varargs = varargs
-    , nillable = nillable
+    , nils = nils
+    , same = same
 }
