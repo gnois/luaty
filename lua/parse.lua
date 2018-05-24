@@ -55,11 +55,6 @@ return function(ls, warn)
             parse_error(10, "unexpected %s", ls_value() or ls.astext(ls.token))
         end
     end
-    local skip_stmt = function()
-        while not EndOfBlock[ls.token] and not NewLine[ls.token] and ls.token ~= "TK_eof" do
-            ls.step()
-        end
-    end
     local is_keyword = function()
         local str = ls.tostr(ls.token)
         if Keyword[str] then
@@ -126,6 +121,18 @@ return function(ls, warn)
         end
         lex_opt("TK_newline")
         return dented
+    end
+    local skip_stmt = function()
+        while not EndOfBlock[ls.token] and not NewLine[ls.token] and ls.token ~= "TK_eof" do
+            ls.step()
+        end
+    end
+    local skip_ends = function()
+        while ls.token == ";" or ls.token == "TK_end" do
+            err_symbol()
+            ls.step()
+        end
+        lex_opt("TK_newline")
     end
     local parse_type, type_unary, type_binary, type_basic
     local type_tbl = function(loc)
@@ -531,10 +538,10 @@ return function(ls, warn)
     end
     local parse_assignment
     parse_assignment = function(lhs, v, vk)
-        local loc = ls.loc()
         if vk ~= Kind.Var and vk ~= Kind.Property and vk ~= Kind.Index then
             err_symbol()
         end
+        local loc = ls.loc()
         lhs[#lhs + 1] = v
         if lex_opt(",") then
             local n_var, n_vk = expr_primary()
@@ -553,42 +560,6 @@ return function(ls, warn)
         return parse_assignment(lhs, v, vk)
     end
     local parse_var = function(loc)
-        if ls.next() == "=>" then
-            local lhs = Expr.id(lex_str())
-            ls.step()
-            local variants, v = {}, 0
-            local line = ls.line
-            if lex_indent() then
-                repeat
-                    if ls.token ~= "TK_name" then
-                        break
-                    end
-                    local ctor = Expr.id(lex_str())
-                    local params, n = {}, 0
-                    if lex_opt(":") then
-                        repeat
-                            if ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
-                                n = n + 1
-                                params[n] = Expr.id(lex_str())
-                            else
-                                err_instead(10, "parameter expected for variant constructor")
-                            end
-                        until not lex_opt(",")
-                    end
-                    v = v + 1
-                    variants[v] = {ctor = ctor, params = params or {}}
-                until not lex_opt("TK_newline")
-                if not lex_dedent() then
-                    err_instead(10, "%s expected to match %s at line %d", ls.astext("TK_dedent"), ls.astext("TK_indent"), line)
-                end
-                if v < 2 then
-                    err_syntax("variant must have more than one constructor")
-                end
-            else
-                err_instead(10, "%s required for variant type", ls.astext("TK_indent"), loc.line)
-            end
-            return Stmt.data(lhs, variants, loc)
-        end
         local lhs, types, i = {}, {}, 0
         repeat
             i = i + 1
@@ -600,6 +571,54 @@ return function(ls, warn)
             rhs = expr_list()
         end
         return Stmt["local"](lhs, types, rhs, loc)
+    end
+    local parse_case_data = function(loc)
+        local name = Expr.id(lex_str())
+        local arg
+        if lex_opt("(") then
+            if not (ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto") then
+                err_expect("TK_name")
+            end
+            arg = expr()
+            lex_check(")")
+        end
+        local variants, v = {}, 0
+        lex_opt("TK_newline")
+        lex_check("TK_indent")
+        repeat
+            local ctor, params
+            if ls.token == "TK_name" then
+                if ls.value == "_" then
+                    err_syntax("`_` constructor is used to catch unmatched variant")
+                end
+                ctor = Expr.id(lex_str())
+                lex_check(":")
+                params = {}
+                local n = 0
+                repeat
+                    if ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
+                        n = n + 1
+                        params[n] = Expr.id(lex_str())
+                    else
+                        break
+                    end
+                until not lex_opt(",")
+            elseif arg and ls.token == "TK_else" then
+                ls.step()
+            end
+            local body
+            if arg then
+                lex_check("->")
+                body = parse_block(ls.line, "->")
+            end
+            lex_opt("TK_newline")
+            v = v + 1
+            variants[v] = {ctor = ctor, params = params, body = body}
+        until lex_dedent() or not ctor
+        if v < 2 then
+            err_syntax("variant must have more than one " .. (arg and "handler" or "constructor"))
+        end
+        return Stmt.data(name, variants, arg, loc)
     end
     local parse_while = function(loc)
         ls.step()
@@ -676,6 +695,9 @@ return function(ls, warn)
         elseif ls.token == "TK_name" and ls.value == "var" and ls.next() == "TK_name" then
             ls.step()
             stmt = parse_var(loc)
+        elseif ls.token == "TK_name" and ls.value == "case" and ls.next() == "TK_name" then
+            ls.step()
+            stmt = parse_case_data(loc)
         elseif ls.token == "TK_local" then
             err_symbol()
             ls.step()
@@ -700,13 +722,6 @@ return function(ls, warn)
         return stmt, false
     end
     local parse_stmts = function()
-        local skip_ends = function()
-            while ls.token == ";" or ls.token == "TK_end" do
-                err_symbol()
-                ls.step()
-            end
-            lex_opt("TK_newline")
-        end
         local stmt, islast = nil, false
         local body, b = {}, 0
         while not islast and not EndOfBlock[ls.token] do

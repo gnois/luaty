@@ -3,6 +3,82 @@ var Tag = require('lua.tag')
 var TStmt = Tag.Stmt
 var TExpr = Tag.Expr
 
+var id = ast.Expr.id
+
+var setmt = \tbl, mt, node ->
+	return ast.Expr.call(id("setmetatable", node), {tbl, mt}, node)
+
+var str = \txt, node ->
+	return ast.Expr.string(txt, false, node)
+
+var construct = \node ->
+	var vks = {}
+	var mt = ast.Expr.table({
+		{ str(node.name.name, node), str("__metatable", node) }
+	}, node)
+	-- ctor table
+	for i, v in ipairs(node.variants)
+		var key = str(v.ctor.name, v.ctor)
+		var params = {
+			{ str(v.ctor.name, v.ctor), str("id", v.ctor) }
+		}
+		for n, p in ipairs(v.params)
+			params[n+1] = { p }
+		var tbl = ast.Expr.table(params, v.ctor)
+		var val = ast.Expr.function(v.params, {}, {}, { ast.Stmt.return({setmt(tbl, id("mt", node), node)}, v.ctor) }, node)
+		vks[i] = { val, key }
+	
+	var tbl = ast.Expr.table(vks, node)
+	
+	-- __call metamethod
+	var idvar = id("var", node)
+	var test = ast.Expr.binary('and'
+		, ast.Expr.binary('=='
+			, str("table", node)
+			, ast.Expr.call(id("type", node), {idvar}, node)
+			, node
+		)
+		, ast.Expr.binary('=='
+			, str(node.name.name, node)
+			, ast.Expr.call(id("getmetatable", node), {idvar}, node)
+			, node
+		)
+		, node
+	)
+	var testfn = ast.Expr.function({id("_", node), idvar}, {}, {}, {
+		ast.Stmt.if({test}, {
+			{ ast.Stmt.return({ast.Expr.index(idvar, str("id", node), node)}, node) }
+		}, nil, node)
+	}, node)
+	var callable = ast.Expr.table({
+		{ testfn, str("__call", node) }
+	}, node)
+	
+	var lambda = ast.Expr.function({id("mt", node)}, {}, {}, {ast.Stmt.return({setmt(tbl, callable, node)}, node)}, node)
+	return ast.Stmt.local({node.name}, {}, {ast.Expr.call(lambda, {mt}, node)}, node)
+
+var destruct = \node ->
+	var vks = {}
+	for i, v in ipairs(node.variants)
+		var key = str(v.ctor and v.ctor.name or "_", v.ctor or node)
+		var val = ast.Expr.function(v.params or {}, {}, {}, v.body, v.ctor or node)
+		vks[i] = { val, key }
+	var tbl = ast.Expr.table(vks, node)
+
+	var idx = ast.Expr.binary('or'
+		, ast.Expr.call(node.name, {node.arg}, node)
+		, str("_", node)
+		, node
+	)
+	var index = ast.Expr.index(tbl, idx, node)
+	-- `do` needed to avoid ambiguous syntax, since we start with (...)
+	return ast.Stmt.do({
+		ast.Stmt.expression(ast.Expr.call(index, {ast.Expr.call(id("unpack", node), {node.arg}, node)}, node), node)
+	}, node)
+	
+	
+		
+	
 return \stmts ->
 
 	var Stmt = {}
@@ -67,7 +143,7 @@ return \stmts ->
 
 				else if func.tag == TExpr.Index
 					-- simulate a wrapped self method call
-					var obj = ast.Expr.id('_self_', node)  -- lets hope we dont shadow parent scope variable
+					var obj = id('_self_', node)  -- lets hope we dont shadow parent scope variable
 					node.args[1] = obj
 					var body = {
 						ast.Stmt.local({obj}, {}, {func.obj}, node)
@@ -101,40 +177,10 @@ return \stmts ->
 		return node
 
 	Stmt[TStmt.Data] = \node ->
-		var vks = {}
-		for i, v in ipairs(node.variants)
-			var key = ast.Expr.string(v.ctor.name, false, v.ctor)
-			var params = {
-				{ ast.Expr.string(node.name.name .. ":" .. v.ctor.name, false, v.ctor), ast.Expr.string("^", false, v.ctor) }
-			}
-			for n, p in ipairs(v.params)
-				params[n+1] = { p }
-			var tbl = ast.Expr.table(params, v.ctor)
-			var val = ast.Expr.function(v.params, {}, {}, { ast.Stmt.return({tbl}, v.ctor) }, node)
-			vks[i] = { val, key }
-		
-		var tbl = ast.Expr.table(vks, node)
-		var idvar = ast.Expr.id("var", node)
-		var body = {
-			ast.Expr.binary('and'
-				, ast.Expr.binary('=='
-					, ast.Expr.call(ast.Expr.id("type", node), {idvar}, node)
-					, ast.Expr.string("table", false, node)
-					, node
-				)
-				, ast.Expr.call(ast.Expr.property(ast.Expr.id("string", node), "find", node), {
-					ast.Expr.index(idvar, ast.Expr.string("^", false, node), node)
-					, ast.Expr.string(node.name.name .. ":", false, node)
-				}, node)
-				, node
-			)
-		}
-		var test = ast.Expr.function({idvar}, {}, {}, { ast.Stmt.return(body, node) }, node)
-		var metatb = ast.Expr.table({
-			{ test, ast.Expr.string("__call", false, node) }
-		}, node)
-		var setmetatb = ast.Expr.call(ast.Expr.id("setmetatable", node), {tbl, metatb}, node)
-		return ast.Stmt.local({node.name}, {}, {setmetatb}, node)
+		-- if last variant has ctor
+		if node.variants[#node.variants].ctor
+			return construct(node)
+		return destruct(node)
 
 	Stmt[TStmt.Assign] = \node ->
 		node.lefts = visit_exprs(node.lefts)

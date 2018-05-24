@@ -127,10 +127,10 @@ return \read, warn ->
 
 	var inc_line = ->
 		var old = ch
-		-- skip `\n' or `\r'
+		-- skip `\n` or `\r`
 		nextchar()
 		if IsNewLine[ch] and ch ~= old
-			-- skip `\n\r' or `\r\n'
+			-- skip `\n\r` or `\r\n`
 			nextchar()
 		state.line = state.line + 1
 		state.col = 1
@@ -429,6 +429,8 @@ return \read, warn ->
 						read_long_bquote_string(sep, true)
 						add_comment(table.concat(buff))  -- buff has been changed
 						clear_buffer()
+						if not IsNewLine[ch] and ch ~= END_OF_STREAM
+							lex_error(nil, "long comment must end with newline, or possibly unmatched ending delimiter")
 					else
 						while not IsNewLine[ch] and ch ~= END_OF_STREAM
 							add_comment(ch)

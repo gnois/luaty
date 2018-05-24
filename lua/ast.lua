@@ -24,8 +24,8 @@ local Statement = {
     , ["local"] = function(vars, types, exprs, ls)
         return make(TStmt.Local, {vars = vars, types = types, exprs = exprs}, ls)
     end
-    , data = function(name, variants, ls)
-        return make(TStmt.Data, {name = name, variants = variants}, ls)
+    , data = function(name, variants, arg, ls)
+        return make(TStmt.Data, {name = name, variants = variants, arg = arg}, ls)
     end
     , ["do"] = function(body, ls)
         return make(TStmt.Do, {body = body}, ls)

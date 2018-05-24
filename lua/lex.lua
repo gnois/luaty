@@ -423,6 +423,9 @@ return function(read, warn)
                         read_long_bquote_string(sep, true)
                         add_comment(table.concat(buff))
                         clear_buffer()
+                        if not IsNewLine[ch] and ch ~= END_OF_STREAM then
+                            lex_error(nil, "long comment must end with newline, or possibly unmatched ending delimiter")
+                        end
                     else
                         while not IsNewLine[ch] and ch ~= END_OF_STREAM do
                             add_comment(ch)

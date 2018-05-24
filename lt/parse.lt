@@ -54,10 +54,6 @@ return \ls, warn ->
 
 
 	-------- Helpers ---------------------------
-	var skip_stmt = ->
-		while not EndOfBlock[ls.token] and not NewLine[ls.token] and ls.token ~= 'TK_eof'
-			ls.step()
-
 	var is_keyword = ->
 		var str = ls.tostr(ls.token)
 		if Keyword[str]
@@ -126,6 +122,16 @@ return \ls, warn ->
 		lex_opt('TK_newline')
 		return dented
 
+
+	var skip_stmt = ->
+		while not EndOfBlock[ls.token] and not NewLine[ls.token] and ls.token ~= 'TK_eof'
+			ls.step()
+
+	var skip_ends = ->
+		while ls.token == ';' or ls.token == 'TK_end'
+			err_symbol()
+			ls.step()
+		lex_opt('TK_newline')
 
 	--- Type Declarations ------------------------------------------------
 	var parse_type, type_unary, type_binary, type_basic 
@@ -548,10 +554,10 @@ return \ls, warn ->
 
 	var parse_assignment
 	parse_assignment = \lhs, v, vk ->
-		var loc = ls.loc()
 		if vk ~= Kind.Var and vk ~= Kind.Property and vk ~= Kind.Index
 			err_symbol()
 
+		var loc = ls.loc()
 		lhs[#lhs+1] = v
 		if lex_opt(',')
 			var n_var, n_vk = expr_primary()
@@ -571,37 +577,6 @@ return \ls, warn ->
 
 
 	var parse_var = \loc ->
-		if ls.next() == '=>'
-			var lhs = Expr.id(lex_str())
-			ls.step()  -- skip '=>'
-			var variants, v = {}, 0
-			-- must be multiple children
-			var line = ls.line
-			if lex_indent()
-				do
-					if ls.token ~= 'TK_name'
-						break
-					var ctor = Expr.id(lex_str())
-					var params, n = {}, 0
-					if lex_opt(":")
-						do
-							if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')
-								n = n + 1
-								params[n] = Expr.id(lex_str())
-							else
-								err_instead(10, "parameter expected for variant constructor")
-						until not lex_opt(',')
-					v = v + 1
-					variants[v] = {ctor = ctor, params = params or {}}
-				until not lex_opt('TK_newline')
-				if not lex_dedent()
-					err_instead(10, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), line)
-				if v < 2
-					err_syntax("variant must have more than one constructor")
-			else
-				err_instead(10, "%s required for variant type", ls.astext('TK_indent'), loc.line)
-			return Stmt.data(lhs, variants, loc)
-		
 		var lhs, types, i = {}, {}, 0
 		do
 			i = i + 1
@@ -613,6 +588,52 @@ return \ls, warn ->
 		if lex_opt('=')
 			rhs = expr_list()
 		return Stmt.local(lhs, types, rhs, loc)
+
+
+	var parse_case_data = \loc ->
+		var name = Expr.id(lex_str())
+		var arg -- if exist means not constructing
+		if lex_opt('(')
+			if not (ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto'))
+				err_expect('TK_name')
+			arg = expr()
+			lex_check(')')
+		var variants, v = {}, 0
+		-- must be multiple children, so indent
+		lex_opt('TK_newline')
+		lex_check('TK_indent')
+		do
+			var ctor, params -- if ctor exist means not `else`
+			if ls.token == 'TK_name'
+				if ls.value == '_'
+					err_syntax("`_` constructor is used to catch unmatched variant")
+				ctor = Expr.id(lex_str())
+				lex_check(':')
+				params = {}
+				var n = 0
+				do
+					if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')
+						n = n + 1
+						params[n] = Expr.id(lex_str())
+					else 
+						break
+				until not lex_opt(',')
+			else if arg and ls.token == 'TK_else'
+				ls.step() -- skip `else`
+			
+			var body
+			if arg
+				lex_check('->')
+				body = parse_block(ls.line, '->')
+			
+			lex_opt('TK_newline')
+			v = v + 1
+			variants[v] = {ctor = ctor, params = params, body = body}
+			-- `else` must be the last statement
+		until lex_dedent() or not ctor
+		if v < 2
+			err_syntax("variant must have more than one " .. (arg and "handler" or "constructor"))
+		return Stmt.data(name, variants, arg, loc)
 
 
 	var parse_while = \loc ->
@@ -697,6 +718,9 @@ return \ls, warn ->
 		else if ls.token == 'TK_name' and ls.value == 'var' and ls.next() == 'TK_name'
 			ls.step()
 			stmt = parse_var(loc)
+		else if ls.token == 'TK_name' and ls.value == 'case' and ls.next() == 'TK_name'
+			ls.step()
+			stmt = parse_case_data(loc)
 		else if ls.token == 'TK_local'
 			err_symbol()
 			ls.step()
@@ -723,12 +747,6 @@ return \ls, warn ->
 
 	-- Parse list of statements
 	var parse_stmts = ->
-		var skip_ends = ->
-			while ls.token == ';' or ls.token == 'TK_end'
-				err_symbol()
-				ls.step()
-			lex_opt('TK_newline')
-
 		var stmt, islast = nil, false
 		var body, b = {}, 0
 		while not islast and not EndOfBlock[ls.token]

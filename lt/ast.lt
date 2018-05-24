@@ -23,8 +23,8 @@ var Statement = {
 	, local = \vars, types, exprs, ls ->
 		return make(TStmt.Local, {vars = vars, types = types, exprs = exprs}, ls)
 
-	, data = \name, variants, ls ->
-		return make(TStmt.Data, {name = name, variants = variants}, ls)
+	, data = \name, variants, arg, ls ->
+		return make(TStmt.Data, {name = name, variants = variants, arg = arg}, ls)
 
 	, do = \body, ls ->
 		return make(TStmt.Do, {body = body}, ls)
