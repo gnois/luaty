@@ -34,29 +34,38 @@ var compile = \reader, options, color ->
 		-- append
 		table.insert(warnings, w)
 
+	-- convert to colored text
 	var warning = ->
 		var warns = {}
 		for i, m in ipairs(warnings)
 			var clr = color.yellow
-			if m.severity >= 10
+			if m.severity > 2
 				clr = color.red
+			else if m.severity > 1
+				clr = color.magenta
 			warns[i] = string.format(" %d,%d:" .. clr ..  "  %s" .. color.reset, m.line, m.col, m.msg)
 		if #warns > 0
 			return table.concat(warns, "\n")
 
+	-- severity > 2 means its likely to crash the next stage
+	var continue = ->
+		for _, w in ipairs(warnings)
+			if w.severity > 2
+				return false
+		return true
 
 	var lexer = lex(reader, warn)
-	var tree = parse(lexer, warn)
-	tree = transform(tree)
-	var sc = scope(options.declares, warn)
-	check(sc, tree, warn)
+	if continue()
+		var tree = parse(lexer, warn)
+		if continue()
+			tree = transform(tree)
+			if continue()
+				var sc = scope(options.declares, warn)
+				check(sc, tree, warn)
+				if continue()
+					return generate(tree), warning(color)
 
-	-- not generating if severity >= 10
-	for _, w in ipairs(warnings)
-		if w.severity >= 10
-			return nil, warning(color)
-
-	return generate(tree), warning(color)
+	return nil, warning(color)
 
 
 return {

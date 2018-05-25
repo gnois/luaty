@@ -74,7 +74,7 @@ return function(read, warn)
         else
             col = state.col - col
         end
-        warn(state.line, col, 11, string.format(em, ...))
+        warn(state.line, col, 21, string.format(em, ...))
     end
     local popchar = function()
         local k = p
@@ -186,11 +186,10 @@ return function(read, warn)
         else
             x = tonumber(str)
         end
-        if x then
-            return str
-        else
+        if not x then
             lex_error("TK_number", "malformed number")
         end
+        return str
     end
     local read_long_string = function(sep, comment)
         local begin = state.line
@@ -234,7 +233,7 @@ return function(read, warn)
                 if ch == "]" then
                     if add_eq() + 1 == sep then
                         local delim = string.rep("=", sep - 1)
-                        lex_error(nil, "long string delimiter conflict due to " .. ch .. delim .. ch .. "; please use more than " .. sep .. " backquote")
+                        lex_error(nil, "long string delimiter conflict due to " .. ch .. delim .. ch .. "; please use more than " .. sep .. " backquotes")
                     end
                 end
                 add_buffer(ch)
@@ -423,9 +422,6 @@ return function(read, warn)
                         read_long_bquote_string(sep, true)
                         add_comment(table.concat(buff))
                         clear_buffer()
-                        if not IsNewLine[ch] and ch ~= END_OF_STREAM then
-                            lex_error(nil, "long comment must end with newline, or possibly unmatched ending delimiter")
-                        end
                     else
                         while not IsNewLine[ch] and ch ~= END_OF_STREAM do
                             add_comment(ch)
@@ -476,11 +472,10 @@ return function(read, warn)
                     if sep > 0 then
                         local str = read_long_string(sep)
                         return "TK_longstring", str
-                    elseif sep == 0 or sep == -1 then
-                        return "["
-                    else
+                    elseif not (sep == 0 or sep == -1) then
                         lex_error(nil, "invalid long string delimiter")
                     end
+                    return "["
                 elseif ch == "`" then
                     local sep = add_bquote()
                     local str = read_long_bquote_string(sep)
@@ -490,45 +485,48 @@ return function(read, warn)
                     if ch == "=" then
                         nextchar()
                         return "=="
-                    elseif ch == ">" then
+                    end
+                    if ch == ">" then
                         nextchar()
                         return "=>"
                     end
                     return "="
+                elseif ch == ":" then
+                    nextchar()
+                    if ch == ":" then
+                        nextchar()
+                        return "::"
+                    end
+                    if ch == ">" then
+                        nextchar()
+                        return ":>"
+                    end
+                    return ":"
                 elseif ch == "<" then
                     nextchar()
                     if ch ~= "=" then
                         return "<"
-                    else
-                        nextchar()
-                        return "<="
                     end
+                    nextchar()
+                    return "<="
                 elseif ch == ">" then
                     nextchar()
                     if ch ~= "=" then
                         return ">"
-                    else
-                        nextchar()
-                        return ">="
                     end
+                    nextchar()
+                    return ">="
                 elseif ch == "~" then
                     nextchar()
                     if ch == "=" then
                         nextchar()
                         return "~="
-                    elseif ch == ">" then
+                    end
+                    if ch == ">" then
                         nextchar()
                         return "~>"
                     end
                     return "~"
-                elseif ch == ":" then
-                    nextchar()
-                    if ch ~= ":" then
-                        return ":"
-                    else
-                        nextchar()
-                        return "::"
-                    end
                 elseif ch == "\"" or ch == "'" then
                     local str = read_string(ch)
                     return "TK_string", str

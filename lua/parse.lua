@@ -31,7 +31,7 @@ return function(ls, warn)
         parse_error(2, "%s", em)
     end
     local err_syntax = function(em)
-        parse_error(10, "%s", em)
+        parse_error(3, "%s", em)
     end
     local ls_value = function()
         if ls.value then
@@ -43,16 +43,16 @@ return function(ls, warn)
         parse_error(severe, "%s instead of %s", msg, ls_value() or ls.astext(ls.token))
     end
     local err_expect = function(token)
-        err_instead(10, "%s expected", ls.astext(token))
+        err_instead(3, "%s expected", ls.astext(token))
     end
     local err_symbol = function()
         local sym = ls.tostr(ls.token)
         local replace = {["end"] = "<dedent>", ["local"] = "`var`", ["function"] = "\\...->", ["elseif"] = "`else if`", ["repeat"] = "`do`"}
         local rep = replace[sym]
         if rep then
-            parse_error(7, "use %s instead of '%s'", rep, sym)
+            parse_error(2, "use %s instead of '%s'", rep, sym)
         else
-            parse_error(10, "unexpected %s", ls_value() or ls.astext(ls.token))
+            parse_error(3, "unexpected %s", ls_value() or ls.astext(ls.token))
         end
     end
     local is_keyword = function()
@@ -79,7 +79,7 @@ return function(ls, warn)
             if line == ls.line then
                 err_expect(what)
             else
-                err_instead(10, "%s expected to match %s at line %d", ls.astext(what), ls.astext(who), line)
+                err_instead(3, "%s expected to match %s at line %d", ls.astext(what), ls.astext(who), line)
             end
             return false
         end
@@ -156,7 +156,7 @@ return function(ls, warn)
                 val = parse_type()
             end
             if key and not val then
-                err_instead(10, "value type expected in table type annotation")
+                err_instead(3, "value type expected in table type annotation")
             end
             n = n + 1
             vks[n] = {val, key}
@@ -166,7 +166,7 @@ return function(ls, warn)
             end
         end
         if dented and not lex_dedent() then
-            err_instead(10, "%s expected to match %s at line %d", ls.astext("TK_dedent"), ls.astext("TK_indent"), loc.line)
+            err_instead(3, "%s expected to match %s at line %d", ls.astext("TK_dedent"), ls.astext("TK_indent"), loc.line)
         end
         lex_match("}", "{", loc.line)
         return Type.tbl(vks, loc)
@@ -269,7 +269,7 @@ return function(ls, warn)
             local r, nextop = type_binary(operator.right_priority(op))
             if op == "?" then
                 if ast.nillable(l) then
-                    parse_error(10, "type %s is already nullable")
+                    parse_error(1, "type %s is already nullable", ls_value())
                 end
                 l = ast.nils(l)
             elseif op == "|" then
@@ -277,7 +277,7 @@ return function(ls, warn)
             elseif op == "&" then
                 l = Type["and"](l, r, loc)
             else
-                parse_error(10, "unexpected %s", ls_value() or ls.astext(ls.token))
+                parse_error(3, "unexpected %s", ls_value() or ls.astext(ls.token))
                 break
             end
             op = nextop
@@ -339,14 +339,14 @@ return function(ls, warn)
             vks[n] = {val, key}
             dented = lex_opt_dent(dented)
             if ls.token == ";" then
-                err_instead(3, "use `,`")
+                err_instead(1, "use `,`")
             end
             if not lex_opt(",") and not lex_opt(";") then
                 break
             end
         end
         if dented and not lex_dedent() then
-            err_instead(10, "%s expected to match %s at line %d", ls.astext("TK_dedent"), ls.astext("TK_indent"), loc.line)
+            err_instead(3, "%s expected to match %s at line %d", ls.astext("TK_dedent"), ls.astext("TK_indent"), loc.line)
         end
         lex_match("}", "{", loc.line)
         return Expr.table(vks, loc)
@@ -362,6 +362,53 @@ return function(ls, warn)
             return Expr.call(Expr.id("curry", loc), cargs, loc)
         end
         return lambda
+    end
+    local parse_variants = function(destruct)
+        local variants, v = {}, 0
+        lex_opt("TK_newline")
+        lex_check("TK_indent")
+        repeat
+            local last = false
+            local ctor, params
+            if ls.token == "TK_name" then
+                if ls.value == "_" then
+                    if not destruct then
+                        err_warn("`_` is used in `case` to catch unmatched variants")
+                    else
+                        last = true
+                    end
+                end
+                ctor = Expr.id(lex_str())
+                lex_check(":")
+                params = {}
+                local n = 0
+                repeat
+                    if ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
+                        n = n + 1
+                        params[n] = Expr.id(lex_str())
+                    else
+                        break
+                    end
+                until not lex_opt(",")
+            end
+            local body
+            if destruct then
+                lex_check("->")
+                body = parse_block(ls.line, "->")
+            end
+            lex_opt("TK_newline")
+            v = v + 1
+            variants[v] = {ctor = ctor, params = params, body = body}
+        until lex_dedent() or last
+        return variants
+    end
+    local expr_data = function(loc)
+        ls.step()
+        local variants = parse_variants(false)
+        if #variants < 2 then
+            err_warn("variant must have more than one constructor")
+        end
+        return Expr.data(variants, loc)
     end
     expr_simple = function()
         local tk, val = ls.token, ls.value
@@ -385,6 +432,8 @@ return function(ls, warn)
             return expr_table(loc)
         elseif tk == "\\" or tk == "->" or tk == "~>" then
             return expr_function(loc)
+        elseif tk == ":>" then
+            return expr_data(loc)
         else
             return expr_primary()
         end
@@ -531,7 +580,7 @@ return function(ls, warn)
             end
         end
         if dented and not lex_dedent() then
-            err_instead(10, "%s expected to match %s at line %d", ls.astext("TK_dedent"), ls.astext("TK_indent"), line)
+            err_instead(3, "%s expected to match %s at line %d", ls.astext("TK_dedent"), ls.astext("TK_indent"), line)
         end
         lex_match(")", "(", line)
         return args
@@ -572,53 +621,16 @@ return function(ls, warn)
         end
         return Stmt["local"](lhs, types, rhs, loc)
     end
-    local parse_case_data = function(loc)
-        local name = Expr.id(lex_str())
-        local arg
-        if lex_opt("(") then
-            if not (ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto") then
-                err_expect("TK_name")
-            end
-            arg = expr()
-            lex_check(")")
+    local parse_case = function(loc)
+        local exp, kind = expr_primary()
+        if kind ~= Kind.Call then
+            err_instead(3, "call expression expected")
         end
-        local variants, v = {}, 0
-        lex_opt("TK_newline")
-        lex_check("TK_indent")
-        repeat
-            local ctor, params
-            if ls.token == "TK_name" then
-                if ls.value == "_" then
-                    err_syntax("`_` constructor is used to catch unmatched variant")
-                end
-                ctor = Expr.id(lex_str())
-                lex_check(":")
-                params = {}
-                local n = 0
-                repeat
-                    if ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
-                        n = n + 1
-                        params[n] = Expr.id(lex_str())
-                    else
-                        break
-                    end
-                until not lex_opt(",")
-            elseif arg and ls.token == "TK_else" then
-                ls.step()
-            end
-            local body
-            if arg then
-                lex_check("->")
-                body = parse_block(ls.line, "->")
-            end
-            lex_opt("TK_newline")
-            v = v + 1
-            variants[v] = {ctor = ctor, params = params, body = body}
-        until lex_dedent() or not ctor
-        if v < 2 then
-            err_syntax("variant must have more than one " .. (arg and "handler" or "constructor"))
+        local variants = parse_variants(true)
+        if #variants < 1 then
+            err_warn("variant must have at least one handler")
         end
-        return Stmt.data(name, variants, arg, loc)
+        return Stmt.case(exp, variants, loc)
     end
     local parse_while = function(loc)
         ls.step()
@@ -690,14 +702,14 @@ return function(ls, warn)
             err_symbol()
             stmt = parse_do(loc)
         elseif ls.token == "\\" or ls.token == "->" or ls.token == "~>" then
-            err_syntax("lambda must either be assigned or immediately invoked")
+            err_warn("lambda must either be assigned or immediately invoked")
             stmt = expr_function(loc)
         elseif ls.token == "TK_name" and ls.value == "var" and ls.next() == "TK_name" then
             ls.step()
             stmt = parse_var(loc)
         elseif ls.token == "TK_name" and ls.value == "case" and ls.next() == "TK_name" then
             ls.step()
-            stmt = parse_case_data(loc)
+            stmt = parse_case(loc)
         elseif ls.token == "TK_local" then
             err_symbol()
             ls.step()
@@ -733,7 +745,7 @@ return function(ls, warn)
             skip_ends()
             if stmted == ls.line then
                 if ls.token ~= "TK_eof" and ls.token ~= "TK_dedent" and ls.next() ~= "TK_eof" then
-                    err_instead(5, "statement should end. %s expected", ls.astext("TK_newline"))
+                    err_instead(3, "statement should end. %s expected", ls.astext("TK_newline"))
                 end
             end
         end
@@ -744,7 +756,7 @@ return function(ls, warn)
         if lex_indent() then
             body = parse_stmts()
             if not lex_dedent() then
-                err_instead(10, "%s expected to end %s at line %d", ls.astext("TK_dedent"), ls.astext(match_token), line)
+                err_instead(3, "%s expected to end %s at line %d", ls.astext("TK_dedent"), ls.astext(match_token), line)
             end
         else
             if not EndOfBlock[ls.token] and not NewLine[ls.token] then
@@ -753,7 +765,7 @@ return function(ls, warn)
             if EndOfBlock[ls.token] or NewLine[ls.token] then
                 lex_opt(";")
             else
-                err_instead(10, "statement should end near %s. %s expected", ls.astext(match_token), ls.astext("TK_newline"))
+                err_instead(3, "statement should end near %s. %s expected", ls.astext(match_token), ls.astext("TK_newline"))
             end
         end
         return body or {}
@@ -785,7 +797,7 @@ return function(ls, warn)
                     until not lex_opt(",")
                     break
                 else
-                    err_instead(10, "parameter expected in function declaration")
+                    err_instead(2, "parameter expected in function declaration")
                 end
             until not lex_opt(",") and ls.token ~= ":"
         end
@@ -796,10 +808,10 @@ return function(ls, warn)
             ls.step()
             curry = true
             if varargs then
-                err_syntax("cannot curry variadic parameters with `~>`")
+                err_warn("cannot curry variadic parameters with `~>`")
             end
             if n < 2 then
-                err_syntax("at least 2 parameters needed with `~>`")
+                err_warn("at least 2 parameters needed with `~>`")
             end
         else
             err_expect("->")
@@ -815,7 +827,7 @@ return function(ls, warn)
     lex_opt("TK_newline")
     local chunk = parse_stmts()
     if ls.token ~= "TK_eof" then
-        err_warn("code should end. unexpected extra " .. ls.astext(ls.token))
+        err_syntax("code should end. unexpected extra " .. ls.astext(ls.token))
     end
     return chunk
 end

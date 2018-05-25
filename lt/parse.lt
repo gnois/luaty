@@ -30,7 +30,7 @@ return \ls, warn ->
 		parse_error(2, "%s", em)
 
 	var err_syntax = \em ->
-		parse_error(10, "%s", em)
+		parse_error(3, "%s", em)
 
 	var ls_value = ->
 		if ls.value
@@ -41,16 +41,16 @@ return \ls, warn ->
 		parse_error(severe, "%s instead of %s", msg, ls_value() or ls.astext(ls.token))
 
 	var err_expect = \token ->
-		err_instead(10, "%s expected", ls.astext(token))
+		err_instead(3, "%s expected", ls.astext(token))
 
 	var err_symbol = ->
 		var sym = ls.tostr(ls.token)
 		var replace = {end = "<dedent>", local = "`var`", function = "\\...->", elseif = "`else if`", repeat = "`do`"}
 		var rep = replace[sym]
 		if rep
-			parse_error(7, "use %s instead of '%s'", rep, sym)
+			parse_error(2, "use %s instead of '%s'", rep, sym)
 		else
-			parse_error(10, "unexpected %s", ls_value() or ls.astext(ls.token))
+			parse_error(3, "unexpected %s", ls_value() or ls.astext(ls.token))
 
 
 	-------- Helpers ---------------------------
@@ -78,7 +78,7 @@ return \ls, warn ->
 			if line == ls.line
 				err_expect(what)
 			else
-				err_instead(10, "%s expected to match %s at line %d", ls.astext(what), ls.astext(who), line)
+				err_instead(3, "%s expected to match %s at line %d", ls.astext(what), ls.astext(who), line)
 			return false
 		return true
 
@@ -159,7 +159,7 @@ return \ls, warn ->
 				val = parse_type()
 				
 			if key and not val
-				err_instead(10, "value type expected in table type annotation")
+				err_instead(3, "value type expected in table type annotation")
 			n = n + 1
 			vks[n] = { val, key }  -- key can be nil
 
@@ -168,7 +168,7 @@ return \ls, warn ->
 				break
 
 		if dented and not lex_dedent()
-			err_instead(10, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), loc.line)
+			err_instead(3, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), loc.line)
 		lex_match('}', '{', loc.line)
 		return Type.tbl(vks, loc)
 
@@ -189,7 +189,7 @@ return \ls, warn ->
 					var which = "return"
 					if isparam
 						which = "parameter"
-					parse_error(10, "invalid %s type %s", which, ls.astext(ls.token))
+					parse_error(2, "invalid %s type %s", which, ls.astext(ls.token))
 					``
 			until not lex_opt(',')
 		return list
@@ -218,7 +218,7 @@ return \ls, warn ->
 			typ = ast.bracket(parse_type())
 			lex_match(')', '(', loc.line)
 		else
-			-- parse_error(10, "invalid type annotation %s", ls.astext(ls.token))
+			-- parse_error(3, "invalid type annotation %s", ls.astext(ls.token))
 			-- optional typing
 			return
 
@@ -278,14 +278,14 @@ return \ls, warn ->
 			var r, nextop = type_binary(operator.right_priority(op))
 			if op == '?'
 				if ast.nillable(l)
-					parse_error(10, "type %s is already nullable")
+					parse_error(1, "type %s is already nullable", ls_value())
 				l = ast.nils(l)
 			else if op == '|'
 				l = Type.or(l, r, loc)
 			else if op == '&'
 				l = Type.and(l, r, loc)
 			else
-				parse_error(10, "unexpected %s", ls_value() or ls.astext(ls.token))
+				parse_error(3, "unexpected %s", ls_value() or ls.astext(ls.token))
 				break
 			op = nextop
 		return l, op
@@ -350,12 +350,12 @@ return \ls, warn ->
 
 			dented = lex_opt_dent(dented)
 			if ls.token == ';'
-				err_instead(3, "use `,`")
+				err_instead(1, "use `,`")
 			if not lex_opt(',') and not lex_opt(';')
 				break
 
 		if dented and not lex_dedent()
-			err_instead(10, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), loc.line)
+			err_instead(3, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), loc.line)
 		lex_match('}', '{', loc.line)
 		return Expr.table(vks, loc)
 
@@ -369,6 +369,54 @@ return \ls, warn ->
 			var cargs = { Expr.number(#params, loc), lambda }
 			return Expr.call(Expr.id('curry', loc), cargs, loc)
 		return lambda
+
+
+	var parse_variants = \destruct ->
+		var variants, v = {}, 0
+		-- must be multiple children, so indent
+		lex_opt('TK_newline')
+		lex_check('TK_indent')
+		do
+			-- end loop after `_: ->`
+			var last = false
+			var ctor, params
+			if ls.token == 'TK_name'
+				if ls.value == '_'
+					if not destruct
+						err_warn("`_` is used in `case` to catch unmatched variants")
+					else
+						last = true
+				ctor = Expr.id(lex_str())
+				lex_check(':')
+				params = {}
+				var n = 0
+				do
+					if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')
+						n = n + 1
+						params[n] = Expr.id(lex_str())
+					else 
+						break
+				until not lex_opt(',')
+
+			var body
+			if destruct
+				lex_check('->')
+				body = parse_block(ls.line, '->')
+			
+			lex_opt('TK_newline')
+			v = v + 1
+			variants[v] = {ctor = ctor, params = params, body = body}
+			-- `else` must be the last statement
+		until lex_dedent() or last
+		return variants
+
+
+	var expr_data = \loc ->
+		ls.step() -- skip `:>`
+		var variants = parse_variants(false)
+		if #variants < 2
+			err_warn("variant must have more than one constructor")
+		return Expr.data(variants, loc)
 
 
 	expr_simple = ->
@@ -393,6 +441,8 @@ return \ls, warn ->
 			return expr_table(loc)
 		else if tk == '\\' or tk == '->' or tk == '~>'
 			return expr_function(loc)
+		else if tk == ':>'
+			return expr_data(loc)
 		else
 			return expr_primary()
 
@@ -473,9 +523,7 @@ return \ls, warn ->
 				vk, v = Kind.Call, Expr.call(v, args, at)
 			else
 				break
-
 		return v, vk
-
 
 	--- Statements ------------------------------------------------
 	var parse_return = \loc ->
@@ -546,7 +594,7 @@ return \ls, warn ->
 				break
 			
 		if dented and not lex_dedent()
-			err_instead(10, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), line)
+			err_instead(3, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), line)
 		lex_match(')', '(', line)
 
 		return args
@@ -590,50 +638,14 @@ return \ls, warn ->
 		return Stmt.local(lhs, types, rhs, loc)
 
 
-	var parse_case_data = \loc ->
-		var name = Expr.id(lex_str())
-		var arg -- if exist means not constructing
-		if lex_opt('(')
-			if not (ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto'))
-				err_expect('TK_name')
-			arg = expr()
-			lex_check(')')
-		var variants, v = {}, 0
-		-- must be multiple children, so indent
-		lex_opt('TK_newline')
-		lex_check('TK_indent')
-		do
-			var ctor, params -- if ctor exist means not `else`
-			if ls.token == 'TK_name'
-				if ls.value == '_'
-					err_syntax("`_` constructor is used to catch unmatched variant")
-				ctor = Expr.id(lex_str())
-				lex_check(':')
-				params = {}
-				var n = 0
-				do
-					if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')
-						n = n + 1
-						params[n] = Expr.id(lex_str())
-					else 
-						break
-				until not lex_opt(',')
-			else if arg and ls.token == 'TK_else'
-				ls.step() -- skip `else`
-			
-			var body
-			if arg
-				lex_check('->')
-				body = parse_block(ls.line, '->')
-			
-			lex_opt('TK_newline')
-			v = v + 1
-			variants[v] = {ctor = ctor, params = params, body = body}
-			-- `else` must be the last statement
-		until lex_dedent() or not ctor
-		if v < 2
-			err_syntax("variant must have more than one " .. (arg and "handler" or "constructor"))
-		return Stmt.data(name, variants, arg, loc)
+	var parse_case = \loc ->
+		var exp, kind = expr_primary()
+		if kind ~= Kind.Call
+			err_instead(3, "call expression expected")
+		var variants = parse_variants(true)
+		if #variants < 1
+			err_warn("variant must have at least one handler")
+		return Stmt.case(exp, variants, loc)
 
 
 	var parse_while = \loc ->
@@ -713,14 +725,14 @@ return \ls, warn ->
 		--else if ls.token == 'TK_function'
 		--	stmt = parse_func()
 		else if ls.token == '\\' or ls.token == '->' or ls.token == '~>'
-			err_syntax("lambda must either be assigned or immediately invoked")
+			err_warn("lambda must either be assigned or immediately invoked")
 			stmt = expr_function(loc)
 		else if ls.token == 'TK_name' and ls.value == 'var' and ls.next() == 'TK_name'
 			ls.step()
 			stmt = parse_var(loc)
 		else if ls.token == 'TK_name' and ls.value == 'case' and ls.next() == 'TK_name'
 			ls.step()
-			stmt = parse_case_data(loc)
+			stmt = parse_case(loc)
 		else if ls.token == 'TK_local'
 			err_symbol()
 			ls.step()
@@ -759,7 +771,7 @@ return \ls, warn ->
 			-- disallow multiple statement in one line
 			if stmted == ls.line
 				if ls.token ~= 'TK_eof' and ls.token ~= 'TK_dedent' and ls.next() ~= 'TK_eof'
-					err_instead(5, "statement should end. %s expected", ls.astext('TK_newline'))
+					err_instead(3, "statement should end. %s expected", ls.astext('TK_newline'))
 		return body
 
 
@@ -769,7 +781,7 @@ return \ls, warn ->
 		if lex_indent()
 			body = parse_stmts()
 			if not lex_dedent()
-				err_instead(10, "%s expected to end %s at line %d", ls.astext('TK_dedent'), ls.astext(match_token), line)
+				err_instead(3, "%s expected to end %s at line %d", ls.astext('TK_dedent'), ls.astext(match_token), line)
 		else
 			if not EndOfBlock[ls.token] and not NewLine[ls.token]
 				body = { (parse_stmt()) }  -- single line statement, parenthesis needed coz parse_stmt() returns 2 values
@@ -777,7 +789,7 @@ return \ls, warn ->
 			if EndOfBlock[ls.token] or NewLine[ls.token]
 				lex_opt(';')
 			else
-				err_instead(10, "statement should end near %s. %s expected", ls.astext(match_token), ls.astext('TK_newline'))
+				err_instead(3, "statement should end near %s. %s expected", ls.astext(match_token), ls.astext('TK_newline'))
 		return body or {}
 
 
@@ -809,7 +821,7 @@ return \ls, warn ->
 					until not lex_opt(',')
 					break
 				else
-					err_instead(10, "parameter expected in function declaration")
+					err_instead(2, "parameter expected in function declaration")
 			until not lex_opt(',') and ls.token ~= ':'
 
 		var curry = false
@@ -819,9 +831,9 @@ return \ls, warn ->
 			ls.step()
 			curry = true
 			if varargs
-				err_syntax("cannot curry variadic parameters with `~>`")
+				err_warn("cannot curry variadic parameters with `~>`")
 			if n < 2
-				err_syntax("at least 2 parameters needed with `~>`")
+				err_warn("at least 2 parameters needed with `~>`")
 		else
 			err_expect('->')
 		return curry, params, types, varargs, retypes
@@ -840,7 +852,7 @@ return \ls, warn ->
 	lex_opt('TK_newline')
 	var chunk = parse_stmts()
 	if ls.token ~= 'TK_eof'
-		err_warn("code should end. unexpected extra " .. ls.astext(ls.token))
+		err_syntax("code should end. unexpected extra " .. ls.astext(ls.token))
 	return chunk
 
 

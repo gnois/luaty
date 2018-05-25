@@ -1,5 +1,7 @@
 var ast = require('lua.ast')
 var Tag = require('lua.tag')
+var subst = require('lua.substitute')
+
 var TStmt = Tag.Stmt
 var TExpr = Tag.Expr
 var TType = Tag.Type
@@ -10,31 +12,38 @@ return \scope, stmts, warn ->
 	var Expr = {}
 	var Type = {}
 
-	var check_block = \nodes ->
+	var fail = \node ->
+		warn(node.line, node.col, 3, (node.tag or 'nil') .. " cannot match a statement type")
+
+	var check_block = \nodes, subs ->
+		var nsubs = subs
 		scope.enter_block()
 		for _, node in ipairs(nodes)
 			var rule = Stmt[node.tag]
-			if not rule
-				error(node.tag)
-			rule(node)
+			if rule
+				nsubs = rule(node, nsubs)
+			else
+				fail(node)
 		scope.leave_block()
+		return nsubs
 
-	var check_expr = \node ->
+	var type_expr = \node, subs ->
 		var rule = Expr[node.tag]
-		return rule(node)
+		return rule(node, subs)
 			
-	var check_exprs = \nodes ->
-		var cons, subs = {}, {}
+	var type_exprs = \nodes, subs ->
+		var types = {}
+		var nsubs = subs
 		for i, node in ipairs(nodes)
-			cons[i], subs[i] = check_expr(node)
-		return cons, subs
+			types[i], nsubs = type_expr(node, nsubs)
+		return types, nsubs
 
 	var declare = \var, vtype ->
 		assert(var.tag == TExpr.Id)
 		scope.new_var(var.name, vtype, var.line, var.col)
 	
 	--------- Types --------------------------
-	Type[TType.Tbl] = \node ->
+	Type[TType.Tbl] = \node, subs ->
 		var vals = {}
 		var keys = {}
 		for i, vk in ipairs(node.valkeys)
@@ -42,178 +51,199 @@ return \scope, stmts, warn ->
 			if key
 				for n = 1, #keys
 					if keys[n] and ast.same(keys[n], key)
-						warn(key.line, key.col, 10, "duplicate keys at position " .. i .. " and " .. n .. " in table type annotation")
+						warn(key.line, key.col, 1, "duplicate keys at position " .. i .. " and " .. n .. " in table type annotation")
 			keys[i] = key
 			
 			var val = vk[1]
 			if val and not key
 				for n = 1, #vals
 					if vals[n] and ast.same(vals[n], val)
-						warn(val.line, val.col, 10, "similar value types at position " .. i .. " and " .. n .. " in table type annotation")
+						warn(val.line, val.col, 1, "similar value types at position " .. i .. " and " .. n .. " in table type annotation")
 				vals[i] = val
-
+		return ast.Type.table({}, node), subs
 	
 	--------- Expressions --------------------
-	Expr[TExpr.Nil] = \node ->
-		return ast.Type.nil(node)
+	Expr[TExpr.Nil] = \node, subs ->
+		return ast.Type.nil(node), subs
 
-	Expr[TExpr.Bool] = \node ->
-		return ast.Type.bool(node)
+	Expr[TExpr.Bool] = \node, subs ->
+		return ast.Type.bool(node), subs
 
-	Expr[TExpr.Number] = \node ->
-		return ast.Type.num(node)
+	Expr[TExpr.Number] = \node, subs ->
+		return ast.Type.num(node), subs
 		
-	Expr[TExpr.String] = \node ->
-		return ast.Type.str(node)
+	Expr[TExpr.String] = \node, subs ->
+		return ast.Type.str(node), subs
 	
-	Expr[TExpr.Vararg] = \node ->
+	Expr[TExpr.Vararg] = \node, subs ->
 		if not scope.is_varargs()
-			warn(node.line, node.col, 11, "cannot use `...` in a function without variable arguments")
-		return ast.varargs(ast.Type.any(node))
+			warn(node.line, node.col, 2, "cannot use `...` in a function without variable arguments")
+		return ast.varargs(ast.Type.any(node)), subs
 
-	Expr[TExpr.Id] = \node ->
-		-- node.name can be nil, bcoz the parser continues despite error
-		if node.name 
-			var line, ty = scope.declared(node.name)
+	Expr[TExpr.Id] = \node, subs ->
+		var line, ty
+		if node.name  -- node.name can be nil, bcoz the parser continues despite error
+			line, ty = scope.declared(node.name)
 			if line == 0
-				warn(node.line, node.col, 8, "undeclared identifier `" .. node.name .. "`")
+				warn(node.line, node.col, 1, "undeclared identifier `" .. node.name .. "`")
 			if not ty
 				ty = ast.Type.new(node)
-			return ty
+		return ty, subs
 		
-	Expr[TExpr.Function] = \node ->
+	Expr[TExpr.Function] = \node, subs ->
 		scope.begin_func()
-		var params = {}
+		var ptypes = {}
 		for i, var in ipairs(node.params)
+			var vtype = node.types[i] or ast.Type.new(node)
 			if var.tag == TExpr.Vararg
 				scope.varargs()
-				--- FIX ME
-				params[i] = node.types[i] or ast.Type.new(node) or ast.varargs(ast.Type.any(node))
+				ptypes[i] = ast.varargs(vtype)
 			else
-				declare(var, node.types[i])
-				params[i] = ast.Type.new(node)
-		check_block(node.body)
+				declare(var, vtype)
+				ptypes[i] = vtype
+		var rtypes = check_block(node.body, subs)
 		scope.end_func()
-		return ast.Type.func(params, {}, node)
+		return ast.Type.func(ptypes, rtypes, node), subs
 
-	Expr[TExpr.Table] = \node ->
+	Expr[TExpr.Table] = \node, subs ->
 		-- collect keys to check for duplicate
 		var keys = {}
 		for i, vk in ipairs(node.valkeys)
-			check_expr(vk[1])
+			type_expr(vk[1])
 			var key = vk[2]
 			if key
-				check_expr(key)
+				type_expr(key)
 				for n = 1, #keys
 					if keys[n] and ast.same(key, keys[n])
-						warn(key.line, key.col, 10, "duplicate keys at position " .. i .. " and " .. n .. " in table")
+						warn(key.line, key.col, 1, "duplicate keys at position " .. i .. " and " .. n .. " in table")
 			keys[i] = key
+		return ast.Type.tbl({}, node), subs
 
-	Expr[TExpr.Index] = \node ->
-		check_expr(node.obj)
-		check_expr(node.idx)
+	Expr[TExpr.Index] = \node, subs ->
+		var ty, nsubs = type_expr(node.idx, subs)
+		return type_expr(node.obj, nsubs), nsubs
 
-	Expr[TExpr.Property] = \node ->
-		check_expr(node.obj)
+	Expr[TExpr.Property] = \node, subs ->
+		type_expr(node.obj)
 
-	Expr[TExpr.Invoke] = \node ->
-		check_expr(node.obj)
-		check_exprs(node.args)
+	Expr[TExpr.Invoke] = \node, subs ->
+		type_expr(node.obj)
+		type_exprs(node.args)
 
-	Expr[TExpr.Call] = \node ->
-		check_expr(node.func)
-		check_exprs(node.args)
+	Expr[TExpr.Call] = \node, subs ->
+		type_expr(node.func)
+		type_exprs(node.args)
 
-	Expr[TExpr.Unary] = \node ->
-		check_expr(node.left)
+	Expr[TExpr.Unary] = \node, subs ->
+		type_expr(node.left)
 
-	Expr[TExpr.Binary] = \node ->
-		check_expr(node.left)
-		check_expr(node.right)
+	Expr[TExpr.Binary] = \node, subs ->
+		type_expr(node.left)
+		type_expr(node.right)
 
 
 	--------- Statements --------------------
-	Stmt[TStmt.Expr] = \node ->
-		check_expr(node.expr)
+	Stmt[TStmt.Expr] = \node, subs ->
+		return type_expr(node.expr), subs
 
-	var assign_check = \lefts, rights ->
+	var assign_check = \lefts, ltypes, rights, rtypes, subs ->
 		var r = #rights
 		var l = #lefts
 		if r > l
-			warn(rights[1].line, rights[1].col, 9, "assigning " .. r .. " values to " .. l .. " variable(s)")
+			warn(rights[1].line, rights[1].col, 1, "assigning " .. r .. " values to " .. l .. " variable(s)")
+		var nsubs = subs
+		for i, ty in ipairs(ltypes)
+			--nsubs = subst.unify(subs, ty, rtypes[i])
+		return nsubs
+		
 
-	Stmt[TStmt.Local] = \node ->
+	Stmt[TStmt.Local] = \node, subs ->
+		var rtypes = type_exprs(node.exprs)
+		var ltypes = {}
 		for i, var in ipairs(node.vars)
-			declare(var, node.types[i])
-		check_exprs(node.exprs)
-		assign_check(node.vars, node.exprs)
+			ltypes[i] = node.types[i] or ast.Type.new(var)
+			declare(var, ltypes[i])
+		return assign_check(node.vars, ltypes, node.exprs, rtypes, subs)
 
-	Stmt[TStmt.Data] = \node ->
+	Stmt[TStmt.Assign] = \node, subs ->
+		var ltypes = type_exprs(node.lefts)
+		var rtypes = type_exprs(node.rights)
+		assign_check(node.lefts, ltypes, node.rights, rtypes)
 
-	Stmt[TStmt.Assign] = \node ->
-		check_exprs(node.lefts)
-		check_exprs(node.rights)
-		assign_check(node.lefts, node.rights)
-
-	Stmt[TStmt.Do] = \node ->
+	Stmt[TStmt.Do] = \node, subs ->
 		check_block(node.body)
 
-	Stmt[TStmt.If] = \node ->
+	Stmt[TStmt.If] = \node, subs ->
 		for i = 1, #node.tests
-			check_expr(node.tests[i])
+			type_expr(node.tests[i])
 			check_block(node.thenss[i])
 		if node.elses
 			check_block(node.elses)
 
-	Stmt[TStmt.Forin] = \node ->
+	Stmt[TStmt.Forin] = \node, subs ->
 		scope.enter_block('ForIn')
-		check_exprs(node.exprs)
+		type_exprs(node.exprs)
 		-- declare var into scope after rhs
 		for i, var in ipairs(node.vars)
 			declare(var, node.types[i])
 		check_block(node.body)
 		scope.leave_block()
+		return nil, subs
 		
-	Stmt[TStmt.Fornum] = \node ->
+	Stmt[TStmt.Fornum] = \node, subs ->
 		scope.enter_block('ForNum')
-		check_expr(node.first)
-		check_expr(node.last)
+		type_expr(node.first)
+		type_expr(node.last)
 		if node.step
-			check_expr(node.step)
+			type_expr(node.step)
 		-- declare var into scope after rhs
 		declare(node.var, ast.Type.num(node))
 		check_block(node.body)
 		scope.leave_block()
+		return nil, subs
 		
-	Stmt[TStmt.While] = \node ->
+	Stmt[TStmt.While] = \node, subs ->
 		scope.enter_block('While')
-		check_expr(node.test)
+		type_expr(node.test)
 		check_block(node.body)
 		scope.leave_block()
+		return nil, subs
 
-	Stmt[TStmt.Repeat] = \node ->
+	Stmt[TStmt.Repeat] = \node, subs ->
 		scope.enter_block('Repeat')
-		check_block(node.body)
-		check_expr(node.test)
+		scope.enter_block()
+		for _, node in ipairs(node.body)
+			var rule = Stmt[node.tag]
+			if rule
+				nsubs = rule(node, nsubs)
+			else
+				fail(node)
+		type_expr(node.test)
+		-- test expr lasts after `until`
 		scope.leave_block()
+		scope.leave_block()
+		return nil, subs
 
-	Stmt[TStmt.Return] = \node ->
-		check_exprs(node.exprs)
+	Stmt[TStmt.Return] = \node, subs ->
+		return type_exprs(node.exprs), subs
 
-	Stmt[TStmt.Break] = \node ->
+	Stmt[TStmt.Break] = \node, subs ->
 		scope.new_break(node.line, node.col)
+		return nil, subs
 
-	Stmt[TStmt.Goto] = \node ->
+	Stmt[TStmt.Goto] = \node, subs ->
 		scope.new_goto(node.name, node.line, node.col)
+		return nil, subs
 		
-	Stmt[TStmt.Label] = \node ->
+	Stmt[TStmt.Label] = \node, subs ->
 		scope.new_label(node.name, node.line, node.col)
+		return nil, subs
 
 
 	-- main chunk is always a vararg function
 	scope.begin_func()
 	scope.varargs()
-	check_block(stmts)
+	var types, subs = check_block(stmts, {})
 	scope.end_func()
-	
+
 

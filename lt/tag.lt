@@ -3,7 +3,7 @@ return {
 	Stmt = {
 		Expr = 'Expr'
 		, Local = 'Local'
-		, Data = 'Data'
+		, Case = 'Case'
 		, Assign = 'Assign'
 		, Do = 'Do'
 		, If = 'If'
@@ -28,8 +28,9 @@ return {
 		, Table = 'Table'
 		, Index = 'Index'
 		, Property = 'Property'
-		, Call = 'Call'
 		, Invoke = 'Invoke'
+		, Call = 'Call'
+		, Data = 'Data'
 		, Unary = 'Unary'
 		, Binary = 'Binary'
 	}

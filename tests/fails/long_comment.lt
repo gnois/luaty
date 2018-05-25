@@ -1,0 +1,13 @@
+   
+   --```
+	This is un elaborate Lua-style, long comment.
+  space indented
+	    		 space mix with tab   	
+  
+]==] ``
+
+	    --````
+		
+	   -- at end of file
+	   
+	     ```

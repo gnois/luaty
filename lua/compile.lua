@@ -27,8 +27,10 @@ local compile = function(reader, options, color)
         local warns = {}
         for i, m in ipairs(warnings) do
             local clr = color.yellow
-            if m.severity >= 10 then
+            if m.severity > 2 then
                 clr = color.red
+            elseif m.severity > 1 then
+                clr = color.magenta
             end
             warns[i] = string.format(" %d,%d:" .. clr .. "  %s" .. color.reset, m.line, m.col, m.msg)
         end
@@ -36,17 +38,29 @@ local compile = function(reader, options, color)
             return table.concat(warns, "\n")
         end
     end
+    local continue = function()
+        for _, w in ipairs(warnings) do
+            if w.severity > 2 then
+                return false
+            end
+        end
+        return true
+    end
     local lexer = lex(reader, warn)
-    local tree = parse(lexer, warn)
-    tree = transform(tree)
-    local sc = scope(options.declares, warn)
-    check(sc, tree, warn)
-    for _, w in ipairs(warnings) do
-        if w.severity >= 10 then
-            return nil, warning(color)
+    if continue() then
+        local tree = parse(lexer, warn)
+        if continue() then
+            tree = transform(tree)
+            if continue() then
+                local sc = scope(options.declares, warn)
+                check(sc, tree, warn)
+                if continue() then
+                    return generate(tree), warning(color)
+                end
+            end
         end
     end
-    return generate(tree), warning(color)
+    return nil, warning(color)
 end
 return {string = function(src, options, color)
     return compile(read.string(src), options or {}, color)

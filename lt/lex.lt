@@ -73,7 +73,7 @@ return \read, warn ->
 			col = state.col
 		else
 			col = state.col - col
-		warn(state.line, col, 11, string.format(em, ...))
+		warn(state.line, col, 21, string.format(em, ...))
 
 
 	var popchar = ->
@@ -188,11 +188,9 @@ return \read, warn ->
 				x = xp == 'e' and build.int64(t) or build.hex64(t)
 		else
 			x = tonumber(str)
-
-		if x
-			return str
-		else
+		if not x
 			lex_error('TK_number', "malformed number")
+		return str
 
 
 	var read_long_string = \sep, comment ->
@@ -242,7 +240,7 @@ return \read, warn ->
 				if ch == ']'
 					if add_eq() + 1 == sep
 						var delim = string.rep('=', sep - 1)
-						lex_error(nil, "long string delimiter conflict due to " .. ch .. delim .. ch .. "; please use more than " .. sep .. " backquote")
+						lex_error(nil, "long string delimiter conflict due to " .. ch .. delim .. ch .. "; please use more than " .. sep .. " backquotes")
 
 				add_buffer(ch)
 				if IsNewLine[ch]
@@ -339,7 +337,6 @@ return \read, warn ->
 
 
 
-
 	var tokenize = ->
 		
 		clear_buffer()
@@ -429,8 +426,9 @@ return \read, warn ->
 						read_long_bquote_string(sep, true)
 						add_comment(table.concat(buff))  -- buff has been changed
 						clear_buffer()
-						if not IsNewLine[ch] and ch ~= END_OF_STREAM
-							lex_error(nil, "long comment must end with newline, or possibly unmatched ending delimiter")
+						-- comment out bcoz long comment can be part of one single line only
+						--if not IsNewLine[ch] and ch ~= END_OF_STREAM
+						--	lex_error(nil, "long comment must end with newline, or possibly unmatched ending delimiter")
 					else
 						while not IsNewLine[ch] and ch ~= END_OF_STREAM
 							add_comment(ch)
@@ -480,11 +478,10 @@ return \read, warn ->
 						var str = read_long_string(sep)
 						return 'TK_longstring', str
 					-- [[ is no longer long string. we return [, [ one by one
-					else if sep == 0 or sep == -1
-						return '['
-					else
+					else if not (sep == 0 or sep == -1)
 						lex_error(nil, "invalid long string delimiter")
-				
+					return '['
+
 				else if ch == '`'
 					var sep = add_bquote()
 					var str = read_long_bquote_string(sep)
@@ -495,37 +492,40 @@ return \read, warn ->
 					if ch == '='
 						nextchar()
 						return '=='
-					else if ch == '>'
+					if ch == '>'
 						nextchar()
 						return '=>'
 					return '='
+				else if ch == ':'
+					nextchar()
+					if ch == ':'
+						nextchar()
+						return '::' 
+					if ch == '>'
+						nextchar()
+						return ':>'
+					return ':'
 				else if ch == '<'
 					nextchar()
-					if ch ~= '=' return '<'
-					else
-						nextchar()
-						return '<='
+					if ch ~= '='
+						return '<'
+					nextchar()
+					return '<='
 				else if ch == '>'
 					nextchar()
-					if ch ~= '=' return '>'
-					else
-						nextchar()
-						return '>=' 
+					if ch ~= '='
+						return '>'
+					nextchar()
+					return '>=' 
 				else if ch == '~'
 					nextchar()
 					if ch == '='
 						nextchar()
 						return '~='
-					else if ch == '>'
+					if ch == '>'
 						nextchar()
 						return '~>'
 					return '~'
-				else if ch == ':'
-					nextchar()
-					if ch ~= ':' return ':'
-					else
-						nextchar()
-						return '::' 
 				else if ch == '"' or ch == "'"
 					var str = read_string(ch)
 					return 'TK_string', str
@@ -537,7 +537,6 @@ return \read, warn ->
 						if ch == '.'
 							nextchar()
 							return '...'
-					
 						return '..'
 					else if not is.digit(ch)
 						return '.'

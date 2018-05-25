@@ -47,7 +47,7 @@ return \decls, warn ->
 			var msg = "shadowing " .. which .. " variable `" .. name .. "`"
 			if ln > 0
 				msg = msg .. " on line " .. ln
-			warn(line, col, 3, msg)
+			warn(line, col, 1, msg)
 		vtop = vtop + 1
 		vstack[vtop] = { name = name, type = vtype, used = false, line = line, col = col }
 		return vtop
@@ -62,7 +62,7 @@ return \decls, warn ->
 			if loop[blk.tag]
 				return
 			blk = blk.outer
-		warn(line, col, 10, "`break` must be inside a loop")
+		warn(line, col, 2, "`break` must be inside a loop")
 
 
 	-- Jumping to the any labels at the end of block is allowed in Lua
@@ -73,7 +73,7 @@ return \decls, warn ->
 		for _, g in ipairs(golas)
 			if lbl.label == g.go
 				if lbl.vtop > g.vtop
-					warn(g.line, g.col, 9, "goto <" .. g.go .. "> jumps over variable '" .. vstack[lbl.vtop].name .. "' declared at line " .. vstack[lbl.vtop].line)
+					warn(g.line, g.col, 2, "goto <" .. g.go .. "> jumps over variable '" .. vstack[lbl.vtop].name .. "' declared at line " .. vstack[lbl.vtop].line)
 				g.match = true
 				lbl.used = true
 				-- continue loop in case there are multiple gotos 
@@ -96,16 +96,16 @@ return \decls, warn ->
 		
 		-- report duplicate label in current scopes
 		var blk = bptr
-		var severity = 14
+		var severity = 2
 		while blk
 			if blk.golas
 				for _, gl in ipairs(blk.golas)
 					if gl.label == name
-						var msg = severity > 10 and "duplicate" or "similar"
+						var msg = severity > 1 and "duplicate" or "similar"
 						warn(line, col, severity, msg .. " label ::" .. name .. ":: on line " .. gl.line)
 						break
 			blk = blk.outer
-			severity = 4
+			severity = 1
 		
 		var label = { label = name, used = false, line = line, col = col, vtop = vtop }
 		find_goto(bptr.golas, label)
@@ -146,7 +146,7 @@ return \decls, warn ->
 			var v = vstack[n]
 			if not v.used
 				if not unused[v.name]
-					warn(v.line, v.col, 3, "unused variable `" .. v.name .. "`")
+					warn(v.line, v.col, 1, "unused variable `" .. v.name .. "`")
 	
 		-- recursively check inner scope goto with this label
 		var test_goto
@@ -158,7 +158,7 @@ return \decls, warn ->
 					for __, g in ipairs(b.golas)
 						if lbl.label == g.go
 							if lbl.vtop >= b.vstart -- start of block
-								warn(g.line, g.col, 9, "goto <" .. g.go .. "> jumps into the scope of variable '" .. vstack[lbl.vtop].name .. "' at line " .. vstack[lbl.vtop].line)
+								warn(g.line, g.col, 2, "goto <" .. g.go .. "> jumps into the scope of variable '" .. vstack[lbl.vtop].name .. "' at line " .. vstack[lbl.vtop].line)
 							lbl.used = true
 							g.match = true
 
@@ -173,7 +173,7 @@ return \decls, warn ->
 			-- report unused labels
 			for _, gl in ipairs(bptr.golas)
 				if gl.label and not gl.used
-					warn(gl.line, gl.col, 3, "unused label ::" .. gl.label .. "::")
+					warn(gl.line, gl.col, 1, "unused label ::" .. gl.label .. "::")
 
 		-- pop the vstack
 		vtop = bptr.vstart - 1
@@ -211,7 +211,7 @@ return \decls, warn ->
 			if block.golas
 				for __, gl in ipairs(block.golas)
 					if gl.go and not gl.match
-						warn(gl.line, gl.col, 12, "no visible label for goto <" .. gl.go .. ">")
+						warn(gl.line, gl.col, 2, "no visible label for goto <" .. gl.go .. ">")
 
 			if block.blocks
 				for _, b in ipairs(block.blocks)

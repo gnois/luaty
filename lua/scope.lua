@@ -38,7 +38,7 @@ return function(decls, warn)
             if ln > 0 then
                 msg = msg .. " on line " .. ln
             end
-            warn(line, col, 3, msg)
+            warn(line, col, 1, msg)
         end
         vtop = vtop + 1
         vstack[vtop] = {name = name, type = vtype, used = false, line = line, col = col}
@@ -54,13 +54,13 @@ return function(decls, warn)
             end
             blk = blk.outer
         end
-        warn(line, col, 10, "`break` must be inside a loop")
+        warn(line, col, 2, "`break` must be inside a loop")
     end
     local find_goto = function(golas, lbl)
         for _, g in ipairs(golas) do
             if lbl.label == g.go then
                 if lbl.vtop > g.vtop then
-                    warn(g.line, g.col, 9, "goto <" .. g.go .. "> jumps over variable '" .. vstack[lbl.vtop].name .. "' declared at line " .. vstack[lbl.vtop].line)
+                    warn(g.line, g.col, 2, "goto <" .. g.go .. "> jumps over variable '" .. vstack[lbl.vtop].name .. "' declared at line " .. vstack[lbl.vtop].line)
                 end
                 g.match = true
                 lbl.used = true
@@ -83,19 +83,19 @@ return function(decls, warn)
             bptr.golas = {}
         end
         local blk = bptr
-        local severity = 14
+        local severity = 2
         while blk do
             if blk.golas then
                 for _, gl in ipairs(blk.golas) do
                     if gl.label == name then
-                        local msg = severity > 10 and "duplicate" or "similar"
+                        local msg = severity > 1 and "duplicate" or "similar"
                         warn(line, col, severity, msg .. " label ::" .. name .. ":: on line " .. gl.line)
                         break
                     end
                 end
             end
             blk = blk.outer
-            severity = 4
+            severity = 1
         end
         local label = {label = name, used = false, line = line, col = col, vtop = vtop}
         find_goto(bptr.golas, label)
@@ -127,7 +127,7 @@ return function(decls, warn)
             local v = vstack[n]
             if not v.used then
                 if not unused[v.name] then
-                    warn(v.line, v.col, 3, "unused variable `" .. v.name .. "`")
+                    warn(v.line, v.col, 1, "unused variable `" .. v.name .. "`")
                 end
             end
         end
@@ -141,7 +141,7 @@ return function(decls, warn)
                     for __, g in ipairs(b.golas) do
                         if lbl.label == g.go then
                             if lbl.vtop >= b.vstart then
-                                warn(g.line, g.col, 9, "goto <" .. g.go .. "> jumps into the scope of variable '" .. vstack[lbl.vtop].name .. "' at line " .. vstack[lbl.vtop].line)
+                                warn(g.line, g.col, 2, "goto <" .. g.go .. "> jumps into the scope of variable '" .. vstack[lbl.vtop].name .. "' at line " .. vstack[lbl.vtop].line)
                             end
                             lbl.used = true
                             g.match = true
@@ -160,7 +160,7 @@ return function(decls, warn)
             end
             for _, gl in ipairs(bptr.golas) do
                 if gl.label and not gl.used then
-                    warn(gl.line, gl.col, 3, "unused label ::" .. gl.label .. "::")
+                    warn(gl.line, gl.col, 1, "unused label ::" .. gl.label .. "::")
                 end
             end
         end
@@ -191,7 +191,7 @@ return function(decls, warn)
             if block.golas then
                 for __, gl in ipairs(block.golas) do
                     if gl.go and not gl.match then
-                        warn(gl.line, gl.col, 12, "no visible label for goto <" .. gl.go .. ">")
+                        warn(gl.line, gl.col, 2, "no visible label for goto <" .. gl.go .. ">")
                     end
                 end
             end
