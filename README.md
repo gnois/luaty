@@ -1,6 +1,6 @@
-Luaty is like a rudimentary version of [Moonscript](http://moonscript.org), but comes with a static analyzer.
 
-Luaty stands for *[Lua] with more or less [ty]ping*.
+Luaty is yet another indent sensitive language that compiles to Lua.
+It comes with a static analyzer and a few features.
 
 
 Builtin static analyzer
@@ -37,7 +37,7 @@ var tbl = {
 Differences from Lua
 ---
 
-Aside from having [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule), Luaty has less syntax boilerplate than Lua:
+Due to [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule), Luaty could use less syntax boilerplate than Lua:
   * no more `end`
   * no more `do` after `for` and `while`
   * `repeat` becomes `do`
@@ -100,6 +100,27 @@ assert(obj.foo(@, 2) == 6)          -- ok, compiles to obj:foo(2)
 
 var get = -> return obj
 print(get()['long-name'](@, 10))    -- now `:` cannot be used in Lua, but `@` *just works*, get() is only called once
+```
+
+Luaty has disjoint union with pattern matching expressions
+```
+var tree = :?                           -- disjoint union is an expression
+	empty                                -- colon can be omitted if constructor is not taking parameters
+	node: l, x, r
+
+-- give shorter names
+var e = tree.empty()
+var n = tree.node
+
+var top = n(n(n(e, 3, e), 4, e), 5, n(e, 2, e))
+
+var depth
+depth = \t ->
+	return tree:t?                               -- pattern match 't'
+		else return 0                             -- catch all
+		node: l, _, r -> return 1 + math.max(depth(l), depth(r))
+
+assert(depth(top) == 3)
 ```
 
 

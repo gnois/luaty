@@ -501,9 +501,9 @@ return \read, warn ->
 					if ch == ':'
 						nextchar()
 						return '::' 
-					if ch == '>'
+					if ch == '?'
 						nextchar()
-						return ':>'
+						return ':?'
 					return ':'
 				else if ch == '<'
 					nextchar()

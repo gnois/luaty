@@ -20,7 +20,14 @@ local EndOfBlock = {
     , [","] = true
 }
 local NewLine = {TK_newline = true}
-local Kind = {Expr = "Expr", Var = "Var", Property = "Property", Index = "Index", Call = "Call"}
+local Kind = {
+    Expr = "Expr"
+    , Var = "Var"
+    , Property = "Property"
+    , Index = "Index"
+    , Call = "Call"
+    , Union = "Union"
+}
 return function(ls, warn)
     local stmted
     local parse_error = function(severe, em, ...)
@@ -365,50 +372,55 @@ return function(ls, warn)
     end
     local parse_variants = function(destruct)
         local variants, v = {}, 0
-        lex_opt("TK_newline")
-        lex_check("TK_indent")
+        local ind = lex_indent()
         repeat
-            local last = false
-            local ctor, params
-            if ls.token == "TK_name" then
-                if ls.value == "_" then
-                    if not destruct then
-                        err_warn("`_` is used in `case` to catch unmatched variants")
-                    else
-                        last = true
-                    end
-                end
+            local ctor, body
+            local params, p = {}, 0
+            local els
+            if ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
                 ctor = Expr.id(lex_str())
-                lex_check(":")
-                params = {}
-                local n = 0
-                repeat
-                    if ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
-                        n = n + 1
-                        params[n] = Expr.id(lex_str())
-                    else
-                        break
+            elseif destruct and ls.token == "TK_else" then
+                if els then
+                    err_syntax(ls.astext(ls.token) .. " already defined on line " .. els)
+                end
+                els = ls.line
+                ls.step()
+                ctor = Expr.id("else", ls)
+            end
+            if ctor then
+                if lex_opt(":") then
+                    repeat
+                        if ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
+                            p = p + 1
+                            params[p] = Expr.id(lex_str())
+                        elseif ls.token == "..." then
+                            ls.step()
+                            p = p + 1
+                            params[p] = Expr.vararg(ls)
+                            break
+                        end
+                    until not lex_opt(",")
+                end
+                if destruct then
+                    if not lex_opt("->") and p > 0 then
+                        err_expect("->")
                     end
-                until not lex_opt(",")
+                    body = parse_block(ls.line, "->")
+                end
+                lex_opt("TK_newline")
+                v = v + 1
+                variants[v] = {ctor = ctor, params = params, body = body}
+            else
+                err_symbol()
+                ls.step()
+                break
             end
-            local body
-            if destruct then
-                lex_check("->")
-                body = parse_block(ls.line, "->")
+            if not ind then
+                lex_opt(";")
+                break
             end
-            lex_opt("TK_newline")
-            v = v + 1
-            variants[v] = {ctor = ctor, params = params, body = body}
-        until lex_dedent() or last
+        until lex_dedent()
         return variants
-    end
-    local expr_data = function(loc)
-        ls.step()
-        local variants = parse_variants(false)
-        if #variants < 2 then
-            err_warn("variant must have more than one constructor")
-        end
-        return Expr.data(variants, loc)
     end
     expr_simple = function()
         local tk, val = ls.token, ls.value
@@ -432,8 +444,9 @@ return function(ls, warn)
             return expr_table(loc)
         elseif tk == "\\" or tk == "->" or tk == "~>" then
             return expr_function(loc)
-        elseif tk == ":>" then
-            return expr_data(loc)
+        elseif tk == ":?" then
+            ls.step()
+            return Expr.union(parse_variants(false), nil, nil, loc)
         else
             return expr_primary()
         end
@@ -510,6 +523,11 @@ return function(ls, warn)
             elseif ls.token == "(" then
                 local args = parse_args()
                 vk, v = Kind.Call, Expr.call(v, args, at)
+            elseif ls.token == ":" then
+                ls.step()
+                local arg = expr()
+                lex_check("?")
+                vk, v = Kind.Union, Expr.union(parse_variants(true), v, arg, at)
             else
                 break
             end
@@ -621,17 +639,6 @@ return function(ls, warn)
         end
         return Stmt["local"](lhs, types, rhs, loc)
     end
-    local parse_case = function(loc)
-        local exp, kind = expr_primary()
-        if kind ~= Kind.Call then
-            err_instead(3, "call expression expected")
-        end
-        local variants = parse_variants(true)
-        if #variants < 1 then
-            err_warn("variant must have at least one handler")
-        end
-        return Stmt.case(exp, variants, loc)
-    end
     local parse_while = function(loc)
         ls.step()
         local cond = expr()
@@ -707,9 +714,6 @@ return function(ls, warn)
         elseif ls.token == "TK_name" and ls.value == "var" and ls.next() == "TK_name" then
             ls.step()
             stmt = parse_var(loc)
-        elseif ls.token == "TK_name" and ls.value == "case" and ls.next() == "TK_name" then
-            ls.step()
-            stmt = parse_case(loc)
         elseif ls.token == "TK_local" then
             err_symbol()
             ls.step()

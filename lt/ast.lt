@@ -23,9 +23,6 @@ var Statement = {
 	, local = \vars, types, exprs, ls ->
 		return make(TStmt.Local, {vars = vars, types = types, exprs = exprs}, ls)
 
-	, case = \expr, variants, ls ->
-		return make(TStmt.Case, {expr = expr, variants = variants}, ls)
-
 	, do = \body, ls ->
 		return make(TStmt.Do, {body = body}, ls)
 
@@ -94,8 +91,8 @@ var Expression = {
 	, call = \func, args, ls ->
 		return make(TExpr.Call, {func = func, args = args}, ls)
 
-	, data = \variants, ls ->
-		return make(TExpr.Data, {variants = variants}, ls)
+	, union = \variants, test, arg, ls ->
+		return make(TExpr.Union, {variants = variants, test = test, arg = arg}, ls)
 
 	, unary = \op, left, ls ->
 		return make(TExpr.Unary, {op = op, left = left}, ls)

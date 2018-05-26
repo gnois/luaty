@@ -24,9 +24,6 @@ local Statement = {
     , ["local"] = function(vars, types, exprs, ls)
         return make(TStmt.Local, {vars = vars, types = types, exprs = exprs}, ls)
     end
-    , case = function(expr, variants, ls)
-        return make(TStmt.Case, {expr = expr, variants = variants}, ls)
-    end
     , ["do"] = function(body, ls)
         return make(TStmt.Do, {body = body}, ls)
     end
@@ -95,8 +92,8 @@ local Expression = {
     , call = function(func, args, ls)
         return make(TExpr.Call, {func = func, args = args}, ls)
     end
-    , data = function(variants, ls)
-        return make(TExpr.Data, {variants = variants}, ls)
+    , union = function(variants, test, arg, ls)
+        return make(TExpr.Union, {variants = variants, test = test, arg = arg}, ls)
     end
     , unary = function(op, left, ls)
         return make(TExpr.Unary, {op = op, left = left}, ls)

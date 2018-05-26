@@ -4,7 +4,6 @@
 return {Stmt = {
     Expr = "Expr"
     , Local = "Local"
-    , Case = "Case"
     , Assign = "Assign"
     , Do = "Do"
     , If = "If"
@@ -29,7 +28,7 @@ return {Stmt = {
     , Property = "Property"
     , Invoke = "Invoke"
     , Call = "Call"
-    , Data = "Data"
+    , Union = "Union"
     , Unary = "Unary"
     , Binary = "Binary"
 }, Type = {

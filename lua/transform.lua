@@ -12,8 +12,61 @@ end
 local str = function(txt, node)
     return ast.Expr.string(txt, false, node)
 end
-local call_stmt = function(lambda, args, node)
-    return ast.Stmt.expression(ast.Expr.call(lambda, args, node), node)
+local construct = function(node)
+    local uniq, u = {"."}, 1
+    local _ = id("___", node)
+    local vks = {}
+    for i, v in ipairs(node.variants) do
+        u = u + 1
+        uniq[u] = v.ctor.name
+        local key = str(v.ctor.name, v.ctor)
+        local params = {{str(v.ctor.name, v.ctor), str("$", v.ctor)}}
+        for n, p in ipairs(v.params) do
+            u = u + 1
+            uniq[u] = p.name or "."
+            params[n + 1] = {p}
+        end
+        local tbl = ast.Expr.table(params, v.ctor)
+        local val = ast.Expr["function"](v.params, {}, {}, {ast.Stmt["return"]({setmt(tbl, _, node)}, v.ctor)}, node)
+        vks[i] = {val, key}
+    end
+    local tbl = ast.Expr.table(vks, node)
+    local unique_str = str(table.concat(uniq), node)
+    local idvar = id("var", node)
+    local uid = id("id", node)
+    local test = ast.Expr.binary("and", ast.Expr.binary("==", str("table", node), ast.Expr.call(id("type", node), {idvar}, node), node), ast.Expr.binary("==", uid, ast.Expr.call(id("getmetatable", node), {idvar}, node), node), node)
+    local testfn = ast.Expr["function"]({id("__", node), idvar}, {}, {}, {ast.Stmt["if"]({test}, {{ast.Stmt["return"]({idvar}, node)}}, nil, node)}, node)
+    local callable = ast.Expr.table({{testfn, str("__call", node)}}, node)
+    local mt = ast.Expr.table({{uid, str("__metatable", node)}}, node)
+    local lambda = ast.Expr["function"]({uid}, {}, {}, {ast.Stmt["local"]({_}, {}, {mt}, node), ast.Stmt["return"]({setmt(tbl, callable, node)}, node)}, node)
+    return ast.Expr.call(lambda, {unique_str}, node)
+end
+local destruct = function(node)
+    local tests, blocks, n = {}, {}, 0
+    local els
+    local _x = id("__x__", node)
+    local ret_call = function(params, body, args, loc)
+        return ast.Stmt["return"]({ast.Expr.call(ast.Expr["function"](params, {}, {}, body, loc), args, loc)}, loc)
+    end
+    for _, v in ipairs(node.variants) do
+        local all = ast.Expr.vararg(v.ctor)
+        local handler
+        if #v.params > 0 then
+            handler = {ret_call(v.params, v.body, {all}, v.ctor)}
+        else
+            handler = v.body
+        end
+        if v.ctor.name == "else" then
+            els = handler
+        else
+            n = n + 1
+            blocks[n] = handler
+            tests[n] = ast.Expr.binary("==", str(v.ctor.name, v.ctor), ast.Expr.index(_x, str("$", v.ctor), v.ctor), v.ctor)
+        end
+    end
+    local conds = {ast.Stmt["if"](tests, blocks, els, node)}
+    local lambda = ast.Expr["function"]({_x}, {}, {}, {ret_call({ast.Expr.vararg(node)}, conds, {ast.Expr.call(id("unpack", node), {_x}, node)}, node)}, node)
+    return ast.Expr.call(lambda, {ast.Expr.binary("or", ast.Expr.call(node.test, {node.arg}, node), ast.Expr.table({}, node), node)}, node)
 end
 return function(stmts)
     local Stmt = {}
@@ -90,32 +143,11 @@ return function(stmts)
         node.args = visit_exprs(node.args)
         return node
     end
-    Expr[TExpr.Data] = function(node)
-        local uniq, u = {}, 0
-        local vks = {}
-        for i, v in ipairs(node.variants) do
-            u = u + 1
-            uniq[u] = v.ctor.name
-            local key = str(v.ctor.name, v.ctor)
-            local params = {{str(v.ctor.name, v.ctor), str("$", v.ctor)}}
-            for n, p in ipairs(v.params) do
-                u = u + 1
-                uniq[u] = p.name
-                params[n + 1] = {p}
-            end
-            local tbl = ast.Expr.table(params, v.ctor)
-            local val = ast.Expr["function"](v.params, {}, {}, {ast.Stmt["return"]({setmt(tbl, id("mt", node), node)}, v.ctor)}, node)
-            vks[i] = {val, key}
+    Expr[TExpr.Union] = function(node)
+        if node.test and node.arg then
+            return destruct(node)
         end
-        local tbl = ast.Expr.table(vks, node)
-        local unique_str = str(table.concat(uniq), node)
-        local idvar = id("var", node)
-        local test = ast.Expr.binary("and", ast.Expr.binary("==", str("table", node), ast.Expr.call(id("type", node), {idvar}, node), node), ast.Expr.binary("==", unique_str, ast.Expr.call(id("getmetatable", node), {idvar}, node), node), node)
-        local testfn = ast.Expr["function"]({id("_", node), idvar}, {}, {}, {ast.Stmt["if"]({test}, {{ast.Stmt["return"]({idvar}, node)}}, nil, node)}, node)
-        local callable = ast.Expr.table({{testfn, str("__call", node)}}, node)
-        local lambda = ast.Expr["function"]({id("mt", node)}, {}, {}, {ast.Stmt["return"]({setmt(tbl, callable, node)}, node)}, node)
-        local mt = ast.Expr.table({{unique_str, str("__metatable", node)}}, node)
-        return ast.Expr.call(lambda, {mt}, node)
+        return construct(node)
     end
     Expr[TExpr.Unary] = function(node)
         node.left = visit_expr(node.left)
@@ -134,20 +166,6 @@ return function(stmts)
         node.vars = visit_exprs(node.vars)
         node.exprs = visit_exprs(node.exprs)
         return node
-    end
-    Stmt[TStmt.Case] = function(node)
-        local vks = {}
-        for i, v in ipairs(node.variants) do
-            local key = str(v.ctor and v.ctor.name or "_", v.ctor or node)
-            local val = ast.Expr["function"](v.params or {}, {}, {}, v.body, v.ctor or node)
-            vks[i] = {val, key}
-        end
-        local tbl = ast.Expr.table(vks, node)
-        local eid = id("e", node)
-        local idx = ast.Expr.binary("or", ast.Expr.index(eid, str("$", node), node), str("_", node), node)
-        local jmptbl = ast.Expr.index(tbl, idx, node)
-        local lambda = ast.Expr["function"]({eid}, {}, {}, {call_stmt(jmptbl, {ast.Expr.call(id("unpack", node), {eid}, node)}, node)}, node)
-        return ast.Stmt["do"]({call_stmt(lambda, {ast.Expr.binary("or", node.expr, ast.Expr.table({}, node), node)}, node)}, node)
     end
     Stmt[TStmt.Assign] = function(node)
         node.lefts = visit_exprs(node.lefts)
