@@ -94,8 +94,8 @@ var Expression = {
 	, union = \variants, test, arg, ls ->
 		return make(TExpr.Union, {variants = variants, test = test, arg = arg}, ls)
 
-	, unary = \op, left, ls ->
-		return make(TExpr.Unary, {op = op, left = left}, ls)
+	, unary = \op, right, ls ->
+		return make(TExpr.Unary, {op = op, right = right}, ls)
 
 	, binary = \op, left, right, ls ->
 		return make(TExpr.Binary, {op = op, left = left, right = right}, ls)
@@ -127,8 +127,8 @@ var Type = {
 	, func = \params, returns, ls ->
 		return make(TType.Func, {params = params, returns = returns}, ls)
 
-	, tbl = \valkeys, ls ->
-		return make(TType.Tbl, {valkeys = valkeys}, ls)
+	, tbl = \typekeys, ls ->
+		return make(TType.Tbl, {typekeys = typekeys}, ls)
 
 	-- compound
 	, or = \left, right, ls ->
@@ -202,6 +202,7 @@ same = \a, b ->
 
 		return true
 	return false
+
 
 
 return {

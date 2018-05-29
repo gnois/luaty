@@ -1,6 +1,6 @@
 
 Luaty is yet another indent sensitive language that compiles to Lua.
-It comes with a static analyzer and a few features.
+It comes with static analyzer and a few features.
 
 
 Builtin static analyzer

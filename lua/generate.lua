@@ -186,7 +186,7 @@ local generate = function(stmts)
         return priority(exp)
     end
     Expr[TExpr.Unary] = function(node)
-        local arg, arg_prio = emit_expr(node.left)
+        local arg, arg_prio = emit_expr(node.right)
         local op_prio = operator.unary_priority
         if arg_prio < op_prio then
             arg = format("(%s)", arg)

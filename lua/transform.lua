@@ -150,7 +150,7 @@ return function(stmts)
         return construct(node)
     end
     Expr[TExpr.Unary] = function(node)
-        node.left = visit_expr(node.left)
+        node.right = visit_expr(node.right)
         return node
     end
     Expr[TExpr.Binary] = function(node)

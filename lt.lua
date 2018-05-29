@@ -96,8 +96,6 @@ if run and not paths[1] then
     until false
 
 elseif paths[1] then
-    local code, warns = compile.file(paths[1], {declares = decls}, color)
-
     local dest = paths[2] or string.gsub(paths[1], "%.lt", '.lua')
     while dest == paths[1] do
         dest = dest .. '.lua'
@@ -105,7 +103,8 @@ elseif paths[1] then
     if not run then
         io.stderr:write(" Making " .. dest .. " ...\n")
     end
-    --io.stderr:write(color.magenta, "Error compiling " .. paths[1] .. "\n", color.reset)
+    local code, warns = compile.file(paths[1], {declares = decls}, color)
+
     if warns then
         io.stderr:write(warns .. "\n")
     end

@@ -95,8 +95,8 @@ local Expression = {
     , union = function(variants, test, arg, ls)
         return make(TExpr.Union, {variants = variants, test = test, arg = arg}, ls)
     end
-    , unary = function(op, left, ls)
-        return make(TExpr.Unary, {op = op, left = left}, ls)
+    , unary = function(op, right, ls)
+        return make(TExpr.Unary, {op = op, right = right}, ls)
     end
     , binary = function(op, left, right, ls)
         return make(TExpr.Binary, {op = op, left = left, right = right}, ls)
@@ -126,8 +126,8 @@ local Type = {
     , func = function(params, returns, ls)
         return make(TType.Func, {params = params, returns = returns}, ls)
     end
-    , tbl = function(valkeys, ls)
-        return make(TType.Tbl, {valkeys = valkeys}, ls)
+    , tbl = function(typekeys, ls)
+        return make(TType.Tbl, {typekeys = typekeys}, ls)
     end
     , ["or"] = function(left, right, ls)
         return make(TType.Or, {left = left, right = right}, ls)

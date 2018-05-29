@@ -203,7 +203,7 @@ return \stmts ->
 		return construct(node)
 
 	Expr[TExpr.Unary] = \node ->
-		node.left = visit_expr(node.left)
+		node.right = visit_expr(node.right)
 		return node
 
 	Expr[TExpr.Binary] = \node ->

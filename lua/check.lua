@@ -3,7 +3,7 @@
 --
 local ast = require("lua.ast")
 local Tag = require("lua.tag")
-local subst = require("lua.substitute")
+local ty = require("lua.type")
 local TStmt = Tag.Stmt
 local TExpr = Tag.Expr
 local TType = Tag.Type
@@ -12,44 +12,70 @@ return function(scope, stmts, warn)
     local Expr = {}
     local Type = {}
     local fail = function(node)
-        warn(node.line, node.col, 3, (node.tag or "nil") .. " cannot match a statement type")
+        local msg = (node.tag or "nil") .. " cannot match a statement type"
+        if node.line and node.col then
+            warn(node.line, node.col, 3, msg)
+        else
+            print(msg)
+        end
     end
-    local check_block = function(nodes, subs)
-        local nsubs = subs
-        scope.enter_block()
+    local check_type = function(tnode)
+        local rule = Type[tnode.tag]
+        if rule then
+            rule(tnode)
+        end
+    end
+    local check_types = function(tnodes)
+        for _, node in ipairs(tnodes) do
+            check_type(node)
+        end
+    end
+    local check_stmts = function(nodes, subs)
         for _, node in ipairs(nodes) do
             local rule = Stmt[node.tag]
             if rule then
-                nsubs = rule(node, nsubs)
+                subs = rule(node, subs)
             else
                 fail(node)
             end
         end
-        scope.leave_block()
-        return nsubs
+        return subs
     end
-    local type_expr = function(node, subs)
+    local check_block = function(nodes, subs)
+        scope.enter()
+        subs = check_stmts(nodes, subs)
+        scope.leave()
+        return subs
+    end
+    local infer_expr = function(node, subs)
         local rule = Expr[node.tag]
         return rule(node, subs)
     end
-    local type_exprs = function(nodes, subs)
+    local infer_exprs = function(nodes, subs)
         local types = {}
-        local nsubs = subs
         for i, node in ipairs(nodes) do
-            types[i], nsubs = type_expr(node, nsubs)
+            types[i], subs = infer_expr(node, subs)
         end
-        return types, nsubs
+        return types, subs
     end
     local declare = function(var, vtype)
         assert(var.tag == TExpr.Id)
         scope.new_var(var.name, vtype, var.line, var.col)
     end
-    Type[TType.Tbl] = function(node, subs)
-        local vals = {}
+    local balance_check = function(lefts, rights)
+        local r = #rights
+        local l = #lefts
+        if r > l then
+            warn(rights[1].line, rights[1].col, 1, "assigning " .. r .. " values to " .. l .. " variable(s)")
+        end
+    end
+    Type[TType.Tbl] = function(node)
+        local vtypes = {}
         local keys = {}
-        for i, vk in ipairs(node.valkeys) do
+        for i, vk in ipairs(node.typekeys) do
             local key = vk[2]
             if key then
+                check_type(key)
                 for n = 1, #keys do
                     if keys[n] and ast.same(keys[n], key) then
                         warn(key.line, key.col, 1, "duplicate keys at position " .. i .. " and " .. n .. " in table type annotation")
@@ -57,17 +83,17 @@ return function(scope, stmts, warn)
                 end
             end
             keys[i] = key
-            local val = vk[1]
-            if val and not key then
-                for n = 1, #vals do
-                    if vals[n] and ast.same(vals[n], val) then
-                        warn(val.line, val.col, 1, "similar value types at position " .. i .. " and " .. n .. " in table type annotation")
+            local vtype = vk[1]
+            check_type(vtype)
+            if vtype and not key then
+                for n = 1, #vtypes do
+                    if vtypes[n] and ast.same(vtypes[n], vtype) then
+                        warn(vtype.line, vtype.col, 1, "similar value types at position " .. i .. " and " .. n .. " in table type annotation")
                     end
                 end
-                vals[i] = val
+                vtypes[i] = vtype
             end
         end
-        return ast.Type.table({}, node), subs
     end
     Expr[TExpr.Nil] = function(node, subs)
         return ast.Type["nil"](node), subs
@@ -88,177 +114,246 @@ return function(scope, stmts, warn)
         return ast.varargs(ast.Type.any(node)), subs
     end
     Expr[TExpr.Id] = function(node, subs)
-        local line, ty
+        local line, typ
         if node.name then
-            line, ty = scope.declared(node.name)
+            line, typ = scope.declared(node.name)
             if line == 0 then
                 warn(node.line, node.col, 1, "undeclared identifier `" .. node.name .. "`")
             end
-            if not ty then
-                ty = ast.Type.new(node)
+            if not typ then
+                typ = ast.Type.new(node)
             end
         end
-        return ty, subs
+        return typ, subs
     end
     Expr[TExpr.Function] = function(node, subs)
         scope.begin_func()
-        local ptypes = {}
+        check_types(node.types)
+        check_types(node.retypes)
         for i, var in ipairs(node.params) do
             local vtype = node.types[i] or ast.Type.new(node)
             if var.tag == TExpr.Vararg then
                 scope.varargs()
-                ptypes[i] = ast.varargs(vtype)
+                vtype = ast.varargs(vtype)
             else
                 declare(var, vtype)
-                ptypes[i] = vtype
             end
         end
-        local rtypes = check_block(node.body, subs)
+        scope.set_returns(node.retypes)
+        subs = check_block(node.body, subs)
+        local ptypes = {}
+        for i, var in ipairs(node.params) do
+            ptypes[i] = ty.apply(infer_expr(var, subs), subs)
+            if node.types[i] then
+                subs = ty.unify(subs, ptypes[i], node.types[i])
+                ptypes[i] = node.types[i]
+            end
+        end
         scope.end_func()
-        return ast.Type.func(ptypes, rtypes, node), subs
+        return ast.Type.func(ptypes, scope.get_returns(), node), subs
     end
     Expr[TExpr.Table] = function(node, subs)
-        local keys = {}
+        local typekeys = {}
+        local vtyped = false
+        local vtype
         for i, vk in ipairs(node.valkeys) do
-            type_expr(vk[1])
+            local vt
+            vt, subs = infer_expr(vk[1], subs)
             local key = vk[2]
             if key then
-                type_expr(key)
-                for n = 1, #keys do
-                    if keys[n] and ast.same(key, keys[n]) then
-                        warn(key.line, key.col, 1, "duplicate keys at position " .. i .. " and " .. n .. " in table")
+                for n, tk in ipairs(typekeys) do
+                    if ast.same(key, tk[2]) then
+                        warn(key.line, key.col, 1, "duplicate key at position " .. i .. " and " .. n .. " in table")
                     end
                 end
+                typekeys[i] = {vt, key}
+            else
+                if not vtyped then
+                    vtyped = true
+                    vtype = vt
+                elseif not ast.same(vtype, vt) then
+                    vtype = nil
+                end
             end
-            keys[i] = key
         end
-        return ast.Type.tbl({}, node), subs
+        if vtype then
+            typekeys[#typekeys + 1] = {vtype, nil}
+        end
+        return ast.Type.tbl(typekeys, node), subs
     end
     Expr[TExpr.Index] = function(node, subs)
-        local ty, nsubs = type_expr(node.idx, subs)
-        return type_expr(node.obj, nsubs), nsubs
+        local itype, otype
+        itype, subs = infer_expr(node.idx, subs)
+        otype, subs = infer_expr(node.obj, subs)
+        subs = ty.unify(subs, otype, ast.Type.tbl({}, node.obj))
+        return ast.Type.any(node), subs
     end
     Expr[TExpr.Property] = function(node, subs)
-        type_expr(node.obj)
+        local otype
+        otype, subs = infer_expr(node.obj, subs)
+        local vtype = ast.Type.new(node.obj)
+        local typekeys = {{vtype, node.prop}}
+        subs = ty.unify(subs, otype, ast.Type.tbl(typekeys, node.obj))
+        return ty.apply(vtype, subs), subs
     end
     Expr[TExpr.Invoke] = function(node, subs)
-        type_expr(node.obj)
-        type_exprs(node.args)
+        local atypes, otype
+        atypes, subs = infer_exprs(node.args, subs)
+        otype, subs = infer_expr(node.obj, subs)
+        local retype = ast.varargs(ast.Type.new(node.obj), node.obj)
+        local typekeys = {{ast.Type.func(atypes, {retype}, node.obj), node.prop}}
+        subs = ty.unify(subs, otype, ast.Type.tbl(typekeys, node.obj))
+        return ty.apply(retype, subs), subs
     end
     Expr[TExpr.Call] = function(node, subs)
-        type_expr(node.func)
-        type_exprs(node.args)
+        local atypes, ftype
+        atypes, subs = infer_exprs(node.args, subs)
+        ftype, subs = infer_expr(node.func, subs)
+        local retype = ast.varargs(ast.Type.new(node.func), node.obj)
+        subs = ty.unify(subs, ftype, ast.Type.func(atypes, {retype}, node.func))
+        return ty.apply(retype, subs), subs
     end
     Expr[TExpr.Unary] = function(node, subs)
-        type_expr(node.left)
+        local rtype
+        rtype, subs = infer_expr(node.right, subs)
+        local op = node.op
+        if op == "#" then
+            return ast.Type.num(node), ty.unify(subs, ast.Type.tbl({}, node), rtype)
+        end
+        if op == "-" then
+            return ast.Type.num(node), ty.unify(subs, ast.Type.num(node), rtype)
+        end
+        return ast.Type.bool(node), subs
     end
     Expr[TExpr.Binary] = function(node, subs)
-        type_expr(node.left)
-        type_expr(node.right)
+        local rtype, ltype
+        rtype, subs = infer_expr(node.right, subs)
+        ltype, subs = infer_expr(node.left, subs)
+        local op = node.op
+        if op == "and" then
+            return rtype, subs
+        end
+        if op == "+" or op == "-" or op == "*" or op == "/" or op == "^" or op == ">" or op == ">=" or op == "<" or op == "<=" or op == ".." then
+            subs = ty.unify(subs, ltype, rtype)
+            if op == ">" or op == ">=" or op == "<" or op == "<=" then
+                return ast.Type.bool(node), subs
+            end
+        end
+        return ltype, subs
     end
     Stmt[TStmt.Expr] = function(node, subs)
-        return type_expr(node.expr), subs
-    end
-    local assign_check = function(lefts, ltypes, rights, rtypes, subs)
-        local r = #rights
-        local l = #lefts
-        if r > l then
-            warn(rights[1].line, rights[1].col, 1, "assigning " .. r .. " values to " .. l .. " variable(s)")
-        end
-        local nsubs = subs
-        for i, ty in ipairs(ltypes) do
-            
-        end
-        return nsubs
+        local etype
+        etype, subs = infer_expr(node.expr, subs)
+        return subs
     end
     Stmt[TStmt.Local] = function(node, subs)
-        local rtypes = type_exprs(node.exprs)
-        local ltypes = {}
+        check_types(node.types)
+        balance_check(node.vars, node.exprs)
+        local rtypes
+        rtypes, subs = infer_exprs(node.exprs, subs)
         for i, var in ipairs(node.vars) do
-            ltypes[i] = node.types[i] or ast.Type.new(var)
-            declare(var, ltypes[i])
+            local ltype = node.types[i]
+            if ltype then
+                subs = ty.unify(subs, ltype, rtypes[i])
+            else
+                ltype = rtypes[i] or ast.nils(ast.Type.new(var))
+            end
+            declare(var, ltype)
         end
-        return assign_check(node.vars, ltypes, node.exprs, rtypes, subs)
+        return subs
     end
     Stmt[TStmt.Assign] = function(node, subs)
-        local ltypes = type_exprs(node.lefts)
-        local rtypes = type_exprs(node.rights)
-        assign_check(node.lefts, ltypes, node.rights, rtypes)
+        balance_check(node.lefts, node.rights)
+        local rtypes, ltypes
+        rtypes, subs = infer_exprs(node.rights, subs)
+        ltypes, subs = infer_exprs(node.lefts, subs)
+        for i, ltype in ipairs(ltypes) do
+            subs = ty.unify(subs, ltype, rtypes[i] or ast.Type["nil"](node))
+        end
+        return subs
     end
     Stmt[TStmt.Do] = function(node, subs)
-        check_block(node.body)
+        return check_block(node.body, subs)
     end
     Stmt[TStmt.If] = function(node, subs)
         for i = 1, #node.tests do
-            type_expr(node.tests[i])
-            check_block(node.thenss[i])
+            infer_expr(node.tests[i], subs)
+            subs = check_block(node.thenss[i], subs)
         end
         if node.elses then
-            check_block(node.elses)
+            subs = check_block(node.elses, subs)
         end
+        return subs
     end
     Stmt[TStmt.Forin] = function(node, subs)
-        scope.enter_block("ForIn")
-        type_exprs(node.exprs)
+        scope.enter_forin()
+        check_types(node.types)
+        local types
+        types, subs = infer_exprs(node.exprs, subs)
         for i, var in ipairs(node.vars) do
             declare(var, node.types[i])
         end
-        check_block(node.body)
-        scope.leave_block()
-        return nil, subs
+        subs = check_block(node.body, subs)
+        scope.leave()
+        return subs
     end
     Stmt[TStmt.Fornum] = function(node, subs)
-        scope.enter_block("ForNum")
-        type_expr(node.first)
-        type_expr(node.last)
+        scope.enter_fornum()
+        infer_expr(node.first, subs)
+        infer_expr(node.last, subs)
         if node.step then
-            type_expr(node.step)
+            infer_expr(node.step, subs)
         end
         declare(node.var, ast.Type.num(node))
-        check_block(node.body)
-        scope.leave_block()
-        return nil, subs
+        subs = check_block(node.body, subs)
+        scope.leave()
+        return subs
     end
     Stmt[TStmt.While] = function(node, subs)
-        scope.enter_block("While")
-        type_expr(node.test)
-        check_block(node.body)
-        scope.leave_block()
-        return nil, subs
+        scope.enter_while()
+        infer_expr(node.test, subs)
+        subs = check_block(node.body, subs)
+        scope.leave()
+        return subs
     end
     Stmt[TStmt.Repeat] = function(node, subs)
-        scope.enter_block("Repeat")
-        scope.enter_block()
-        for _, node in ipairs(node.body) do
-            local rule = Stmt[node.tag]
-            if rule then
-                nsubs = rule(node, nsubs)
-            else
-                fail(node)
-            end
-        end
-        type_expr(node.test)
-        scope.leave_block()
-        scope.leave_block()
-        return nil, subs
+        scope.enter_repeat()
+        scope.enter()
+        subs = check_stmts(node.body, subs)
+        infer_expr(node.test, subs)
+        scope.leave()
+        scope.leave()
+        return subs
     end
     Stmt[TStmt.Return] = function(node, subs)
-        return type_exprs(node.exprs), subs
+        local types
+        types, subs = infer_exprs(node.exprs, subs)
+        local rtypes = scope.get_returns()
+        if #rtypes > 0 then
+            for i, r in ipairs(rtypes) do
+                if types[i] then
+                    subs = ty.unify(subs, r, types[i])
+                end
+            end
+        else
+            scope.set_returns(types)
+        end
+        return subs
     end
     Stmt[TStmt.Break] = function(node, subs)
         scope.new_break(node.line, node.col)
-        return nil, subs
+        return subs
     end
     Stmt[TStmt.Goto] = function(node, subs)
         scope.new_goto(node.name, node.line, node.col)
-        return nil, subs
+        return subs
     end
     Stmt[TStmt.Label] = function(node, subs)
         scope.new_label(node.name, node.line, node.col)
-        return nil, subs
+        return subs
     end
     scope.begin_func()
     scope.varargs()
-    local types, subs = check_block(stmts, {})
+    check_block(stmts, {})
     scope.end_func()
 end

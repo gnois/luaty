@@ -7,11 +7,12 @@ var unused = {
 	, ___ = true
 }
 
-var loop = {
-	While = true
-	, Repeat = true
-	, ForIn = true
-	, ForNum = true
+var Function = 'Function'
+var Loop = {
+	While = 'While'
+	, Repeat = 'Repeat'
+	, ForIn = 'ForIn'
+	, ForNum = 'ForNum'
 }
 
 
@@ -58,14 +59,14 @@ return \decls, warn ->
 		assert(type(col) == 'number')
 		-- report if not in loop
 		var blk = bptr
-		while blk.tag ~= 'Function'
-			if loop[blk.tag]
+		while blk.tag ~= Function
+			if Loop[blk.tag]
 				return
 			blk = blk.outer
 		warn(line, col, 2, "`break` must be inside a loop")
 
 
-	-- Jumping to the any labels at the end of block is allowed in Lua
+	-- Jumping to any labels at the end of block is allowed in Lua
 	-- But LuaJIT considers semicolon after label as non label statement, and error out
 	
 	-- solves forward jump
@@ -123,6 +124,7 @@ return \decls, warn ->
 		table.insert(bptr.golas, go)
 
 
+
 	var enter_block = \tag ->
 		--assert(tag) -- enforce later
 		var newb = {
@@ -139,6 +141,7 @@ return \decls, warn ->
 				bptr.blocks = {}
 			table.insert(bptr.blocks, newb)
 		bptr = newb
+
 
 	var leave_block = ->
 		-- report unused variables
@@ -180,28 +183,34 @@ return \decls, warn ->
 		assert(vtop >= 0)
 		bptr = bptr.outer
 
-
+	-- function scope operations
 	var varargs = ->
 		assert(bptr)
-		assert(bptr.tag == 'Function')
+		assert(bptr.tag == Function)
 		bptr.varargs = true
 
-	
-	var is_varargs = ->
+	var func_scope = ->
 		var blk = bptr
-		while blk.tag ~= 'Function'
+		while blk.tag ~= Function
 			blk = blk.outer
-		return blk.varargs
+		return blk
 
+	var is_varargs = ->
+		return func_scope().varargs
+
+	var get_returns = \... ->
+		return func_scope().returns
+
+	var set_returns = \returns ->
+		func_scope().returns = returns
 
 	-- functions are blocks
 	var begin_func = ->
-		enter_block('Function')
-
-
+		enter_block(Function)
+		set_returns({})
+		
 	-- function block is thrown away when leaving scope
 	var end_func = ->
-		
 		var this = bptr
 		leave_block()
 		
@@ -218,18 +227,23 @@ return \decls, warn ->
 					unused_goto(b)
 
 		unused_goto(this)
-		
 
 
 	return {
 		begin_func = begin_func
 		, end_func = end_func
-		, enter_block = enter_block
-		, leave_block = leave_block
+
+		, enter_while = -> enter_block(Loop.While)
+		, enter_repeat = -> enter_block(Loop.Repeat)
+		, enter_forin = -> enter_block(Loop.ForIn)
+		, enter_fornum = -> enter_block(Loop.ForNum)
+		, enter = -> enter_block()
+		, leave = -> leave_block()
 		
 		, varargs = varargs
 		, is_varargs = is_varargs
-	
+		, set_returns = set_returns
+		, get_returns = get_returns
 		, declared = declared
 		, new_var = new_var
 		, new_goto = new_goto

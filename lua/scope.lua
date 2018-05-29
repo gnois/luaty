@@ -4,7 +4,8 @@
 local reserved = require("lua.reserved")
 local Builtin = reserved.Builtin
 local unused = {_ = true, __ = true, ___ = true}
-local loop = {While = true, Repeat = true, ForIn = true, ForNum = true}
+local Function = "Function"
+local Loop = {While = "While", Repeat = "Repeat", ForIn = "ForIn", ForNum = "ForNum"}
 return function(decls, warn)
     local vstack, vtop = {}, 0
     local bptr = nil
@@ -48,8 +49,8 @@ return function(decls, warn)
         assert(type(line) == "number")
         assert(type(col) == "number")
         local blk = bptr
-        while blk.tag ~= "Function" do
-            if loop[blk.tag] then
+        while blk.tag ~= Function do
+            if Loop[blk.tag] then
                 return 
             end
             blk = blk.outer
@@ -170,18 +171,28 @@ return function(decls, warn)
     end
     local varargs = function()
         assert(bptr)
-        assert(bptr.tag == "Function")
+        assert(bptr.tag == Function)
         bptr.varargs = true
     end
-    local is_varargs = function()
+    local func_scope = function()
         local blk = bptr
-        while blk.tag ~= "Function" do
+        while blk.tag ~= Function do
             blk = blk.outer
         end
-        return blk.varargs
+        return blk
+    end
+    local is_varargs = function()
+        return func_scope().varargs
+    end
+    local get_returns = function(...)
+        return func_scope().returns
+    end
+    local set_returns = function(returns)
+        func_scope().returns = returns
     end
     local begin_func = function()
-        enter_block("Function")
+        enter_block(Function)
+        set_returns({})
     end
     local end_func = function()
         local this = bptr
@@ -206,10 +217,28 @@ return function(decls, warn)
     return {
         begin_func = begin_func
         , end_func = end_func
-        , enter_block = enter_block
-        , leave_block = leave_block
+        , enter_while = function()
+            enter_block(Loop.While)
+        end
+        , enter_repeat = function()
+            enter_block(Loop.Repeat)
+        end
+        , enter_forin = function()
+            enter_block(Loop.ForIn)
+        end
+        , enter_fornum = function()
+            enter_block(Loop.ForNum)
+        end
+        , enter = function()
+            enter_block()
+        end
+        , leave = function()
+            leave_block()
+        end
         , varargs = varargs
         , is_varargs = is_varargs
+        , set_returns = set_returns
+        , get_returns = get_returns
         , declared = declared
         , new_var = new_var
         , new_goto = new_goto
