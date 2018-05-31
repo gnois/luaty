@@ -378,15 +378,19 @@ return \ls, warn ->
 			var ctor, body
 			-- params are optional
 			var params, p = {}, 0
-			var els
+			var starred
 			if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')
 				ctor = Expr.id(lex_str())
-			else if destruct and ls.token == 'TK_else'
-				if els
-					err_syntax(ls.astext(ls.token) .. " already defined on line " .. els)
-				els = ls.line
+			else
+				var name = is_keyword()
+				if name
+					ctor = Expr.id(name, ls)
+				else if destruct and ls.token == '*'
+					if starred
+						err_syntax(ls.astext(ls.token) .. " already defined on line " .. starred)
+					starred = ls.line
+					ctor = Expr.id(ls.token, ls)
 				ls.step()
-				ctor = Expr.id('else', ls)
 
 			if ctor
 				-- `:` is optional if no params
@@ -419,6 +423,8 @@ return \ls, warn ->
 				lex_opt(';')
 				break
 		until lex_dedent()
+		if v < 1
+			parse_error(3, "at least one constructor needed for disjoint union")
 		return variants
 
 
@@ -627,7 +633,7 @@ return \ls, warn ->
 
 	var parse_call_assign = \loc ->
 		var v, vk = expr_primary()
-		if vk == Kind.Call
+		if vk == Kind.Call or vk == Kind.Union
 			return Stmt.expression(v, loc)
 		var lhs = {}
 		return parse_assignment(lhs, v, vk)

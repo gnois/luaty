@@ -3,6 +3,7 @@ var Tag = require('lua.tag')
 var TStmt = Tag.Stmt
 var TExpr = Tag.Expr
 
+var inc = 0
 var id = ast.Expr.id
 
 var setmt = \tbl, mt, node ->
@@ -15,108 +16,6 @@ var str = \txt, node ->
 var call_stmt = \lambda, args, node ->
 	return ast.Stmt.expression(ast.Expr.call(lambda, args, node), node)
 --`
-
-var construct = \node ->
-	var uniq, u = {'.'}, 1
-	var _ = id("___", node)
-	var vks = {}
-	-- ctor table
-	for i, v in ipairs(node.variants)
-		u = u + 1
-		uniq[u] = v.ctor.name
-		var key = str(v.ctor.name, v.ctor)
-		var params = {
-			{ str(v.ctor.name, v.ctor), str('$', v.ctor) }
-		}
-		for n, p in ipairs(v.params)
-			u = u + 1
-			uniq[u] = p.name or '.'
-			params[n+1] = { p }
-		var tbl = ast.Expr.table(params, v.ctor)
-		var val = ast.Expr.function(v.params, {}, {}, { ast.Stmt.return({setmt(tbl, _, node)}, v.ctor) }, node)
-		vks[i] = { val, key }
-	
-	var tbl = ast.Expr.table(vks, node)
-	
-	var unique_str = str(table.concat(uniq), node)
-	-- __call metamethod
-	var idvar = id("var", node)
-	var uid = id("id", node)
-	var test = ast.Expr.binary("and"
-		, ast.Expr.binary("=="
-			, str("table", node)
-			, ast.Expr.call(id("type", node), {idvar}, node)
-			, node
-		)
-		, ast.Expr.binary("=="
-			, uid
-			, ast.Expr.call(id("getmetatable", node), {idvar}, node)
-			, node
-		)
-		, node
-	)
-	var testfn = ast.Expr.function({id("__", node), idvar}, {}, {}, {
-		ast.Stmt.if({test}, {
-			{ ast.Stmt.return({idvar}, node) }
-		}, nil, node)
-	}, node)
-	var callable = ast.Expr.table({
-		{ testfn, str("__call", node) }
-	}, node)
-	
-	var mt = ast.Expr.table({
-		{ uid, str("__metatable", node) }
-	}, node)
-	var lambda = ast.Expr.function({uid}, {}, {}, {
-		ast.Stmt.local({_}, {}, {mt}, node)
-		, ast.Stmt.return({setmt(tbl, callable, node)}, node)
-	}, node)
-	
-	return ast.Expr.call(lambda, {unique_str}, node)
-
-
-var destruct = \node ->
-	-- must use if-elseif-else, in case user never return in one of the branch 
-	var tests, blocks, n = {}, {}, 0
-	var els
-	var _x = id("__x__", node)
-	
-	var ret_call = \params, body, args, loc ->
-		return ast.Stmt.return({ ast.Expr.call(
-			ast.Expr.function(params, {}, {}, body, loc)
-			, args
-			, loc
-		)}, loc)
-		
-	for _, v in ipairs(node.variants)
-		var all = ast.Expr.vararg(v.ctor)
-		var handler
-		if #v.params > 0
-			handler = { ret_call(v.params, v.body, {all}, v.ctor) }
-		else
-			handler = v.body
-			
-		if v.ctor.name == 'else'
-			els = handler
-		else
-			n = n + 1
-			blocks[n] = handler
-			tests[n] = ast.Expr.binary("=="
-				, str(v.ctor.name, v.ctor)
-				, ast.Expr.index(_x, str('$', v.ctor), v.ctor)
-				, v.ctor
-			)
-	
-	var conds = { ast.Stmt.if(tests, blocks, els, node) }
-
-	var lambda = ast.Expr.function({_x}, {}, {}, {
-		ret_call({ast.Expr.vararg(node)}, conds, {ast.Expr.call(id("unpack", node), {_x}, node)}, node) 
-	}, node)
-	return ast.Expr.call(lambda
-		, { ast.Expr.binary("or", ast.Expr.call(node.test, {node.arg}, node), ast.Expr.table({}, node), node) }
-		, node
-	)
-
 
 
 return \stmts ->
@@ -140,6 +39,117 @@ return \stmts ->
 		for i, node in ipairs(nodes)
 			list[i] = visit_expr(node)
 		return list
+
+
+	-- disjoint union constructor
+	var construct = \node ->
+		var uniq, u = {'.'}, 1
+		var _ = id("__", node)
+		var vks = {}
+		-- ctor table
+		for i, v in ipairs(node.variants)
+			u = u + 1
+			uniq[u] = v.ctor.name
+			var key = str(v.ctor.name, v.ctor)
+			var params = {
+				{ str(v.ctor.name, v.ctor), str('$', v.ctor) }
+			}
+			for n, p in ipairs(v.params)
+				u = u + 1
+				uniq[u] = p.name or '.'
+				params[n+1] = { p }
+			var tbl = ast.Expr.table(params, v.ctor)
+			var val = ast.Expr.function(v.params, {}, {}, { ast.Stmt.return({setmt(tbl, _, node)}, v.ctor) }, node)
+			vks[i] = { val, key }
+		
+		var tbl = ast.Expr.table(vks, node)
+
+		var unique_str = str(table.concat(uniq), node)
+		-- __call metamethod
+		var idvar = id("_var", node)
+		var uid = id("_id", node)
+		var test = ast.Expr.binary("and"
+			, ast.Expr.binary("=="
+				, str("table", node)
+				, ast.Expr.call(id("type", node), {idvar}, node)
+				, node
+			)
+			, ast.Expr.binary("=="
+				, uid
+				, ast.Expr.call(id("getmetatable", node), {idvar}, node)
+				, node
+			)
+			, node
+		)
+		var testfn = ast.Expr.function({id("_t", node), idvar}, {}, {}, {
+			ast.Stmt.if({test}, {
+				{ ast.Stmt.return({idvar}, node) }
+			}, nil, node)
+		}, node)
+		var callable = ast.Expr.table({
+			{ testfn, str("__call", node) }
+		}, node)
+
+		var mt = ast.Expr.table({
+			{ uid, str("__metatable", node) }
+		}, node)
+		var lambda = ast.Expr.function({uid}, {}, {}, {
+			ast.Stmt.local({_}, {}, {mt}, node)
+			, ast.Stmt.return({setmt(tbl, callable, node)}, node)
+		}, node)
+
+		return ast.Expr.call(lambda, {unique_str}, node)
+
+	-- disjoint union destructor
+	var destruct = \node ->
+
+		var ret_call = \params, body, args, loc ->
+			return ast.Stmt.return({ ast.Expr.call(
+				ast.Expr.function(params, {}, {}, body, loc)
+				, args
+				, loc
+			)}, loc)
+
+		-- must use if-elseif-else, in case user never return in one of the branch 
+		var tests, blocks, n = {}, {}, 0
+		var els
+		inc = inc + 1
+		var _x = id("_" .. inc, node)
+
+		for _, v in ipairs(node.variants)
+			var all = ast.Expr.vararg(v.ctor)
+			var handler = visit_stmts(v.body)
+			if #v.params > 0
+				handler = { ret_call(v.params, handler, {all}, v.ctor) }
+
+			if v.ctor.name == '*'
+				els = handler
+			else
+				n = n + 1
+				blocks[n] = handler
+				tests[n] = ast.Expr.binary("=="
+					, str(v.ctor.name, v.ctor)
+					, ast.Expr.index(_x, str('$', v.ctor), v.ctor)
+					, v.ctor
+				)
+
+		var conds
+		if n > 0
+			conds = { ast.Stmt.if(tests, blocks, els, node) }
+		else if els
+			conds = els
+
+		var lambda = ast.Expr.function({_x}, {}, {}, {
+			ret_call({ast.Expr.vararg(node)},  conds, {ast.Expr.call(id("unpack", node), {_x}, node)}, node) 
+		}, node)
+
+		var test = visit_expr(node.test)
+		var arg = visit_expr(node.arg)
+		return ast.Expr.call(lambda
+			, { ast.Expr.binary("or", ast.Expr.call(test, {arg}, node), ast.Expr.table({}, node), node) }
+			, node
+		)
+
 
 	--------- Expressions --------------------
 	Expr[TExpr.Id] = \node ->

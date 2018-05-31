@@ -91,7 +91,7 @@ var obj = {
    value = 3
    , foo = \@, k ->
       return k * @.value            -- `@` compiles to `self`
-   , ['long-name'] = \@, n ->       -- notice this function has some special name
+   , ['long-name'] = \@, n ->       -- notice this function has a special name
       return n + @.value
 }
 
@@ -99,16 +99,16 @@ print(obj:foo(2))                   -- error: ')' expected instead of ':'
 assert(obj.foo(@, 2) == 6)          -- ok, compiles to obj:foo(2)
 
 var get = -> return obj
-print(get()['long-name'](@, 10))    -- now `:` cannot be used in Lua, but `@` *just works*, get() is only called once
+print(get()['long-name'](@, 10))    -- `@` *just works*, get() is only called once
 ```
 
-Luaty has disjoint union with pattern matching expressions
+Luaty adds disjoint union with pattern matching expressions
 ```
-var tree = :!                           -- disjoint union is an expression
-	empty                                -- colon can be omitted if constructor is not taking parameters
-	node: l, x, r
+var tree = :!                 -- disjoint union is a normal expression
+   empty                      -- colon can be omitted if constructor does not take parameters
+   node: l, x, r
 
--- give shorter names
+-- lets give shorter names
 var e = tree.empty()
 var n = tree.node
 
@@ -116,9 +116,9 @@ var top = n(n(n(e, 3, e), 4, e), 5, n(e, 2, e))
 
 var depth
 depth = \t ->
-	return tree:t!                               -- pattern match 't'
-		else return 0                             -- catch all
-		node: l, _, r -> return 1 + math.max(depth(l), depth(r))
+   return tree:t!        -- pattern match 't' as a normal expression
+      * return 0         -- `*` catches all, can appear in any order and can take parameters
+      node: l, _, r -> return 1 + math.max(depth(l), depth(r))
 
 assert(depth(top) == 3)
 ```
@@ -198,7 +198,7 @@ print(
 
 ```
 
-5. A extra semicolon `;` can be used to terminate single-lined function if it causes ambiguity in a list of expressions
+5. A semicolon `;` is used to terminate single-lined function if it causes ambiguity in a list of expressions
 ```
 print(pcall(\x-> return x, 10))                 -- multiple return values. Prints true, nil, 10
 

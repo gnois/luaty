@@ -1,3 +1,4 @@
+
 var tree = :!
 	empty
 	node: l, x, r
@@ -10,7 +11,7 @@ var top = n(n(n(e, 3, e), 4, e), 5, n(e, 2, e))
 var depth
 depth = \t ->
 	return tree:t  !
-		else return 0
+		* return 0
 		node: l, _, r -> return 1 + math.max(depth(l), depth(r))
 
 assert(depth(top) == 3)
@@ -28,23 +29,23 @@ var tbl = {
 		h: i, j, k
 		l: ...
 
-		m: n, o
+		m: q, o
 	, my = 'helo'
 }
 
 
 var adt = tbl.adt
-	
+
 var g = adt.g()
 var h = adt.h(1, 2, 3)
 var m = adt.m('a', 'b')
 
-var show = \e ->
+var show = \r ->
 	-- `adt` is needed to compile check if all cases are listed ... later
-	print(adt:e!
+	print(adt:r!
 		g return "G"
 		h: i, j, k -> return i, j, k
-		else: ... ->
+		*: ... ->
 			return 'fallback', ...
 	)
 
@@ -55,9 +56,26 @@ show()
 show(tbl)
 
 
+-- complex test and arg expression
+var hh = (\x -> return x)(adt):(-> return { 0, adt.h(89, 99) })()[2]! h: i, j -> return j
+assert(hh == 99)
+
+var mm = (adt):(-> return {{ adt.m('la') }})()[1][1]! *: a -> return a
+assert(mm == 'la')
+
+
+
 var any, some = :!  any: ...;, \s -> return s
 
 var a = any(1, 2, 3)
 print(any:a  ! _: ... -> return ...)
 assert(some(6) == 6)
-	
+
+var z = false
+-- destructor can be a statement
+any:nil! * z = true
+assert(z)
+
+assert(any:7! * return 10; == 10)
+
+

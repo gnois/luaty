@@ -377,16 +377,21 @@ return function(ls, warn)
         repeat
             local ctor, body
             local params, p = {}, 0
-            local els
+            local starred
             if ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
                 ctor = Expr.id(lex_str())
-            elseif destruct and ls.token == "TK_else" then
-                if els then
-                    err_syntax(ls.astext(ls.token) .. " already defined on line " .. els)
+            else
+                local name = is_keyword()
+                if name then
+                    ctor = Expr.id(name, ls)
+                elseif destruct and ls.token == "*" then
+                    if starred then
+                        err_syntax(ls.astext(ls.token) .. " already defined on line " .. starred)
+                    end
+                    starred = ls.line
+                    ctor = Expr.id(ls.token, ls)
                 end
-                els = ls.line
                 ls.step()
-                ctor = Expr.id("else", ls)
             end
             if ctor then
                 if lex_opt(":") then
@@ -421,6 +426,9 @@ return function(ls, warn)
                 break
             end
         until lex_dedent()
+        if v < 1 then
+            parse_error(3, "at least one constructor needed for disjoint union")
+        end
         return variants
     end
     expr_simple = function()
@@ -621,7 +629,7 @@ return function(ls, warn)
     end
     local parse_call_assign = function(loc)
         local v, vk = expr_primary()
-        if vk == Kind.Call then
+        if vk == Kind.Call or vk == Kind.Union then
             return Stmt.expression(v, loc)
         end
         local lhs = {}
