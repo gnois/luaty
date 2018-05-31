@@ -178,7 +178,7 @@ return function(ls, warn)
         lex_match("}", "{", loc.line)
         return Type.tbl(vks, loc)
     end
-    local type_list = function(isparam)
+    local type_tuple = function(isparam)
         local list, l = {}, 0
         if not (isparam and ls.token == ":" or ls.token == "]") then
             repeat
@@ -197,11 +197,11 @@ return function(ls, warn)
     end
     local type_func = function(loc)
         ls.step()
-        local params = type_list(true)
+        local params = type_tuple(true)
         local returns
         if ls.token == ":" then
             ls.step()
-            returns = type_list(false)
+            returns = type_tuple(false)
         end
         lex_match("]", "[", loc.line)
         return Type.func(params, returns, loc)
@@ -258,11 +258,11 @@ return function(ls, warn)
     end
     type_unary = function()
         local tk = ls.token
-        if tk == "!" then
+        if tk == "$" then
             ls.step()
             local loc = ls.loc()
             local t = type_binary(operator.unary_priority)
-            return Type["not"](t, loc)
+            return Type.typeof(t, loc)
         else
             return type_basic()
         end
@@ -275,10 +275,9 @@ return function(ls, warn)
             local loc = ls.loc()
             local r, nextop = type_binary(operator.right_priority(op))
             if op == "?" then
-                if ast.nillable(l) then
-                    parse_error(1, "type %s is already nullable", ls_value())
+                if not ast.nils(l) then
+                    parse_error(1, "type %s is already nillable", ls_value())
                 end
-                l = ast.nils(l)
             elseif op == "|" then
                 l = Type["or"](l, r, loc)
             elseif op == "&" then
@@ -294,7 +293,9 @@ return function(ls, warn)
     parse_type = function(varargs)
         local typ = type_binary(0)
         if typ and varargs then
-            return ast.varargs(typ)
+            if not ast.varargs(typ) then
+                parse_error(1, "type %s is already a vararg", ls_value())
+            end
         end
         return typ
     end
@@ -444,7 +445,7 @@ return function(ls, warn)
             return expr_table(loc)
         elseif tk == "\\" or tk == "->" or tk == "~>" then
             return expr_function(loc)
-        elseif tk == ":?" then
+        elseif tk == ":!" then
             ls.step()
             return Expr.union(parse_variants(false), nil, nil, loc)
         else
@@ -526,7 +527,7 @@ return function(ls, warn)
             elseif ls.token == ":" then
                 ls.step()
                 local arg = expr()
-                lex_check("?")
+                lex_check("!")
                 vk, v = Kind.Union, Expr.union(parse_variants(true), v, arg, at)
             else
                 break

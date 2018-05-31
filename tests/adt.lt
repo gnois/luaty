@@ -1,4 +1,4 @@
-var tree = :?
+var tree = :!
 	empty
 	node: l, x, r
 
@@ -9,7 +9,7 @@ var top = n(n(n(e, 3, e), 4, e), 5, n(e, 2, e))
 
 var depth
 depth = \t ->
-	return tree:t?
+	return tree:t  !
 		else return 0
 		node: l, _, r -> return 1 + math.max(depth(l), depth(r))
 
@@ -19,7 +19,7 @@ assert(depth(top) == 3)
 -- messy
 var tbl = {
 	dum = 9,
-	adt = :?
+	adt = :!
 		-- g is some ctor
 		g
 		
@@ -41,7 +41,7 @@ var m = adt.m('a', 'b')
 
 var show = \e ->
 	-- `adt` is needed to compile check if all cases are listed ... later
-	print(adt:e?
+	print(adt:e!
 		g return "G"
 		h: i, j, k -> return i, j, k
 		else: ... ->
@@ -55,9 +55,9 @@ show()
 show(tbl)
 
 
-var any, some = :? any: ...;, \s -> return s
+var any, some = :!  any: ...;, \s -> return s
 
 var a = any(1, 2, 3)
-print(any:a? _: ... -> return ...)
+print(any:a  ! _: ... -> return ...)
 assert(some(6) == 6)
 	

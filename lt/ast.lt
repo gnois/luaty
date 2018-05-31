@@ -102,46 +102,55 @@ var Expression = {
 }
 
 
+
+var create = \tag, node, expr ->
+	assert('table' == type(node))
+	assert('table' == type(expr))
+	assert(TExpr[expr.tag])  -- must be expression node
+	node.tag = tag
+	node.expr = expr
+	return node
+
 var id = 0
 
 var Type = {
-	new = \ls ->
+	new = \expr ->
 		id = id + 1
-		return make(TType.Var, {name = 'T' .. id}, ls)
+		return create(TType.Var, {name = 'T' .. id}, expr)
 
-	, any = \ls ->
-		return make(TType.Any, {}, ls)
+	, any = \expr ->
+		return create(TType.Any, {}, expr)
 
-	, nil = \ls ->
-		return make(TType.Nil, {}, ls)
+	, nil = \expr ->
+		return create(TType.Nil, {}, expr)
 
-	, num = \ls ->
-		return make(TType.Num, {}, ls)
+	, num = \expr ->
+		return create(TType.Num, {}, expr)
 
-	, str = \ls ->
-		return make(TType.Str, {}, ls)
+	, str = \expr ->
+		return create(TType.Str, {}, expr)
 
-	, bool = \ls ->
-		return make(TType.Bool, {}, ls)
+	, bool = \expr ->
+		return create(TType.Bool, {}, expr)
 
-	, func = \params, returns, ls ->
-		return make(TType.Func, {params = params, returns = returns}, ls)
+	, func = \params, returns, expr ->
+		return create(TType.Func, {params = params, returns = returns}, expr)
 
-	, tbl = \typekeys, ls ->
-		return make(TType.Tbl, {typekeys = typekeys}, ls)
+	, tbl = \typekeys, expr ->
+		return create(TType.Tbl, {typekeys = typekeys}, expr)
 
-	-- compound
-	, or = \left, right, ls ->
-		return make(TType.Or, {left = left, right = right}, ls)
+	, or = \left, right, expr ->
+		return create(TType.Or, {left = left, right = right}, expr)
 
-	, and = \left, right, ls ->
-		return make(TType.And, {left = left, right = right}, ls)
+	, and = \left, right, expr ->
+		return create(TType.And, {left = left, right = right}, expr)
 
-	, index = \obj, prop, ls ->
-		return make(TType.Index, {obj = obj, prop = prop}, ls)
+	, index = \obj, prop, expr ->
+		return create(TType.Index, {obj = obj, prop = prop}, expr)
 
-	, custom = \name, ls ->
-		return make(TType.Custom, {name = name}, ls)
+	-- only identifier accepted, not expr
+	, typeof = \name, expr ->
+		return create(TType.Typeof, {name = name}, expr)
 }
 
 var bracket = \node ->
@@ -149,15 +158,21 @@ var bracket = \node ->
 	node.bracketed = true
 	return node
 
+-- return false if already vararg'ed
 var varargs = \node ->
 	assert(TType[node.tag])  -- must be type node
+	if node.varargs
+		return false
 	node.varargs = true
-	return node
+	return true
 
+-- return false if already nil'ed
 var nils = \node ->
 	assert(TType[node.tag])  -- must be type node
+	if node.nil
+		return false
 	node.nil = true
-	return node
+	return true
 
 
 -- check if ast are the same

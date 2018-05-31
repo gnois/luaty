@@ -27,24 +27,24 @@ Subst[TType.Func] = function(node, tvar, texp)
     for i, r in ipairs(node.returns) do
         returns[i] = subst(r, tvar, texp)
     end
-    return ast.Type.func(params, returns, node)
+    return ast.Type.func(params, returns, node.expr)
 end
 Subst[TType.Tbl] = function(node, tvar, texp)
     local typekeys = {}
     for i, tk in ipairs(node.typekeys) do
         typekeys[i] = {subst(tk[1], tvar, texp), tk[2]}
     end
-    return ast.Type.tbl(typekeys, node)
+    return ast.Type.tbl(typekeys, node.expr)
 end
 Subst[TType.Or] = function(node, tvar, texp)
     local left = subst(node.left, tvar, texp)
     local right = subst(node.right, tvar, texp)
-    return ast.Type["or"](left, right)
+    return ast.Type["or"](left, right, node.expr)
 end
 Subst[TType.And] = function(node, tvar, texp)
     local left = subst(node.left, tvar, texp)
     local right = subst(node.right, tvar, texp)
-    return ast.Type["and"](left, right)
+    return ast.Type["and"](left, right, node.expr)
 end
 Subst[TType.Index] = function(node, tvar, texp)
     return node
@@ -71,24 +71,24 @@ Apply[TType.Func] = function(node, subs)
     for i, r in ipairs(node.returns) do
         returns[i] = apply(r, subs)
     end
-    return ast.Type.func(params, returns, node)
+    return ast.Type.func(params, returns, node.expr)
 end
 Apply[TType.Tbl] = function(node, subs)
     local typekeys = {}
     for i, tk in ipairs(node.typekeys) do
         typekeys[i] = {apply(tk[1], subs), tk[2]}
     end
-    return ast.Type.tbl(typekeys, node)
+    return ast.Type.tbl(typekeys, node.expr)
 end
 Apply[TType.Or] = function(node, subs)
     local left = apply(node.left, subs)
     local right = apply(node.right, subs)
-    return ast.Type["or"](left, right)
+    return ast.Type["or"](left, right, node.expr)
 end
 Apply[TType.And] = function(node, subs)
     local left = apply(node.left, subs)
     local right = apply(node.right, subs)
-    return ast.Type["and"](left, right)
+    return ast.Type["and"](left, right, node.expr)
 end
 local Occur = {}
 local occurs = function(tx, ty)
@@ -138,19 +138,30 @@ local extend = function(subs, tvar, texp)
     return subs
 end
 local unify
-local unify_func = function(subs, tx, ty)
-    local n = math.min(#tx.params, #ty.params)
-    for i = 1, n do
-        subs = unify(subs, tx.params[i], ty.params[i])
+local unify_tuple = function(subs, txs, tys, isparams)
+    local taker, giver = " variables", " values"
+    if isparams then
+        taker, giver = " parameters", " arguments"
     end
-    if #ty.params ~= #tx.params then
-        
+    local i, n = 0, #txs
+    while i < n do
+        i = i + 1
+        if tys[i] then
+            subs = unify(subs, txs[i], tys[i])
+        else
+            print(i - 1 .. giver .. " supplied to " .. n .. taker)
+            return subs
+        end
     end
-    n = math.min(#tx.returns, #ty.returns)
-    for i = 1, n do
-        subs = unify(subs, tx.returns[i], ty.returns[i])
+    n = #tys
+    if i > 0 and i < n and not txs[i].varargs then
+        print(n .. giver .. " supplied to " .. i - 1 .. taker)
     end
     return subs
+end
+local unify_func = function(subs, tx, ty)
+    subs = unify_tuple(subs, tx.params, ty.params, true)
+    return unify_tuple(subs, tx.returns, ty.returns, false)
 end
 local unify_tbl = function(subs, tx, ty)
     local keys, k = {}, 0
@@ -166,12 +177,16 @@ local unify_tbl = function(subs, tx, ty)
     for _, key in ipairs(keys) do
         for __, tk in ipairs(tx.typekeys) do
             if tk[2] and tk[2] ~= key then
-                subs = unify(subs, tk[1], ast.nils(ast.Type.new(tk[1])))
+                local tkey2 = ast.Type.new(tk[1])
+                ast.nils(tkey2)
+                subs = unify(subs, tk[1], tkey2)
             end
         end
         for __, tk in ipairs(ty.typekeys) do
             if tk[2] and tk[2] ~= key then
-                subs = unify(subs, tk[1], ast.nils(ast.Type.new(tk[1])))
+                local key2 = ast.Type.new(tk[1])
+                ast.nils(key2)
+                subs = unify(subs, tk[1], key2)
             end
         end
     end
@@ -201,19 +216,13 @@ unify = function(subs, tx, ty)
     if tx.tag == TType.Any or ty.tag == TType.Any then
         return subs
     end
-    if tx["nil"] then
-        if ty["nil"] then
-            return subs
-        end
-        if ty.tag == TType["nil"] then
-            return subs
-        end
+    if tx["nil"] and ty.tag == TType["nil"] then
+        return subs
     end
-    if ty["nil"] then
-        if tx.tag == TType["nil"] then
-            return subs
-        end
+    if ty["nil"] and tx.tag == TType["nil"] then
+        return subs
     end
+    print("Type mismatch :", tx.tag, ty.tag)
     return subs
 end
 return {apply = apply, unify = unify}

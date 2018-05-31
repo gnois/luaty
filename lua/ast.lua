@@ -102,44 +102,52 @@ local Expression = {
         return make(TExpr.Binary, {op = op, left = left, right = right}, ls)
     end
 }
+local create = function(tag, node, expr)
+    assert("table" == type(node))
+    assert("table" == type(expr))
+    assert(TExpr[expr.tag])
+    node.tag = tag
+    node.expr = expr
+    return node
+end
 local id = 0
 local Type = {
-    new = function(ls)
+    new = function(expr)
         id = id + 1
-        return make(TType.Var, {name = "T" .. id}, ls)
+        return create(TType.Var, {name = "T" .. id}, expr)
     end
-    , any = function(ls)
-        return make(TType.Any, {}, ls)
+    , any = function(expr)
+        return create(TType.Any, {}, expr)
     end
-    , ["nil"] = function(ls)
-        return make(TType.Nil, {}, ls)
+    , ["nil"] = function(expr)
+        return create(TType.Nil, {}, expr)
     end
-    , num = function(ls)
-        return make(TType.Num, {}, ls)
+    , num = function(expr)
+        return create(TType.Num, {}, expr)
     end
-    , str = function(ls)
-        return make(TType.Str, {}, ls)
+    , str = function(expr)
+        return create(TType.Str, {}, expr)
     end
-    , bool = function(ls)
-        return make(TType.Bool, {}, ls)
+    , bool = function(expr)
+        return create(TType.Bool, {}, expr)
     end
-    , func = function(params, returns, ls)
-        return make(TType.Func, {params = params, returns = returns}, ls)
+    , func = function(params, returns, expr)
+        return create(TType.Func, {params = params, returns = returns}, expr)
     end
-    , tbl = function(typekeys, ls)
-        return make(TType.Tbl, {typekeys = typekeys}, ls)
+    , tbl = function(typekeys, expr)
+        return create(TType.Tbl, {typekeys = typekeys}, expr)
     end
-    , ["or"] = function(left, right, ls)
-        return make(TType.Or, {left = left, right = right}, ls)
+    , ["or"] = function(left, right, expr)
+        return create(TType.Or, {left = left, right = right}, expr)
     end
-    , ["and"] = function(left, right, ls)
-        return make(TType.And, {left = left, right = right}, ls)
+    , ["and"] = function(left, right, expr)
+        return create(TType.And, {left = left, right = right}, expr)
     end
-    , index = function(obj, prop, ls)
-        return make(TType.Index, {obj = obj, prop = prop}, ls)
+    , index = function(obj, prop, expr)
+        return create(TType.Index, {obj = obj, prop = prop}, expr)
     end
-    , custom = function(name, ls)
-        return make(TType.Custom, {name = name}, ls)
+    , typeof = function(name, expr)
+        return create(TType.Typeof, {name = name}, expr)
     end
 }
 local bracket = function(node)
@@ -149,13 +157,19 @@ local bracket = function(node)
 end
 local varargs = function(node)
     assert(TType[node.tag])
+    if node.varargs then
+        return false
+    end
     node.varargs = true
-    return node
+    return true
 end
 local nils = function(node)
     assert(TType[node.tag])
+    if node["nil"] then
+        return false
+    end
     node["nil"] = true
-    return node
+    return true
 end
 local same
 same = function(a, b)

@@ -23,24 +23,24 @@ Subst[TType.Func] = \node, tvar, texp ->
 		params[i] = subst(p, tvar, texp)
 	for i, r in ipairs(node.returns)
 		returns[i] = subst(r, tvar, texp)
-	return ast.Type.func(params, returns, node)
+	return ast.Type.func(params, returns, node.expr)
 
 Subst[TType.Tbl] = \node, tvar, texp ->
 	var typekeys = {}
 	for i, tk in ipairs(node.typekeys)
 		-- tk[1] is type
 		typekeys[i] = { subst(tk[1], tvar, texp), tk[2] }
-	return ast.Type.tbl(typekeys, node)
+	return ast.Type.tbl(typekeys, node.expr)
 
 Subst[TType.Or] = \node, tvar, texp ->
 	var left = subst(node.left, tvar, texp)
 	var right = subst(node.right, tvar, texp)
-	return ast.Type.or(left, right)
+	return ast.Type.or(left, right, node.expr)
 
 Subst[TType.And] = \node, tvar, texp ->
 	var left = subst(node.left, tvar, texp)
 	var right = subst(node.right, tvar, texp)
-	return ast.Type.and(left, right)
+	return ast.Type.and(left, right, node.expr)
 
 Subst[TType.Index] = \node, tvar, texp ->
 	return node
@@ -67,25 +67,25 @@ Apply[TType.Func] = \node, subs ->
 		params[i] = apply(p, subs)
 	for i, r in ipairs(node.returns)
 		returns[i] = apply(r, subs)
-	return ast.Type.func(params, returns, node)
+	return ast.Type.func(params, returns, node.expr)
 
 Apply[TType.Tbl] = \node, subs ->
 	var typekeys = {}
 	for i, tk in ipairs(node.typekeys)
 		-- tk[1] is type
 		typekeys[i] = { apply(tk[1], subs), tk[2] }
-	return ast.Type.tbl(typekeys, node)
+	return ast.Type.tbl(typekeys, node.expr)
 
 Apply[TType.Or] = \node, subs ->
 	var left = apply(node.left, subs)
 	var right = apply(node.right, subs)
-	return ast.Type.or(left, right)
+	return ast.Type.or(left, right, node.expr)
 
 
 Apply[TType.And] = \node, subs ->
 	var left = apply(node.left, subs)
 	var right = apply(node.right, subs)
-	return ast.Type.and(left, right)
+	return ast.Type.and(left, right, node.expr)
 
 
 var Occur = {}
@@ -133,17 +133,28 @@ var extend = \subs, tvar, texp ->
 
 var unify
 
-var unify_func = \subs, tx, ty ->
-	var n = math.min(#tx.params, #ty.params)
-	for i = 1, n
-		subs = unify(subs, tx.params[i], ty.params[i])
-	if #ty.params ~= #tx.params
-		--print("Parameter count not match :")
-		
-	n = math.min(#tx.returns, #ty.returns)
-	for i = 1, n
-		subs = unify(subs, tx.returns[i], ty.returns[i])
+var unify_tuple = \subs, txs, tys, isparams ->
+	var taker, giver = " variables", " values"
+	if isparams
+		taker, giver = " parameters", " arguments"
+	var i, n = 0, #txs
+	while i < n
+		i = i + 1
+		if tys[i]
+			subs = unify(subs, txs[i], tys[i])
+		else
+			print((i-1) .. giver .. " supplied to " .. n .. taker)
+			return subs
+
+	n = #tys
+	if i > 0 and i < n and not txs[i].varargs
+		print(n .. giver .. " supplied to " .. (i-1) .. taker)
 	return subs
+
+
+var unify_func = \subs, tx, ty ->
+	subs = unify_tuple(subs, tx.params, ty.params, true)
+	return unify_tuple(subs, tx.returns, ty.returns, false)
 
 
 var unify_tbl = \subs, tx, ty ->
@@ -159,11 +170,15 @@ var unify_tbl = \subs, tx, ty ->
 	for _, key in ipairs(keys)
 		for __, tk in ipairs(tx.typekeys)
 			if tk[2] and tk[2] ~= key
-				subs = unify(subs, tk[1], ast.nils(ast.Type.new(tk[1])))
+				var tkey2 = ast.Type.new(tk[1])
+				ast.nils(tkey2)
+				subs = unify(subs, tk[1], tkey2)
 		
 		for __, tk in ipairs(ty.typekeys)
 			if tk[2] and tk[2] ~= key
-				subs = unify(subs, tk[1], ast.nils(ast.Type.new(tk[1])))
+				var key2 = ast.Type.new(tk[1])
+				ast.nils(key2)
+				subs = unify(subs, tk[1], key2)
 	return subs
 
 
@@ -192,19 +207,14 @@ unify = \subs, tx, ty ->
 	if tx.tag == TType.Any or ty.tag == TType.Any
 		return subs
 
-	if tx.nil
-		if ty.nil
-			return subs
-		if ty.tag == TType.nil
-			return subs
+	if tx.nil and ty.tag == TType.nil
+		return subs
 	
-	-- tx not nillable
-	if ty.nil
-		if tx.tag == TType.nil
-			return subs
+	if ty.nil and tx.tag == TType.nil
+		return subs
 
 	-- comment out for now
-	--print("Type mismatch :", tx.tag, ty.tag)
+	print("Type mismatch :", tx.tag, ty.tag)
 	return subs
 
 

@@ -104,7 +104,7 @@ print(get()['long-name'](@, 10))    -- now `:` cannot be used in Lua, but `@` *j
 
 Luaty has disjoint union with pattern matching expressions
 ```
-var tree = :?                           -- disjoint union is an expression
+var tree = :!                           -- disjoint union is an expression
 	empty                                -- colon can be omitted if constructor is not taking parameters
 	node: l, x, r
 
@@ -116,7 +116,7 @@ var top = n(n(n(e, 3, e), 4, e), 5, n(e, 2, e))
 
 var depth
 depth = \t ->
-	return tree:t?                               -- pattern match 't'
+	return tree:t!                               -- pattern match 't'
 		else return 0                             -- catch all
 		node: l, _, r -> return 1 + math.max(depth(l), depth(r))
 

@@ -111,7 +111,9 @@ return function(scope, stmts, warn)
         if not scope.is_varargs() then
             warn(node.line, node.col, 2, "cannot use `...` in a function without variable arguments")
         end
-        return ast.varargs(ast.Type.any(node)), subs
+        local t = ast.Type.any(node)
+        ast.varargs(t)
+        return t, subs
     end
     Expr[TExpr.Id] = function(node, subs)
         local line, typ
@@ -134,7 +136,7 @@ return function(scope, stmts, warn)
             local vtype = node.types[i] or ast.Type.new(node)
             if var.tag == TExpr.Vararg then
                 scope.varargs()
-                vtype = ast.varargs(vtype)
+                ast.varargs(vtype)
             else
                 declare(var, vtype)
             end
@@ -200,7 +202,8 @@ return function(scope, stmts, warn)
         local atypes, otype
         atypes, subs = infer_exprs(node.args, subs)
         otype, subs = infer_expr(node.obj, subs)
-        local retype = ast.varargs(ast.Type.new(node.obj), node.obj)
+        local retype = ast.Type.new(node.obj)
+        ast.varargs(retype)
         local typekeys = {{ast.Type.func(atypes, {retype}, node.obj), node.prop}}
         subs = ty.unify(subs, otype, ast.Type.tbl(typekeys, node.obj))
         return ty.apply(retype, subs), subs
@@ -209,7 +212,8 @@ return function(scope, stmts, warn)
         local atypes, ftype
         atypes, subs = infer_exprs(node.args, subs)
         ftype, subs = infer_expr(node.func, subs)
-        local retype = ast.varargs(ast.Type.new(node.func), node.obj)
+        local retype = ast.Type.new(node.func)
+        ast.varargs(retype)
         subs = ty.unify(subs, ftype, ast.Type.func(atypes, {retype}, node.func))
         return ty.apply(retype, subs), subs
     end
@@ -256,7 +260,11 @@ return function(scope, stmts, warn)
             if ltype then
                 subs = ty.unify(subs, ltype, rtypes[i])
             else
-                ltype = rtypes[i] or ast.nils(ast.Type.new(var))
+                ltype = rtypes[i]
+                if not ltype then
+                    ltype = ast.Type.new(var)
+                    ast.nils(ltype)
+                end
             end
             declare(var, ltype)
         end
@@ -268,7 +276,7 @@ return function(scope, stmts, warn)
         rtypes, subs = infer_exprs(node.rights, subs)
         ltypes, subs = infer_exprs(node.lefts, subs)
         for i, ltype in ipairs(ltypes) do
-            subs = ty.unify(subs, ltype, rtypes[i] or ast.Type["nil"](node))
+            subs = ty.unify(subs, ltype, rtypes[i] or ast.Type["nil"](node.rights[i] or ast.Expr["nil"](node)))
         end
         return subs
     end
@@ -304,7 +312,7 @@ return function(scope, stmts, warn)
         if node.step then
             infer_expr(node.step, subs)
         end
-        declare(node.var, ast.Type.num(node))
+        declare(node.var, ast.Type.num(node.var))
         subs = check_block(node.body, subs)
         scope.leave()
         return subs
