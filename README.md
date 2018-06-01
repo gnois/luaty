@@ -40,9 +40,11 @@ Differences from Lua
 Due to [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule), Luaty could use less syntax boilerplate than Lua:
   * no more `end`
   * no more `do` after `for` and `while`
+  * no more `then` after `if`
+
+It also changes some syntax:
   * `repeat` becomes `do`
   * `elseif` becomes `else if`
-  * no more `then` after `if`
   * `local` becomes `var`
   * `[[` and `]]` become backquote(s) \` that can be repeated multiple times
   * table keys can be string or keyword
@@ -102,7 +104,8 @@ var get = -> return obj
 print(get()['long-name'](@, 10))    -- `@` *just works*, get() is only called once
 ```
 
-Luaty adds disjoint union with pattern matching expressions
+
+Luaty supports disjoint union with pattern matching expressions
 ```
 var tree = :!                 -- disjoint union is a normal expression
    empty                      -- colon can be omitted if constructor does not take parameters
@@ -116,7 +119,7 @@ var top = n(n(n(e, 3, e), 4, e), 5, n(e, 2, e))
 
 var depth
 depth = \t ->
-   return tree:t!        -- pattern match 't' as a normal expression
+   return tree:t!        -- pattern match 't'
       * return 0         -- `*` catches all, can appear in any order and can take parameters
       node: l, _, r -> return 1 + math.max(depth(l), depth(r))
 

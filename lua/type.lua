@@ -149,13 +149,12 @@ local unify_tuple = function(subs, txs, tys, isparams)
         if tys[i] then
             subs = unify(subs, txs[i], tys[i])
         else
-            print(i - 1 .. giver .. " supplied to " .. n .. taker)
             return subs
         end
     end
     n = #tys
     if i > 0 and i < n and not txs[i].varargs then
-        print(n .. giver .. " supplied to " .. i - 1 .. taker)
+        
     end
     return subs
 end
@@ -222,7 +221,6 @@ unify = function(subs, tx, ty)
     if ty["nil"] and tx.tag == TType["nil"] then
         return subs
     end
-    print("Type mismatch :", tx.tag, ty.tag)
     return subs
 end
 return {apply = apply, unify = unify}
