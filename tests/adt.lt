@@ -7,6 +7,7 @@ var e = tree.empty()
 var n = tree.node
 
 var top = n(n(n(e, 3, e), 4, e), 5, n(e, 2, e))
+assert(tree(top) == "node")
 
 var depth
 depth = \t ->
@@ -39,6 +40,7 @@ var adt = tbl.adt
 var g = adt.g()
 var h = adt.h(1, 2, 3)
 var m = adt.m('a', 'b')
+assert(adt(m) == "m")
 
 var show = \r ->
 	-- `adt` is needed to compile check if all cases are listed ... later
@@ -77,5 +79,5 @@ any:nil! * z = true
 assert(z)
 
 assert(any:7! * return 10; == 10)
-
+assert(any('j') == nil)
 
