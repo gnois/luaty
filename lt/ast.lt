@@ -175,6 +175,11 @@ var nils = \node ->
 	return true
 
 
+var tostr = \node ->
+	assert(TType[node.tag])
+	
+	
+
 -- check if ast are the same
 var same
 same = \a, b ->

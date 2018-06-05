@@ -1,7 +1,6 @@
 var ast = require('lua.ast')
+var typ = require('lua.type')
 var Tag = require('lua.tag')
-var ty = require('lua.type')
-
 var TStmt = Tag.Stmt
 var TExpr = Tag.Expr
 var TType = Tag.Type
@@ -11,13 +10,14 @@ return \scope, stmts, warn ->
 	var Stmt = {}
 	var Expr = {}
 	var Type = {}
-
+	var ty = typ(warn)
+	
 	var fail = \node ->
 		var msg = (node.tag or 'nil') .. " cannot match a statement type"
 		if node.line and node.col
 			warn(node.line, node.col, 3, msg)
 		else
-			print(msg)
+			error(msg)
 
 	-- check type annotation
 	var check_type = \tnode ->
@@ -110,21 +110,21 @@ return \scope, stmts, warn ->
 		return t, subs
 
 	Expr[TExpr.Id] = \node, subs ->
-		var line, typ
+		var line, vtype
 		if node.name  -- node.name can be nil, bcoz the parser continues despite error
-			line, typ = scope.declared(node.name)
+			line, vtype = scope.declared(node.name)
 			if line == 0
 				warn(node.line, node.col, 1, "undeclared identifier `" .. node.name .. "`")
-			if not typ
-				typ = ast.Type.new(node)
-		return typ, subs
+			if not vtype
+				vtype = ast.Type.new(node)
+		return vtype, subs
 		
 	Expr[TExpr.Function] = \node, subs ->
 		scope.begin_func()
 		check_types(node.types)
 		check_types(node.retypes)
 		for i, var in ipairs(node.params)
-			var vtype = node.types[i] or ast.Type.new(node)
+			var vtype = node.types[i] or ast.Type.new(var)
 			if var.tag == TExpr.Vararg
 				scope.varargs()
 				ast.varargs(vtype)
@@ -205,7 +205,7 @@ return \scope, stmts, warn ->
 		ftype, subs = infer_expr(node.func, subs)
 		var retype = ast.Type.new(node.func)
 		ast.varargs(retype)
-		subs = ty.unify(subs, ftype, ast.Type.func(atypes, {retype}, node.func))
+		subs = ty.unify(subs, ftype, ast.Type.func(atypes, {retype}, node))
 		return ty.apply(retype, subs), subs
 
 	Expr[TExpr.Unary] = \node, subs ->
@@ -228,9 +228,9 @@ return \scope, stmts, warn ->
 		if op == 'and'
 			return rtype, subs
 
-		if op == '+' or op == '-' or op == '*' or op == '/' or op == '^' or op == '>' or op == '>=' or op == '<' or op == '<=' or op == '..'
-			subs = ty.unify(subs, ltype, rtype)
-			if op == '>' or op == '>=' or op == '<' or op == '<='
+		if op == '+' or op == '-' or op == '*' or op == '/' or op == '^' or op == '>' or op == '>=' or op == '<' or op == '<=' or op == '==' or op == '..'
+			subs = ty.unify(subs, rtype, ltype)
+			if op == '>' or op == '>=' or op == '<' or op == '<=' or op == '=='
 				return ast.Type.bool(node), subs
 		-- op == 'or'
 		return ltype, subs

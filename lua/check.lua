@@ -2,8 +2,8 @@
 -- Generated from check.lt
 --
 local ast = require("lua.ast")
+local typ = require("lua.type")
 local Tag = require("lua.tag")
-local ty = require("lua.type")
 local TStmt = Tag.Stmt
 local TExpr = Tag.Expr
 local TType = Tag.Type
@@ -11,12 +11,13 @@ return function(scope, stmts, warn)
     local Stmt = {}
     local Expr = {}
     local Type = {}
+    local ty = typ(warn)
     local fail = function(node)
         local msg = (node.tag or "nil") .. " cannot match a statement type"
         if node.line and node.col then
             warn(node.line, node.col, 3, msg)
         else
-            print(msg)
+            error(msg)
         end
     end
     local check_type = function(tnode)
@@ -116,24 +117,24 @@ return function(scope, stmts, warn)
         return t, subs
     end
     Expr[TExpr.Id] = function(node, subs)
-        local line, typ
+        local line, vtype
         if node.name then
-            line, typ = scope.declared(node.name)
+            line, vtype = scope.declared(node.name)
             if line == 0 then
                 warn(node.line, node.col, 1, "undeclared identifier `" .. node.name .. "`")
             end
-            if not typ then
-                typ = ast.Type.new(node)
+            if not vtype then
+                vtype = ast.Type.new(node)
             end
         end
-        return typ, subs
+        return vtype, subs
     end
     Expr[TExpr.Function] = function(node, subs)
         scope.begin_func()
         check_types(node.types)
         check_types(node.retypes)
         for i, var in ipairs(node.params) do
-            local vtype = node.types[i] or ast.Type.new(node)
+            local vtype = node.types[i] or ast.Type.new(var)
             if var.tag == TExpr.Vararg then
                 scope.varargs()
                 ast.varargs(vtype)
@@ -214,7 +215,7 @@ return function(scope, stmts, warn)
         ftype, subs = infer_expr(node.func, subs)
         local retype = ast.Type.new(node.func)
         ast.varargs(retype)
-        subs = ty.unify(subs, ftype, ast.Type.func(atypes, {retype}, node.func))
+        subs = ty.unify(subs, ftype, ast.Type.func(atypes, {retype}, node))
         return ty.apply(retype, subs), subs
     end
     Expr[TExpr.Unary] = function(node, subs)
@@ -237,9 +238,9 @@ return function(scope, stmts, warn)
         if op == "and" then
             return rtype, subs
         end
-        if op == "+" or op == "-" or op == "*" or op == "/" or op == "^" or op == ">" or op == ">=" or op == "<" or op == "<=" or op == ".." then
-            subs = ty.unify(subs, ltype, rtype)
-            if op == ">" or op == ">=" or op == "<" or op == "<=" then
+        if op == "+" or op == "-" or op == "*" or op == "/" or op == "^" or op == ">" or op == ">=" or op == "<" or op == "<=" or op == "==" or op == ".." then
+            subs = ty.unify(subs, rtype, ltype)
+            if op == ">" or op == ">=" or op == "<" or op == "<=" or op == "==" then
                 return ast.Type.bool(node), subs
             end
         end

@@ -2,223 +2,230 @@ var ast = require('lua.ast')
 var Tag = require('lua.tag')
 var TType = Tag.Type
 
-var Subst = {}
-
-var subst = \node, tvar, texp ->
-	assert(tvar.tag == TType.Var)
-	var rule = Subst[node.tag]
-	if rule
-		return rule(node, tvar, texp)
-	return node
+return \warn ->
 	
--- subtitute in place
-Subst[TType.Var] = \node, tvar, texp ->
-	if node.name == tvar.name
-		return texp
-	return node
-
-Subst[TType.Func] = \node, tvar, texp ->
-	var params, returns = {}, {}
-	for i, p in ipairs(node.params)
-		params[i] = subst(p, tvar, texp)
-	for i, r in ipairs(node.returns)
-		returns[i] = subst(r, tvar, texp)
-	return ast.Type.func(params, returns, node.expr)
-
-Subst[TType.Tbl] = \node, tvar, texp ->
-	var typekeys = {}
-	for i, tk in ipairs(node.typekeys)
-		-- tk[1] is type
-		typekeys[i] = { subst(tk[1], tvar, texp), tk[2] }
-	return ast.Type.tbl(typekeys, node.expr)
-
-Subst[TType.Or] = \node, tvar, texp ->
-	var left = subst(node.left, tvar, texp)
-	var right = subst(node.right, tvar, texp)
-	return ast.Type.or(left, right, node.expr)
-
-Subst[TType.And] = \node, tvar, texp ->
-	var left = subst(node.left, tvar, texp)
-	var right = subst(node.right, tvar, texp)
-	return ast.Type.and(left, right, node.expr)
-
-Subst[TType.Index] = \node, tvar, texp ->
-	return node
+	var err = \node, msg ->
+		warn(node.expr.line, node.expr.col, 1, msg)
 	
-Subst[TType.Custom]  = \node, tvar, texp ->
-	return node
+	var Subst = {}
 
-
-var Apply = {}
-
-var apply = \ty, subs ->
-	var rule = Apply[ty.tag]
-	if rule
-		return rule(ty, subs)
-	return ty
-
-
-Apply[TType.Var] = \node, subs ->
-	return subs[node] or node
-
-Apply[TType.Func] = \node, subs ->
-	var params, returns = {}, {}
-	for i, p in ipairs(node.params)
-		params[i] = apply(p, subs)
-	for i, r in ipairs(node.returns)
-		returns[i] = apply(r, subs)
-	return ast.Type.func(params, returns, node.expr)
-
-Apply[TType.Tbl] = \node, subs ->
-	var typekeys = {}
-	for i, tk in ipairs(node.typekeys)
-		-- tk[1] is type
-		typekeys[i] = { apply(tk[1], subs), tk[2] }
-	return ast.Type.tbl(typekeys, node.expr)
-
-Apply[TType.Or] = \node, subs ->
-	var left = apply(node.left, subs)
-	var right = apply(node.right, subs)
-	return ast.Type.or(left, right, node.expr)
-
-
-Apply[TType.And] = \node, subs ->
-	var left = apply(node.left, subs)
-	var right = apply(node.right, subs)
-	return ast.Type.and(left, right, node.expr)
-
-
-var Occur = {}
-
-var occurs = \tx, ty ->
-	var rule = Occur[tx.tag]
-	if rule
-		return rule(tx, ty)
-	return false
-
-Occur[TType.Func] = \node, ty ->
-	for _, p in ipairs(node.params)
-		if occurs(p, ty)
-			return true
-	for _, r in ipairs(node.returns)
-		if occurs(r, ty)
-			return true
-	return false
-
-Occur[TType.Tbl] = \node, ty ->
-	for _, tk in ipairs(node.typekeys)
-		-- tk[1] is type
-		if occurs(tk[1], ty)
-			return true
-	return false
-
-Occur[TType.Or] = \node, ty ->
-	return occurs(node.left, ty) or occurs(node.right, ty)
-
-Occur[TType.And] = \node, ty ->
-	return occurs(node.left, ty) or occurs(node.right, ty)
-
-
--- a substitution is a map of {tvar: texp}
-var extend = \subs, tvar, texp ->
-	assert(tvar.tag == TType.Var)
-	if occurs(tvar, texp)
-		print("Cannot infer recursive type ")
-		return subs
-	for v, _ in pairs(subs)
-		subs[v] = subst(subs[v], tvar, texp)
-	subs[tvar] = texp
-	return subs
-
-
-var unify
-
-var unify_tuple = \subs, txs, tys, isparams ->
-	var taker, giver = " variables", " values"
-	if isparams
-		taker, giver = " parameters", " arguments"
-	var i, n = 0, #txs
-	while i < n
-		i = i + 1
-		if tys[i]
-			subs = unify(subs, txs[i], tys[i])
-		else
-			--print((i-1) .. giver .. " supplied to " .. n .. taker)
-			return subs
-
-	n = #tys
-	if i > 0 and i < n and not txs[i].varargs
-		--print(n .. giver .. " supplied to " .. (i-1) .. taker)
-	return subs
-
-
-var unify_func = \subs, tx, ty ->
-	subs = unify_tuple(subs, tx.params, ty.params, true)
-	return unify_tuple(subs, tx.returns, ty.returns, false)
-
-
-var unify_tbl = \subs, tx, ty ->
-	var keys, k = {}, 0
-	for _, tkx in ipairs(tx.typekeys)
-		for __, tky in ipairs(ty.typekeys)
-			if tkx[2] == tky[2]
-				k = k + 1
-				keys[k] = tkx[2]
-				subs = unify(subs, tkx[1], tky[1])
-	
-	-- for keys that didnt match, check if they are nillable
-	for _, key in ipairs(keys)
-		for __, tk in ipairs(tx.typekeys)
-			if tk[2] and tk[2] ~= key
-				var tkey2 = ast.Type.new(tk[1])
-				ast.nils(tkey2)
-				subs = unify(subs, tk[1], tkey2)
+	var subst = \node, tvar, texp ->
+		assert(tvar.tag == TType.Var)
+		var rule = Subst[node.tag]
+		if rule
+			return rule(node, tvar, texp)
+		return node
 		
-		for __, tk in ipairs(ty.typekeys)
-			if tk[2] and tk[2] ~= key
-				var key2 = ast.Type.new(tk[1])
-				ast.nils(key2)
-				subs = unify(subs, tk[1], key2)
-	return subs
+	-- subtitute in place
+	Subst[TType.Var] = \node, tvar, texp ->
+		if node.name == tvar.name
+			return texp
+		return node
+
+	Subst[TType.Func] = \node, tvar, texp ->
+		var params, returns = {}, {}
+		for i, p in ipairs(node.params)
+			params[i] = subst(p, tvar, texp)
+		for i, r in ipairs(node.returns)
+			returns[i] = subst(r, tvar, texp)
+		return ast.Type.func(params, returns, node.expr)
+
+	Subst[TType.Tbl] = \node, tvar, texp ->
+		var typekeys = {}
+		for i, tk in ipairs(node.typekeys)
+			-- tk[1] is type
+			typekeys[i] = { subst(tk[1], tvar, texp), tk[2] }
+		return ast.Type.tbl(typekeys, node.expr)
+
+	Subst[TType.Or] = \node, tvar, texp ->
+		var left = subst(node.left, tvar, texp)
+		var right = subst(node.right, tvar, texp)
+		return ast.Type.or(left, right, node.expr)
+
+	Subst[TType.And] = \node, tvar, texp ->
+		var left = subst(node.left, tvar, texp)
+		var right = subst(node.right, tvar, texp)
+		return ast.Type.and(left, right, node.expr)
+
+	Subst[TType.Index] = \node, tvar, texp ->
+		return node
+		
+	Subst[TType.Custom]  = \node, tvar, texp ->
+		return node
 
 
-unify = \subs, tx, ty ->
-	tx = apply(tx, subs)
-	ty = apply(ty, subs)
+	var Apply = {}
 
-	if tx.tag == TType.Var
+	var apply = \ty, subs ->
+		var rule = Apply[ty.tag]
+		if rule
+			return rule(ty, subs)
+		return ty
+
+
+	Apply[TType.Var] = \node, subs ->
+		return subs[node] or node
+
+	Apply[TType.Func] = \node, subs ->
+		var params, returns = {}, {}
+		for i, p in ipairs(node.params)
+			params[i] = apply(p, subs)
+		for i, r in ipairs(node.returns)
+			returns[i] = apply(r, subs)
+		return ast.Type.func(params, returns, node.expr)
+
+	Apply[TType.Tbl] = \node, subs ->
+		var typekeys = {}
+		for i, tk in ipairs(node.typekeys)
+			-- tk[1] is type
+			typekeys[i] = { apply(tk[1], subs), tk[2] }
+		return ast.Type.tbl(typekeys, node.expr)
+
+	Apply[TType.Or] = \node, subs ->
+		var left = apply(node.left, subs)
+		var right = apply(node.right, subs)
+		return ast.Type.or(left, right, node.expr)
+
+
+	Apply[TType.And] = \node, subs ->
+		var left = apply(node.left, subs)
+		var right = apply(node.right, subs)
+		return ast.Type.and(left, right, node.expr)
+
+
+	var Occur = {}
+
+	var occurs = \tx, ty ->
+		var rule = Occur[tx.tag]
+		if rule
+			return rule(tx, ty)
+		return false
+
+	Occur[TType.Func] = \node, ty ->
+		for _, p in ipairs(node.params)
+			if occurs(p, ty)
+				return true
+		for _, r in ipairs(node.returns)
+			if occurs(r, ty)
+				return true
+		return false
+
+	Occur[TType.Tbl] = \node, ty ->
+		for _, tk in ipairs(node.typekeys)
+			-- tk[1] is type
+			if occurs(tk[1], ty)
+				return true
+		return false
+
+	Occur[TType.Or] = \node, ty ->
+		return occurs(node.left, ty) or occurs(node.right, ty)
+
+	Occur[TType.And] = \node, ty ->
+		return occurs(node.left, ty) or occurs(node.right, ty)
+
+
+	-- a substitution is a map of {tvarcd: texp}
+	var extend = \subs, tvar, texp ->
+		assert(tvar.tag == TType.Var)
+		if occurs(tvar, texp)
+			err(tvar, "Cannot infer recursive type")
+			return subs
+		for v, _ in pairs(subs)
+			subs[v] = subst(subs[v], tvar, texp)
+		subs[tvar] = texp
+		return subs
+
+
+	var unify
+
+	var unify_tuple = \subs, txs, tys, isparams ->
+		var taker, giver = " variables", " values"
+		if isparams
+			taker, giver = " parameters", " arguments"
+		var i, n = 0, #txs
+		while i < n
+			i = i + 1
+			if tys[i]
+				subs = unify(subs, txs[i], tys[i])
+			else
+				err(txs[i], (i-1) .. giver .. " supplied to " .. n .. taker)
+				return subs
+
+		n = #tys
+		if i < n
+			if i > 0 
+				if not txs[i].varargs
+					err(tys[n], n .. giver .. " supplied to " .. i .. taker)
+			else
+				if isparams
+					err(tys[n], n .. giver .. " supplied to function taking no parameters")
+		return subs
+
+
+	var unify_func = \subs, tx, ty ->
+		subs = unify_tuple(subs, tx.params, ty.params, true)
+		return unify_tuple(subs, tx.returns, ty.returns, false)
+
+
+	var unify_tbl = \subs, tx, ty ->
+		var keys, k = {}, 0
+		for _, tkx in ipairs(tx.typekeys)
+			for __, tky in ipairs(ty.typekeys)
+				if tkx[2] == tky[2]
+					k = k + 1
+					keys[k] = tkx[2]
+					subs = unify(subs, tkx[1], tky[1])
+		
+		-- for keys that didnt match, check if they are nillable
+		for _, key in ipairs(keys)
+			for __, tk in ipairs(tx.typekeys)
+				if tk[2] and tk[2] ~= key
+					var tkey2 = ast.Type.new(tk[1])
+					ast.nils(tkey2)
+					subs = unify(subs, tk[1], tkey2)
+			
+			for __, tk in ipairs(ty.typekeys)
+				if tk[2] and tk[2] ~= key
+					var key2 = ast.Type.new(tk[1])
+					ast.nils(key2)
+					subs = unify(subs, tk[1], key2)
+		return subs
+
+
+	unify = \subs, tx, ty ->
+		tx = apply(tx, subs)
+		ty = apply(ty, subs)
+
+		if tx.tag == TType.Var
+			return extend(subs, tx, ty)
+		
 		if ty.tag == TType.Var
-			return subs
-		return extend(subs, tx, ty)
-	
-	-- tx is not TType.Var
-	if ty.tag == TType.Var
-		return extend(subs, ty, tx)
-	
-	if tx.tag == TType.Func and ty.tag == TType.Func
-		return unify_func(subs, tx, ty)
-	
-	if tx.tag == TType.Tbl and ty.tag == TType.Tbl
-		return unify_tbl(subs, tx, ty)
+			return extend(subs, ty, tx)
 		
-	if tx.tag == ty.tag
-		return subs
-	
-	if tx.tag == TType.Any or ty.tag == TType.Any
+		if tx.tag == TType.Func and ty.tag == TType.Func
+			return unify_func(subs, tx, ty)
+		
+		if tx.tag == TType.Tbl and ty.tag == TType.Tbl
+			return unify_tbl(subs, tx, ty)
+			
+		if tx.tag == ty.tag
+			return subs
+		
+		if tx.tag == TType.Any or ty.tag == TType.Any
+			return subs
+
+		if tx.nil and ty.tag == TType.nil
+			return subs
+		
+		if ty.nil and tx.tag == TType.nil
+			return subs
+
+		-- comment out for now
+		err(ty, "type mismatch : " .. tx.tag .. " expected, got " .. ty.tag)
 		return subs
 
-	if tx.nil and ty.tag == TType.nil
-		return subs
-	
-	if ty.nil and tx.tag == TType.nil
-		return subs
 
-	-- comment out for now
-	--print("Type mismatch :", tx.tag, ty.tag)
-	return subs
-
-
-return {
-	apply = apply
-	, unify = unify
-}
+	return {
+		apply = apply
+		, unify = unify
+	}

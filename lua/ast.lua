@@ -171,6 +171,9 @@ local nils = function(node)
     node["nil"] = true
     return true
 end
+local tostr = function(node)
+    assert(TType[node.tag])
+end
 local same
 same = function(a, b)
     if a and b and a.tag == b.tag then
