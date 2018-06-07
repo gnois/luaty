@@ -198,7 +198,7 @@ return \decls, warn ->
 	var is_varargs = ->
 		return func_scope().varargs
 
-	var get_returns = \... ->
+	var get_returns = ->
 		return func_scope().returns
 
 	var set_returns = \returns ->
@@ -207,7 +207,6 @@ return \decls, warn ->
 	-- functions are blocks
 	var begin_func = ->
 		enter_block(Function)
-		set_returns({})
 		
 	-- function block is thrown away when leaving scope
 	var end_func = ->

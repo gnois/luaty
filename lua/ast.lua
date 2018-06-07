@@ -102,52 +102,47 @@ local Expression = {
         return make(TExpr.Binary, {op = op, left = left, right = right}, ls)
     end
 }
-local create = function(tag, node, expr)
-    assert("table" == type(node))
-    assert("table" == type(expr))
-    assert(TExpr[expr.tag])
-    node.tag = tag
-    node.expr = expr
-    return node
-end
 local id = 0
 local Type = {
-    new = function(expr)
+    new = function(ls)
         id = id + 1
-        return create(TType.Var, {name = "T" .. id}, expr)
+        return make(TType.New, {id = id}, ls)
     end
-    , any = function(expr)
-        return create(TType.Any, {}, expr)
+    , any = function(ls)
+        return make(TType.Any, {}, ls)
     end
-    , ["nil"] = function(expr)
-        return create(TType.Nil, {}, expr)
+    , ["nil"] = function(ls)
+        return make(TType.Nil, {}, ls)
     end
-    , num = function(expr)
-        return create(TType.Num, {}, expr)
+    , num = function(ls)
+        return make(TType.Val, {type = "num"}, ls)
     end
-    , str = function(expr)
-        return create(TType.Str, {}, expr)
+    , str = function(ls)
+        return make(TType.Val, {type = "str"}, ls)
     end
-    , bool = function(expr)
-        return create(TType.Bool, {}, expr)
+    , bool = function(ls)
+        return make(TType.Val, {type = "bool"}, ls)
     end
-    , func = function(params, returns, expr)
-        return create(TType.Func, {params = params, returns = returns}, expr)
+    , tuple = function(types, ls)
+        return make(TType.Tuple, {types = types}, ls)
     end
-    , tbl = function(typekeys, expr)
-        return create(TType.Tbl, {typekeys = typekeys}, expr)
+    , func = function(params, returns, ls)
+        return make(TType.Ref, {params = params, returns = returns}, ls)
     end
-    , ["or"] = function(left, right, expr)
-        return create(TType.Or, {left = left, right = right}, expr)
+    , tbl = function(tytys, ls)
+        return make(TType.Ref, {tytys = tytys}, ls)
     end
-    , ["and"] = function(left, right, expr)
-        return create(TType.And, {left = left, right = right}, expr)
+    , ["or"] = function(left, right, ls)
+        return make(TType.Or, {left = left, right = right}, ls)
     end
-    , index = function(obj, prop, expr)
-        return create(TType.Index, {obj = obj, prop = prop}, expr)
+    , ["and"] = function(left, right, ls)
+        return make(TType.And, {left = left, right = right}, ls)
     end
-    , typeof = function(name, expr)
-        return create(TType.Typeof, {name = name}, expr)
+    , index = function(obj, prop, ls)
+        return make(TType.Index, {obj = obj, prop = prop}, ls)
+    end
+    , typeof = function(name, ls)
+        return make(TType.Typeof, {name = name}, ls)
     end
 }
 local bracket = function(node)
@@ -155,24 +150,76 @@ local bracket = function(node)
     node.bracketed = true
     return node
 end
-local varargs = function(node)
-    assert(TType[node.tag])
-    if node.varargs then
+local varargs = function(t)
+    assert(TType[t.tag])
+    if t.varargs then
         return false
     end
-    node.varargs = true
+    t.varargs = true
     return true
 end
-local nils = function(node)
-    assert(TType[node.tag])
-    if node["nil"] then
+local nils = function(t)
+    assert(TType[t.tag])
+    if t["nil"] then
         return false
     end
-    node["nil"] = true
+    t["nil"] = true
     return true
 end
-local tostr = function(node)
-    assert(TType[node.tag])
+local Str = {}
+local tostr
+local tolst = function(ls)
+    local out = {}
+    for i, p in ipairs(ls) do
+        out[i] = tostr(p)
+    end
+    return table.concat(out, ",")
+end
+tostr = function(t)
+    assert(TType[t.tag])
+    local rule = Str[t.tag]
+    return rule(t)
+end
+Str[TType.New] = function(t)
+    return "T" .. t.id
+end
+Str[TType.Any] = function(t)
+    return "any"
+end
+Str[TType.Nil] = function(t)
+    return "nil"
+end
+Str[TType.Val] = function(t)
+    return t.type
+end
+Str[TType.Ref] = function(t)
+    if t.params then
+        local out = {"[", tolst(t.params), ":", tolst(t.returns), "]"}
+        return table.concat(out)
+    end
+    if t.tytys then
+        local out, o = {}, 1
+        local val
+        for _, ty in ipairs(t.tytys) do
+            local vty = ty[1]
+            local kty = ty[2]
+            if kty then
+                if "string" == type(kty) then
+                    out[o] = kty .. ": " .. tostr(vty)
+                else
+                    out[o] = tostr(kty) .. ": " .. tostr(vty)
+                end
+                o = o + 1
+            else
+                val = tostr(vty)
+            end
+        end
+        local ls = table.concat(out, ", ")
+        if val then
+            ls = val .. ", " .. ls
+        end
+        return "{" .. ls .. "}"
+    end
 end
 local same
 same = function(a, b)
@@ -229,4 +276,5 @@ return {
     , varargs = varargs
     , nils = nils
     , same = same
+    , tostr = tostr
 }

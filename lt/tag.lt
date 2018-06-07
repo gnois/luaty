@@ -36,18 +36,16 @@ return {
 
 	-- nil is a bool property
 	, Type = {
-		Var = 'Var'
+		New = 'New'
 		, Any = 'Any'
-		, Nil= 'Nil'
-		, Num = 'Num'
-		, Str = 'Str'
-		, Bool = 'Bool'
-		, Func = 'Func'
-		, Tbl = 'Table'
+		, Nil = 'Nil'
+		, Val = 'Val'
+		, Tuple = 'Tuple'
+		, Ref = 'Ref'
 		, Or = 'Or'
 		, And = 'And'
 		, Index = 'Index'
-		, Custom = 'Custom'
+		, Typeof = 'Typeof'
 	}
 
 	, Constraint = {

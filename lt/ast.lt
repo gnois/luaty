@@ -103,54 +103,65 @@ var Expression = {
 
 
 
-var create = \tag, node, expr ->
-	assert('table' == type(node))
-	assert('table' == type(expr))
-	assert(TExpr[expr.tag])  -- must be expression node
-	node.tag = tag
-	node.expr = expr
-	return node
-
+--``
+1,2,3, .. typevar
+# number
+$ string
+! bool
+. vararg
+- optional/nillable. If used in func return [:-] means void
+* any, but not pure nil
+[:] type tuple to type tuple - function
+{:} type to type - table
+{} array
+~1,2,3... typeof
+--``
 var id = 0
 
 var Type = {
-	new = \expr ->
+	new = \ls ->
 		id = id + 1
-		return create(TType.Var, {name = 'T' .. id}, expr)
+		return make(TType.New, {id = id}, ls)
 
-	, any = \expr ->
-		return create(TType.Any, {}, expr)
+	, any = \ls ->
+		return make(TType.Any, {}, ls)
 
-	, nil = \expr ->
-		return create(TType.Nil, {}, expr)
+	, nil = \ls ->
+		return make(TType.Nil, {}, ls)
 
-	, num = \expr ->
-		return create(TType.Num, {}, expr)
+	, num = \ls ->
+		return make(TType.Val, {type = "num"}, ls)
 
-	, str = \expr ->
-		return create(TType.Str, {}, expr)
+	, str = \ls ->
+		return make(TType.Val, {type = "str"}, ls)
 
-	, bool = \expr ->
-		return create(TType.Bool, {}, expr)
+	, bool = \ls ->
+		return make(TType.Val, {type = "bool"}, ls)
 
-	, func = \params, returns, expr ->
-		return create(TType.Func, {params = params, returns = returns}, expr)
+	, tuple = \types, ls ->
+		return make(TType.Tuple, {types = types}, ls)
 
-	, tbl = \typekeys, expr ->
-		return create(TType.Tbl, {typekeys = typekeys}, expr)
+	-- params and returns are tuples
+	, func = \params, returns, ls ->
+		return make(TType.Ref, {params = params, returns = returns}, ls)
 
-	, or = \left, right, expr ->
-		return create(TType.Or, {left = left, right = right}, expr)
+	, tbl = \tytys, ls ->
+		-- Lua table key can be any type
+		-- If it's string, we'll use back the string literal, else it'll be a Type object
+		return make(TType.Ref, {tytys = tytys}, ls)
 
-	, and = \left, right, expr ->
-		return create(TType.And, {left = left, right = right}, expr)
+	, or = \left, right, ls ->
+		return make(TType.Or, {left = left, right = right}, ls)
 
-	, index = \obj, prop, expr ->
-		return create(TType.Index, {obj = obj, prop = prop}, expr)
+	, and = \left, right, ls ->
+		return make(TType.And, {left = left, right = right}, ls)
 
-	-- only identifier accepted, not expr
-	, typeof = \name, expr ->
-		return create(TType.Typeof, {name = name}, expr)
+	, index = \obj, prop, ls ->
+		return make(TType.Index, {obj = obj, prop = prop}, ls)
+
+	-- only identifier accepted, not ls
+	, typeof = \name, ls ->
+		return make(TType.Typeof, {name = name}, ls)
 }
 
 var bracket = \node ->
@@ -159,26 +170,73 @@ var bracket = \node ->
 	return node
 
 -- return false if already vararg'ed
-var varargs = \node ->
-	assert(TType[node.tag])  -- must be type node
-	if node.varargs
+var varargs = \t ->
+	assert(TType[t.tag])  -- must be type node
+	if t.varargs
 		return false
-	node.varargs = true
+	t.varargs = true
 	return true
 
 -- return false if already nil'ed
-var nils = \node ->
-	assert(TType[node.tag])  -- must be type node
-	if node.nil
+var nils = \t ->
+	assert(TType[t.tag])  -- must be type node
+	if t.nil
 		return false
-	node.nil = true
+	t.nil = true
 	return true
 
 
-var tostr = \node ->
-	assert(TType[node.tag])
+var Str = {}
+var tostr
+var tolst = \ls ->
+	var out = {}
+	for i, p in ipairs(ls)
+		out[i] = tostr(p)
+	return table.concat(out, ',')
+
+tostr = \t ->
+	assert(TType[t.tag])
+	var rule = Str[t.tag]
+	return rule(t)
 	
+Str[TType.New] = \t ->
+	return "T" .. t.id
+
+Str[TType.Any] = \t ->
+	return "any"
+
+Str[TType.Nil] = \t ->
+	return "nil"
+
+Str[TType.Val] = \t ->
+	return t.type
+
+Str[TType.Ref] = \t ->
+	if t.params
+		var out = {'[', tolst(t.params), ':', tolst(t.returns), ']'}
+		return table.concat(out)
 	
+	if t.tytys
+		var out, o = {}, 1
+		var val
+		for _, ty in ipairs(t.tytys)
+			var vty = ty[1]
+			var kty = ty[2]
+			if kty
+				if "string" == type(kty)
+					out[o] = kty .. ': ' .. tostr(vty)
+				else
+					out[o] = tostr(kty) .. ': ' .. tostr(vty)
+				o = o + 1
+			else
+				val = tostr(vty)
+		
+		var ls = table.concat(out, ', ')
+		if val
+			ls = val .. ', ' .. ls
+		return '{' .. ls .. '}'
+
+
 
 -- check if ast are the same
 var same
@@ -233,4 +291,5 @@ return {
 	, varargs = varargs
 	, nils = nils
 	, same = same
+	, tostr = tostr
 }

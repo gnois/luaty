@@ -192,7 +192,7 @@ return \ls, warn ->
 					parse_error(2, "invalid %s type %s", which, ls.astext(ls.token))
 					``
 			until not lex_opt(',')
-		return list
+		return Type.tuple(list)
 
 
 	var type_func = \loc ->
@@ -296,6 +296,14 @@ return \ls, warn ->
 			if not ast.varargs(typ)
 				parse_error(1, "type %s is already a vararg", ls_value())
 		return typ
+
+	-- read optional type
+	var opt_type = \ls, n, varargs ->
+		var typ = parse_type(varargs)
+		if typ
+			if not ls
+				ls = {}
+			ls[n] = typ
 
 	--- Expressions ------------------------------------------------
 	var expr_primary, expr, expr_unop, expr_binop, expr_simple, expr_list, expr_table
@@ -572,11 +580,12 @@ return \ls, warn ->
 			return parse_for_num(loc)
 
 		-- Parse 'for .. in ..'
-		var vars, types, n = {}, {}, 0
+		var vars, n = {}, 0
+		var types
 		do
 			n = n + 1
 			vars[n] = Expr.id(lex_str())
-			types[n] = parse_type()
+			opt_type(types, n)
 		until not lex_opt(',')
 		lex_check('TK_in')
 		var exps = expr_list()
@@ -640,11 +649,12 @@ return \ls, warn ->
 
 
 	var parse_var = \loc ->
-		var lhs, types, i = {}, {}, 0
+		var lhs, i = {}, 0
+		var types
 		do
 			i = i + 1
 			lhs[i] = Expr.id(lex_str())
-			types[i] = parse_type()
+			opt_type(types, n)
 		until not lex_opt(',')
 
 		var rhs = {}
@@ -797,8 +807,8 @@ return \ls, warn ->
 
 	-- Parse function parameters
 	var parse_params = ->
-		var params, types, n = {}, {}, 0
-		var retypes, r = {}, 0
+		var params, n = {}, 0
+		var ptypes, rtypes
 		var varargs = false
 
 		if ls.token ~= '->' and ls.token ~= '~>'
@@ -806,20 +816,23 @@ return \ls, warn ->
 				if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')
 					n = n + 1
 					params[n] = Expr.id(lex_str())
-					types[n] = parse_type()
+					opt_type(ptypes, n)
+
 				else if ls.token == '...'
 					ls.step()
 					varargs = true
 					n = n + 1
 					params[n] = Expr.vararg(ls)
-					types[n] = parse_type(true)
+					opt_type(ptypes, n, true)
+
 					if ls.next() ~= ':'
 						break
 				else if ls.token == ':'
 					ls.step()  -- skip ':'
+					var r = 1
 					do
+						opt_type(rtypes, n)
 						r = r + 1
-						retypes[r] = parse_type()
 					until not lex_opt(',')
 					break
 				else

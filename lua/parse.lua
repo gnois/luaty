@@ -193,7 +193,7 @@ return function(ls, warn)
                 end
             until not lex_opt(",")
         end
-        return list
+        return Type.tuple(list)
     end
     local type_func = function(loc)
         ls.step()
@@ -298,6 +298,15 @@ return function(ls, warn)
             end
         end
         return typ
+    end
+    local opt_type = function(ls, n, varargs)
+        local typ = parse_type(varargs)
+        if typ then
+            if not ls then
+                ls = {}
+            end
+            ls[n] = typ
+        end
     end
     local expr_primary, expr, expr_unop, expr_binop, expr_simple, expr_list, expr_table
     local parse_body, parse_args, parse_block
@@ -571,11 +580,12 @@ return function(ls, warn)
         if ls.next() == "=" then
             return parse_for_num(loc)
         end
-        local vars, types, n = {}, {}, 0
+        local vars, n = {}, 0
+        local types
         repeat
             n = n + 1
             vars[n] = Expr.id(lex_str())
-            types[n] = parse_type()
+            opt_type(types, n)
         until not lex_opt(",")
         lex_check("TK_in")
         local exps = expr_list()
@@ -636,11 +646,12 @@ return function(ls, warn)
         return parse_assignment(lhs, v, vk)
     end
     local parse_var = function(loc)
-        local lhs, types, i = {}, {}, 0
+        local lhs, i = {}, 0
+        local types
         repeat
             i = i + 1
             lhs[i] = Expr.id(lex_str())
-            types[i] = parse_type()
+            opt_type(types, n)
         until not lex_opt(",")
         local rhs = {}
         if lex_opt("=") then
@@ -784,29 +795,30 @@ return function(ls, warn)
         return body or {}
     end
     local parse_params = function()
-        local params, types, n = {}, {}, 0
-        local retypes, r = {}, 0
+        local params, n = {}, 0
+        local ptypes, rtypes
         local varargs = false
         if ls.token ~= "->" and ls.token ~= "~>" then
             repeat
                 if ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
                     n = n + 1
                     params[n] = Expr.id(lex_str())
-                    types[n] = parse_type()
+                    opt_type(ptypes, n)
                 elseif ls.token == "..." then
                     ls.step()
                     varargs = true
                     n = n + 1
                     params[n] = Expr.vararg(ls)
-                    types[n] = parse_type(true)
+                    opt_type(ptypes, n, true)
                     if ls.next() ~= ":" then
                         break
                     end
                 elseif ls.token == ":" then
                     ls.step()
+                    local r = 1
                     repeat
+                        opt_type(rtypes, n)
                         r = r + 1
-                        retypes[r] = parse_type()
                     until not lex_opt(",")
                     break
                 else

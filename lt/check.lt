@@ -26,34 +26,32 @@ return \scope, stmts, warn ->
 			rule(tnode)
 	
 	var check_types = \tnodes ->
-		for _, node in ipairs(tnodes)
-			check_type(node)
+		if tnodes
+			for _, node in ipairs(tnodes)
+				check_type(node)
 
-
-	var check_stmts = \nodes, subs ->
+	var check_stmts = \nodes ->
 		for _, node in ipairs(nodes)
 			var rule = Stmt[node.tag]
 			if rule
-				subs = rule(node, subs)
+				rule(node)
 			else
 				fail(node)
-		return subs
-		
-	var check_block = \nodes, subs ->
-		scope.enter()
-		subs = check_stmts(nodes, subs)
-		scope.leave()
-		return subs
 
-	var infer_expr = \node, subs ->
+	var check_block = \nodes ->
+		scope.enter()
+		check_stmts(nodes)
+		scope.leave()
+
+	var infer_expr = \node ->
 		var rule = Expr[node.tag]
-		return rule(node, subs)
-			
-	var infer_exprs = \nodes, subs ->
+		return rule(node)
+
+	var infer_exprs = \nodes ->
 		var types = {}
 		for i, node in ipairs(nodes)
-			types[i], subs = infer_expr(node, subs)
-		return types, subs
+			types[i] = infer_expr(node)
+		return types
 
 	var declare = \var, vtype ->
 		assert(var.tag == TExpr.Id)
@@ -67,95 +65,119 @@ return \scope, stmts, warn ->
 			warn(rights[1].line, rights[1].col, 1, "assigning " .. r .. " values to " .. l .. " variable(s)")
 
 	--------- Types --------------------------
-	Type[TType.Tbl] = \node ->
-		var vtypes = {}
-		var keys = {}
-		for i, vk in ipairs(node.typekeys)
-			var key = vk[2]
-			if key
-				-- key can be any type
-				check_type(key)
-				for n = 1, #keys
-					if keys[n] and ast.same(keys[n], key)
-						warn(key.line, key.col, 1, "duplicate keys at position " .. i .. " and " .. n .. " in table type annotation")
-			keys[i] = key
-			
-			var vtype = vk[1]
-			check_type(vtype)
-			if vtype and not key
-				for n = 1, #vtypes
-					if vtypes[n] and ast.same(vtypes[n], vtype)
-						warn(vtype.line, vtype.col, 1, "similar value types at position " .. i .. " and " .. n .. " in table type annotation")
-				vtypes[i] = vtype
+	Type[TType.Tuple] = \node ->
+		check_types(node.types)
 		
+	Type[TType.Ref] = \node ->
+		if node.params
+		
+		if node.tytys
+			var vtypes = {}
+			var keys = {}
+			for i, vk in ipairs(node.tytys)
+				var key = vk[2]
+				if key
+					var dup = 0
+					if "string" == type(key) -- key can be string, or type desc
+						for n = 1, #keys
+							if "string" == type(keys[n]) and key == keys[n]
+								dup = n
+					else
+						check_type(key)
+						for n = 1, #keys
+							if keys[n] and ast.same(keys[n], key)
+								dup = n
+					if dup > 0
+						warn(key.line, key.col, 1, "duplicate key types at position " .. i .. " and " .. dup .. " in table type annotation")
+				keys[i] = key
+				
+				var vt = vk[1]
+				check_type(vt)
+				if vt and not key
+					for n = 1, #vtypes
+						if vtypes[n] and ast.same(vtypes[n], vt)
+							warn(vt.line, vt.col, 1, "similar value types at position " .. i .. " and " .. n .. " in table type annotation")
+					vtypes[i] = vt
+			
 	
 	--------- Expressions --------------------
-	Expr[TExpr.Nil] = \node, subs ->
-		return ast.Type.nil(node), subs
+	Expr[TExpr.Nil] = \node ->
+		return ast.Type.nil(node)
 
-	Expr[TExpr.Bool] = \node, subs ->
-		return ast.Type.bool(node), subs
+	Expr[TExpr.Bool] = \node ->
+		return ast.Type.bool(node)
 
-	Expr[TExpr.Number] = \node, subs ->
-		return ast.Type.num(node), subs
+	Expr[TExpr.Number] = \node ->
+		return ast.Type.num(node)
 		
-	Expr[TExpr.String] = \node, subs ->
-		return ast.Type.str(node), subs
+	Expr[TExpr.String] = \node ->
+		return ast.Type.str(node)
 	
-	Expr[TExpr.Vararg] = \node, subs ->
+	Expr[TExpr.Vararg] = \node ->
 		if not scope.is_varargs()
 			warn(node.line, node.col, 2, "cannot use `...` in a function without variable arguments")
 		var t = ast.Type.any(node) 
 		ast.varargs(t)
-		return t, subs
+		return t
 
-	Expr[TExpr.Id] = \node, subs ->
-		var line, vtype
+	Expr[TExpr.Id] = \node ->
+		var line, t
 		if node.name  -- node.name can be nil, bcoz the parser continues despite error
-			line, vtype = scope.declared(node.name)
+			line, t = scope.declared(node.name)
 			if line == 0
 				warn(node.line, node.col, 1, "undeclared identifier `" .. node.name .. "`")
-			if not vtype
-				vtype = ast.Type.new(node)
-		return vtype, subs
+			if not t
+				t = ast.Type.new(node)
+		return t
 		
-	Expr[TExpr.Function] = \node, subs ->
+	Expr[TExpr.Function] = \node ->
 		scope.begin_func()
 		check_types(node.types)
 		check_types(node.retypes)
-		for i, var in ipairs(node.params)
-			var vtype = node.types[i] or ast.Type.new(var)
-			if var.tag == TExpr.Vararg
+		for i, p in ipairs(node.params)
+			var t = node.types and node.types[i] or ast.Type.new(p)
+			if p.tag == TExpr.Vararg
 				scope.varargs()
-				ast.varargs(vtype)
+				ast.varargs(t)
 			else
-				declare(var, vtype)
+				declare(p, t)
+		-- retypes can be null, means not set yet
 		scope.set_returns(node.retypes)
-		subs = check_block(node.body, subs)
+		check_block(node.body)
 		var ptypes = {}
-		for i, var in ipairs(node.params)
-			ptypes[i] = ty.apply(infer_expr(var, subs), subs)
-			if node.types[i]
-				subs = ty.unify(subs, ptypes[i], node.types[i])
+		for i, p in ipairs(node.params)
+			ptypes[i] = ty.apply(infer_expr(p))
+			if node.types and node.types[i]
+				ty.unify(ptypes[i], node.types[i])
 				ptypes[i] = node.types[i]
 		scope.end_func()
-		return ast.Type.func(ptypes, scope.get_returns(), node), subs
+		return ast.Type.func(ast.Type.tuple(ptypes, node), ast.Type.tuple(scope.get_returns() or {}, node), node)
 
-	Expr[TExpr.Table] = \node, subs ->
-		var typekeys = {}
-		var vtyped = false
-		var vtype
+	Expr[TExpr.Table] = \node ->
+		-- check for duplicate key
+		var keys = {}
 		for i, vk in ipairs(node.valkeys)
-			var vt
-			vt, subs = infer_expr(vk[1], subs)
 			var key = vk[2]
 			if key
-				-- key can be any type, but we dont handle?
-				for n, tk in ipairs(typekeys)
-					
-					if ast.same(key, tk[2])
-						warn(key.line, key.col, 1, "duplicate key at position " .. i .. " and " .. n .. " in table")
-				typekeys[i] = { vt, key }
+				for n = 1, #keys
+					if keys[n] and ast.same(keys[n], key)
+						warn(key.line, key.col, 10, "duplicate keys at position " .. i .. " and " .. n .. " in table")
+			keys[i] = key
+
+		-- type check
+		var tytys = {}
+		var vtyped = false
+		var vtype
+		for _, vk in ipairs(node.valkeys)
+			var vt, kt
+			vt = infer_expr(vk[1])
+			kt = vk[2] and infer_expr(vk[2])
+			if kt
+				if kt.tag == TType.Val and kt.type == "str"
+					-- take the string literal
+					tytys[#tytys + 1] = { vt, vk[2].value }
+				else
+					tytys[#tytys + 1] = { vt, kt }
 			else -- only set vtype if all vtypes are same
 				if not vtyped
 					vtyped = true
@@ -163,192 +185,184 @@ return \scope, stmts, warn ->
 				else if not ast.same(vtype, vt)
 					vtype = nil
 		if vtype
-			typekeys[#typekeys + 1] = { vtype, nil }
-		return ast.Type.tbl(typekeys, node), subs
+			tytys[#tytys + 1] = { vtype, nil }
+		var tbl = ast.Type.tbl(tytys, node)
+		-- self check
+		check_type(tbl)
+		return tbl
 
-	Expr[TExpr.Index] = \node, subs ->
-		var itype, otype
-		itype, subs = infer_expr(node.idx, subs)
-		-- if itype is string, check
-		-- else otype can be any type
+	Expr[TExpr.Index] = \node ->
+		var it, ot
+		it = infer_expr(node.idx)
+		-- if it is string, check
+		-- else ot can be any type
 			-- if index is number, it can be float, so we cannot know
 			-- else index is its runtime value, so we cannot know
-		otype, subs = infer_expr(node.obj, subs)
-		subs = ty.unify(subs, otype, ast.Type.tbl({}, node.obj))
-		return ast.Type.any(node), subs
+		ot = infer_expr(node.obj)
+		ty.unify(ot, ast.Type.tbl({}, node.obj))
+		return ast.Type.any(node)
 
-	Expr[TExpr.Property] = \node, subs ->
-		var otype
-		otype, subs = infer_expr(node.obj, subs)
-		var vtype = ast.Type.new(node.obj)
-		var typekeys = {
-			{ vtype, node.prop }
+	Expr[TExpr.Property] = \node ->
+		var ot
+		ot = infer_expr(node.obj)
+		var vt = ast.Type.new(node.obj)
+		var tytys = {
+			{ vt, node.prop }
 		}
-		subs = ty.unify(subs, otype, ast.Type.tbl(typekeys, node.obj))
-		return ty.apply(vtype, subs), subs
+		ty.unify(ot, ast.Type.tbl(tytys, node.obj))
+		return ty.apply(vt)
 
-	Expr[TExpr.Invoke] = \node, subs ->
-		var atypes, otype
-		atypes, subs = infer_exprs(node.args, subs)
-		otype, subs = infer_expr(node.obj, subs)
+	Expr[TExpr.Invoke] = \node ->
+		var atypes, ot
+		atypes = infer_exprs(node.args)
+		ot = infer_expr(node.obj)
 		var retype = ast.Type.new(node.obj)
-		ast.varargs(retype)
-		var typekeys = {
-			{ ast.Type.func(atypes, {retype}, node.obj), node.prop }
+		var tytys = {
+			{ ast.Type.func(ast.Type.tuple(atypes, node), ast.Type.tuple({retype}, node.obj), node.obj), node.prop }
 		}
-		subs = ty.unify(subs, otype, ast.Type.tbl(typekeys, node.obj))
-		return ty.apply(retype, subs), subs
+		ty.unify(ot, ast.Type.tbl(tytys, node.obj))
+		return ty.apply(retype)
 
-	Expr[TExpr.Call] = \node, subs ->
+	Expr[TExpr.Call] = \node ->
 		var atypes, ftype
-		atypes, subs = infer_exprs(node.args, subs)
-		ftype, subs = infer_expr(node.func, subs)
+		atypes = infer_exprs(node.args)
+		ftype = infer_expr(node.func)
 		var retype = ast.Type.new(node.func)
-		ast.varargs(retype)
-		subs = ty.unify(subs, ftype, ast.Type.func(atypes, {retype}, node))
-		return ty.apply(retype, subs), subs
+		ty.unify(ftype, ast.Type.func(ast.Type.tuple(atypes, node), ast.Type.tuple({retype}, node.func), node))
+		return ty.apply(retype)
 
-	Expr[TExpr.Unary] = \node, subs ->
+	Expr[TExpr.Unary] = \node ->
 		var rtype
-		rtype, subs = infer_expr(node.right, subs)
+		rtype = infer_expr(node.right)
 		var op = node.op
 		if op == '#'
-			return ast.Type.num(node), ty.unify(subs, ast.Type.tbl({}, node), rtype)
+			ty.unify(ast.Type.tbl({}, node), rtype)
+			return ast.Type.num(node)
 		if op == '-'
-			return ast.Type.num(node), ty.unify(subs, ast.Type.num(node), rtype)
+			ty.unify(ast.Type.num(node), rtype)
+			return ast.Type.num(node)
 		-- op == 'not'
-		return ast.Type.bool(node), subs
+		return ast.Type.bool(node)
 
-	Expr[TExpr.Binary] = \node, subs ->
+	Expr[TExpr.Binary] = \node ->
 		var rtype, ltype
-		rtype, subs = infer_expr(node.right, subs)
-		ltype, subs = infer_expr(node.left, subs)
+		rtype = infer_expr(node.right)
+		ltype = infer_expr(node.left)
 		
 		var op = node.op
 		if op == 'and'
-			return rtype, subs
+			return rtype
 
 		if op == '+' or op == '-' or op == '*' or op == '/' or op == '^' or op == '>' or op == '>=' or op == '<' or op == '<=' or op == '==' or op == '..'
-			subs = ty.unify(subs, rtype, ltype)
+			ty.unify(rtype, ltype)
 			if op == '>' or op == '>=' or op == '<' or op == '<=' or op == '=='
-				return ast.Type.bool(node), subs
+				return ast.Type.bool(node)
 		-- op == 'or'
-		return ltype, subs
+		return ltype
 
 
 	--------- Statements --------------------
-	Stmt[TStmt.Expr] = \node, subs ->
+	Stmt[TStmt.Expr] = \node ->
 		var etype
-		etype, subs = infer_expr(node.expr, subs)
-		return subs
+		etype = infer_expr(node.expr)
 
-	Stmt[TStmt.Local] = \node, subs ->
+	Stmt[TStmt.Local] = \node ->
 		check_types(node.types)
 		balance_check(node.vars, node.exprs)
 		var rtypes
-		rtypes, subs = infer_exprs(node.exprs, subs)
+		rtypes = infer_exprs(node.exprs)
 		for i, var in ipairs(node.vars)
-			var ltype = node.types[i]
+			var ltype = node.types and node.types[i]
 			if ltype
-				subs = ty.unify(subs, ltype, rtypes[i])
+				ty.unify(ltype, rtypes[i])
 			else
 				ltype = rtypes[i]
 				if not ltype
 					ltype = ast.Type.new(var)
 					ast.nils(ltype)
 			declare(var, ltype)
-		return subs
 
-	Stmt[TStmt.Assign] = \node, subs ->
+	Stmt[TStmt.Assign] = \node ->
 		balance_check(node.lefts, node.rights)
 		var rtypes, ltypes
-		rtypes, subs = infer_exprs(node.rights, subs)
-		ltypes, subs = infer_exprs(node.lefts, subs)
+		rtypes = infer_exprs(node.rights)
+		ltypes = infer_exprs(node.lefts)
 		for i, ltype in ipairs(ltypes)
-			subs = ty.unify(subs, ltype, rtypes[i] or ast.Type.nil(node.rights[i] or ast.Expr.nil(node)))
-		return subs
+			ty.unify(ltype, rtypes[i] or ast.Type.nil(node.rights[i] or ast.Expr.nil(node)))
 
-	Stmt[TStmt.Do] = \node, subs ->
-		return check_block(node.body, subs)
+	Stmt[TStmt.Do] = \node ->
+		check_block(node.body)
 
-	Stmt[TStmt.If] = \node, subs ->
+	Stmt[TStmt.If] = \node ->
 		for i = 1, #node.tests
-			infer_expr(node.tests[i], subs)
-			subs = check_block(node.thenss[i], subs)
+			infer_expr(node.tests[i])
+			check_block(node.thenss[i])
 		if node.elses
-			subs = check_block(node.elses, subs)
-		return subs
+			check_block(node.elses)
 
-	Stmt[TStmt.Forin] = \node, subs ->
+	Stmt[TStmt.Forin] = \node ->
 		scope.enter_forin()
 		check_types(node.types)
 		var types
-		types, subs = infer_exprs(node.exprs, subs)
+		types = infer_exprs(node.exprs)
 		-- declare var into scope after rhs
 		for i, var in ipairs(node.vars)
-			declare(var, node.types[i])
-		subs = check_block(node.body, subs)
+			declare(var, node.types and node.types[i])
+		check_block(node.body)
 		scope.leave()
-		return subs
-		
-	Stmt[TStmt.Fornum] = \node, subs ->
+
+	Stmt[TStmt.Fornum] = \node ->
 		scope.enter_fornum()
-		infer_expr(node.first, subs)
-		infer_expr(node.last, subs)
+		infer_expr(node.first)
+		infer_expr(node.last)
 		if node.step
-			infer_expr(node.step, subs)
+			infer_expr(node.step)
 		-- declare var into scope after rhs
 		declare(node.var, ast.Type.num(node.var))
-		subs = check_block(node.body, subs)
+		check_block(node.body)
 		scope.leave()
-		return subs
-		
-	Stmt[TStmt.While] = \node, subs ->
-		scope.enter_while()
-		infer_expr(node.test, subs)
-		subs = check_block(node.body, subs)
-		scope.leave()
-		return subs
 
-	Stmt[TStmt.Repeat] = \node, subs ->
+	Stmt[TStmt.While] = \node ->
+		scope.enter_while()
+		infer_expr(node.test)
+		check_block(node.body)
+		scope.leave()
+
+	Stmt[TStmt.Repeat] = \node ->
 		scope.enter_repeat()
 		scope.enter()
-		subs = check_stmts(node.body, subs)
-		infer_expr(node.test, subs)
+		check_stmts(node.body)
+		infer_expr(node.test)
 		-- test expr in scope after `until`
 		scope.leave()
 		scope.leave()
-		return subs
 
-	Stmt[TStmt.Return] = \node, subs ->
+	Stmt[TStmt.Return] = \node ->
 		var types
-		types, subs = infer_exprs(node.exprs, subs)
-		var rtypes = scope.get_returns()
-		if #rtypes > 0
-			for i, r in ipairs(rtypes)
+		types = infer_exprs(node.exprs)
+		var rtuple = scope.get_returns()
+		if rtuple
+			for i, r in ipairs(rtuple.types)
 				if types[i]
-					subs = ty.unify(subs, r, types[i])
+					ty.unify(r, types[i])
 		else
-			scope.set_returns(types)
-		return subs
+			-- not set before
+			scope.set_returns(ast.Type.tuple(types, node))
 
-	Stmt[TStmt.Break] = \node, subs ->
+	Stmt[TStmt.Break] = \node ->
 		scope.new_break(node.line, node.col)
-		return subs
 
-	Stmt[TStmt.Goto] = \node, subs ->
+	Stmt[TStmt.Goto] = \node ->
 		scope.new_goto(node.name, node.line, node.col)
-		return subs
-		
-	Stmt[TStmt.Label] = \node, subs ->
+
+	Stmt[TStmt.Label] = \node ->
 		scope.new_label(node.name, node.line, node.col)
-		return subs
 
 
 	-- main chunk is always a vararg function
 	scope.begin_func()
 	scope.varargs()
-	check_block(stmts, {})
+	check_block(stmts)
 	scope.end_func()
 
 

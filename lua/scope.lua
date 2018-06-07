@@ -184,7 +184,7 @@ return function(decls, warn)
     local is_varargs = function()
         return func_scope().varargs
     end
-    local get_returns = function(...)
+    local get_returns = function()
         return func_scope().returns
     end
     local set_returns = function(returns)
@@ -192,7 +192,6 @@ return function(decls, warn)
     end
     local begin_func = function()
         enter_block(Function)
-        set_returns({})
     end
     local end_func = function()
         local this = bptr

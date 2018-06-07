@@ -40,7 +40,7 @@ return function(stmts)
         local _nm = id("_nm", node)
         local _mk = id("_mk", node)
         local mt = ast.Expr.table({{_id, str("__metatable", node)}}, node)
-        local maker = ast.Stmt["local"]({_mk}, {}, {ast.Expr["function"]({_nm, ast.Expr.vararg(node)}, {}, {}, {ast.Stmt["return"]({setmt(ast.Expr.table({{_nm, str("!", node)}, {ast.Expr.vararg(node)}}, node), mt, node)}, node)}, node)}, node)
+        local maker = ast.Stmt["local"]({_mk}, {}, {ast.Expr["function"]({_nm, ast.Expr.vararg(node)}, nil, nil, {ast.Stmt["return"]({setmt(ast.Expr.table({{_nm, str("!", node)}, {ast.Expr.vararg(node)}}, node), mt, node)}, node)}, node)}, node)
         local vks = {}
         for i, v in ipairs(node.variants) do
             u = u + 1
@@ -52,21 +52,21 @@ return function(stmts)
                 uniq[u] = p.name or "."
                 params[n + 1] = p
             end
-            local val = ast.Expr["function"](v.params, {}, {}, {ast.Stmt["return"]({ast.Expr.call(_mk, params, v.ctor)}, v.ctor)}, node)
+            local val = ast.Expr["function"](v.params, nil, nil, {ast.Stmt["return"]({ast.Expr.call(_mk, params, v.ctor)}, v.ctor)}, node)
             vks[i] = {val, key}
         end
         local tbl = ast.Expr.table(vks, node)
         local unique_str = str(table.concat(uniq), node)
         local _v = id("_v", node)
         local test = ast.Expr.binary("and", ast.Expr.binary("==", str("table", node), ast.Expr.call(id("type", node), {_v}, node), node), ast.Expr.binary("==", _id, ast.Expr.call(id("getmetatable", node), {_v}, node), node), node)
-        local testfn = ast.Expr["function"]({id("_t", node), _v}, {}, {}, {ast.Stmt["if"]({test}, {{ast.Stmt["return"]({ast.Expr.index(_v, str("!", node), node), ast.Expr.call(id("unpack", node), {_v}, node)}, node)}}, nil, node)}, node)
+        local testfn = ast.Expr["function"]({id("_t", node), _v}, nil, nil, {ast.Stmt["if"]({test}, {{ast.Stmt["return"]({ast.Expr.index(_v, str("!", node), node), ast.Expr.call(id("unpack", node), {_v}, node)}, node)}}, nil, node)}, node)
         local callable = ast.Expr.table({{testfn, str("__call", node)}}, node)
-        local lambda = ast.Expr["function"]({_id}, {}, {}, {maker, ast.Stmt["return"]({setmt(tbl, callable, node)}, node)}, node)
+        local lambda = ast.Expr["function"]({_id}, nil, nil, {maker, ast.Stmt["return"]({setmt(tbl, callable, node)}, node)}, node)
         return ast.Expr.call(lambda, {unique_str}, node)
     end
     local destruct = function(node)
         local ret_call = function(params, body, args, loc)
-            return ast.Stmt["return"]({ast.Expr.call(ast.Expr["function"](params, {}, {}, body, loc), args, loc)}, loc)
+            return ast.Stmt["return"]({ast.Expr.call(ast.Expr["function"](params, nil, nil, body, loc), args, loc)}, loc)
         end
         local tests, blocks, n = {}, {}, 0
         local els
@@ -91,7 +91,7 @@ return function(stmts)
         elseif els then
             conds = els
         end
-        local lambda = ast.Expr["function"]({_nm, ast.Expr.vararg(node)}, {}, {}, conds, node)
+        local lambda = ast.Expr["function"]({_nm, ast.Expr.vararg(node)}, nil, nil, conds, node)
         local test = visit_expr(node.test)
         local arg = visit_expr(node.arg)
         return ast.Expr.call(lambda, {ast.Expr.call(test, {arg}, node)}, node)
@@ -141,7 +141,7 @@ return function(stmts)
                     local obj = id("_self_", node)
                     node.args[1] = obj
                     local body = {ast.Stmt["local"]({obj}, {}, {func.obj}, node), ast.Stmt["return"]({ast.Expr.call(ast.Expr.index(obj, func.idx, node), node.args, node)}, node)}
-                    local lambda = ast.Expr["function"]({}, {}, {}, body, node)
+                    local lambda = ast.Expr["function"]({}, nil, nil, body, node)
                     return ast.Expr.call(lambda, {}, node)
                 end
             end
