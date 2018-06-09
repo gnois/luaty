@@ -8,7 +8,7 @@ local Function = "Function"
 local Loop = {While = "While", Repeat = "Repeat", ForIn = "ForIn", ForNum = "ForNum"}
 return function(decls, warn)
     local vstack, vtop = {}, 0
-    local bptr = nil
+    local bptr
     local declared = function(name)
         for i = vtop, 1, -1 do
             local v = vstack[i]

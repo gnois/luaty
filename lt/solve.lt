@@ -21,14 +21,14 @@ Subst[TType.New] = \node, tvar, texp ->
 Subst[TType.Ref] = \node, tvar, texp ->
 	if node.ins
 		var ins, outs = {}, {}
-		for i, p in ipairs(node.ins.types)
+		for i, p in ipairs(node.ins)
 			ins[i] = subst(p, tvar, texp)
-		for i, r in ipairs(node.outs.types)
+		for i, r in ipairs(node.outs)
 			outs[i] = subst(r, tvar, texp)
 		return ty.func(ty.tuple(ins), ty.tuple(outs))
 
 	var tytys = {}
-	for i, tk in ipairs(node.tytys)
+	for i, tk in ipairs(node)
 		tytys[i] = { subst(tk[1], tvar, texp), tk[2] and subst(tk[2], tvar, texp) }
 	return ty.tbl(tytys)
 
@@ -57,14 +57,14 @@ Apply[TType.New] = \node ->
 Apply[TType.Ref] = \node ->
 	if node.ins
 		var ins, outs = {}, {}
-		for i, p in ipairs(node.ins.types)
+		for i, p in ipairs(node.ins)
 			ins[i] = apply(p)
-		for i, r in ipairs(node.outs.types)
+		for i, r in ipairs(node.outs)
 			outs[i] = apply(r)
 		return ty.func(ty.tuple(ins), ty.tuple(outs))
 
 	var tytys = {}
-	for i, tk in ipairs(node.tytys)
+	for i, tk in ipairs(node)
 		tytys[i] = { apply(tk[1]), tk[2] and apply(tk[2]) }
 	return ty.tbl(tytys)
 
@@ -88,15 +88,15 @@ var occurs = \x, y ->
 
 Occur[TType.Ref] = \node, y ->
 	if node.ins
-		for _, p in ipairs(node.ins.types)
+		for _, p in ipairs(node.ins)
 			if occurs(p, y)
 				return true
-		for _, r in ipairs(node.outs.types)
+		for _, r in ipairs(node.outs)
 			if occurs(r, y)
 				return true
 		return false
-
-	for _, tk in ipairs(node.tytys)
+	
+	for _, tk in ipairs(node)
 		if occurs(tk[1], y) or (tk[2] and occurs(tk[2], y))
 			return true
 	return false
@@ -124,7 +124,7 @@ var extend = \tvar, texp ->
 var unify
 
 var unify_func = \x, y ->
-	var xs, ys = x.ins.types, y.ins.types
+	var xs, ys = x.ins, y.ins
 	var i, n = 0, #xs
 	-- check if too few args
 	var ok, err
@@ -133,11 +133,13 @@ var unify_func = \x, y ->
 		if ys[i]
 			ok, err = unify(xs[i], ys[i])
 			if not ok
-				return false, err
+				return false, "parameter " .. i .. " " .. err
 		else
-			return false, "expecting " .. n .. " arguments but only got " .. (i-1)
+			if not xs[i].varargs
+				return false, "expecting " .. n .. " arguments but only got " .. (i-1)
+			return true
 
-	-- check if too few args
+	-- check if too many args
 	n = #ys
 	if i < n
 		if i < 1 or not xs[i].varargs
@@ -149,8 +151,8 @@ var unify_func = \x, y ->
 var unify_tbl = \x, y ->
 --``
 	var keys, k = {}, 0
-	for _, tkx in ipairs(x.tytys)
-		for __, tky in ipairs(y.tytys)
+	for _, tkx in ipairs(x)
+		for __, tky in ipairs(y)
 			if tkx[2] == tky[2]
 				k = k + 1
 				keys[k] = tkx[2]
@@ -158,13 +160,13 @@ var unify_tbl = \x, y ->
 	
 	-- for keys that didnt match, check if they are nillable
 	for _, key in ipairs(keys)
-		for __, tk in ipairs(x.tytys)
+		for __, tk in ipairs(x)
 			if tk[2] and tk[2] ~= key
 				var tkey2 = ty.new()
 				ty.nils(tkey2)
 				unify(tk[1], tkey2)
 		
-		for __, tk in ipairs(y.tytys)
+		for __, tk in ipairs(y)
 			if tk[2] and tk[2] ~= key
 				var key2 = ty.new()
 				ty.nils(key2)
@@ -218,10 +220,9 @@ unify = \x, y ->
 			if x.ins and y.ins
 				return unify_func(x, y)
 			
-			if x.tytys and y.tytys
-				return unify_tbl(x, y)
+			return unify_tbl(x, y)
 
-	return false, "expecting " .. ty.tostr(x) .. " instead of " .. ty.tostr(y)
+	return false, "expecting <" .. ty.tostr(x) .. "> instead of <" .. ty.tostr(y) .. ">"
 
 
 return {

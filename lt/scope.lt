@@ -21,7 +21,7 @@ return \decls, warn ->
 	-- variable stacks during parse
 	var vstack, vtop = {}, 0
 	-- block pointer during parse
-	var bptr = nil
+	var bptr
 
 	var declared = \name ->
 		for i = vtop, 1, -1

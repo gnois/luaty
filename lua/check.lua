@@ -7,6 +7,12 @@ local solv = require("lua.solve")
 local TStmt = Tag.Stmt
 local TExpr = Tag.Expr
 local TType = Tag.Type
+local relational = function(op)
+    return op == ">" or op == ">=" or op == "<" or op == "<=" or op == "==" or op == "~="
+end
+local arithmetic = function(op)
+    return op == "+" or op == "-" or op == "*" or op == "/" or op == "^"
+end
 return function(scope, stmts, warn)
     local Stmt = {}
     local Expr = {}
@@ -22,8 +28,11 @@ return function(scope, stmts, warn)
     local check = function(x, y, node, msg)
         local ok, err = solv.unify(x, y)
         if not ok then
-            warn(node.line, node.col, 1, (msg or "") .. err)
+            warn(node.line, node.col, 1, msg .. err)
         end
+    end
+    local check_op = function(x, y, node, op)
+        check(x, y, node, "operator `" .. op .. "` ")
     end
     local check_type = function(tnode, loc)
         local rule = Type[tnode.tag]
@@ -75,17 +84,14 @@ return function(scope, stmts, warn)
             warn(rights[1].line, rights[1].col, 1, "assigning " .. r .. " values to " .. l .. " variable(s)")
         end
     end
-    Type[TType.Tuple] = function(node, loc)
-        check_types(node.types, loc)
-    end
     Type[TType.Ref] = function(node, loc)
         if node.ins then
-            
-        end
-        if node.tytys then
+            check_types(node.ins, loc)
+            check_types(node.outs, loc)
+        else
             local vtypes = {}
             local keys = {}
-            for i, vk in ipairs(node.tytys) do
+            for i, vk in ipairs(node) do
                 local key = vk[2]
                 if key then
                     local dup = 0
@@ -171,7 +177,7 @@ return function(scope, stmts, warn)
         for i, p in ipairs(node.params) do
             ptypes[i] = solv.apply(infer_expr(p))
             if node.types and node.types[i] then
-                check(ptypes[i], node.types[i], p, "parameter type annotation ")
+                check(ptypes[i], node.types[i], p, "parameter " .. (node.params[i].tag == TExpr.Vararg and "..." or node.params[i].name) .. " ")
                 ptypes[i] = node.types[i]
             end
         end
@@ -223,7 +229,7 @@ return function(scope, stmts, warn)
         local it, ot
         it = infer_expr(node.idx)
         ot = infer_expr(node.obj)
-        check(ot, ty.tbl({}), node)
+        check(ty.tbl({}), ot, node, "index operator ")
         return ty.any()
     end
     Expr[TExpr.Property] = function(node)
@@ -231,7 +237,7 @@ return function(scope, stmts, warn)
         ot = infer_expr(node.obj)
         local vt = ty.new()
         local tytys = {{vt, node.prop}}
-        check(ot, ty.tbl(tytys), node, "index operator ")
+        check(ty.tbl(tytys), ot, node, "property `" .. node.prop .. "` ")
         return solv.apply(vt)
     end
     Expr[TExpr.Invoke] = function(node)
@@ -240,7 +246,7 @@ return function(scope, stmts, warn)
         ot = infer_expr(node.obj)
         local retype = ty.new()
         local tytys = {{ty.func(ty.tuple(atypes), ty.tuple({retype})), node.prop}}
-        check(ot, ty.tbl(tytys), node, "method invocation ")
+        check(ty.tbl(tytys), ot, node, "method `" .. node.prop .. "` ")
         return solv.apply(retype)
     end
     Expr[TExpr.Call] = function(node)
@@ -248,7 +254,7 @@ return function(scope, stmts, warn)
         atypes = infer_exprs(node.args)
         ftype = infer_expr(node.func)
         local retype = ty.new()
-        check(ftype, ty.func(ty.tuple(atypes), ty.tuple({retype})), node, "function call ")
+        check(ftype, ty.func(ty.tuple(atypes), ty.tuple({retype})), node, "function ")
         return solv.apply(retype)
     end
     Expr[TExpr.Unary] = function(node)
@@ -256,11 +262,11 @@ return function(scope, stmts, warn)
         rtype = infer_expr(node.right)
         local op = node.op
         if op == "#" then
-            check(rtype, ty["or"](ty.tbl({}), ty.str()), node, op .. " operator ")
+            check_op(ty["or"](ty.tbl({}), ty.str()), rtype, node, op)
             return ty.num()
         end
         if op == "-" then
-            check(rtype, ty.num(), node, op .. " operator ")
+            check_op(ty.num(), rtype, node, op)
             return ty.num()
         end
         return ty.bool()
@@ -273,11 +279,16 @@ return function(scope, stmts, warn)
         if op == "and" then
             return rtype
         end
-        if op == "+" or op == "-" or op == "*" or op == "/" or op == "^" or op == ">" or op == ">=" or op == "<" or op == "<=" or op == "==" or op == ".." then
-            check(rtype, ltype, node, op .. " operator ")
-            if op == ">" or op == ">=" or op == "<" or op == "<=" or op == "==" then
+        if arithmetic(op) or relational(op) then
+            check_op(ltype, rtype, node, op)
+            if relational(op) then
                 return ty.bool()
             end
+        elseif op == ".." then
+            local strnum = ty["or"](ty.num(), ty.str())
+            check_op(strnum, rtype, node, op)
+            check_op(strnum, ltype, node, op)
+            return ty.str()
         end
         return ltype
     end
@@ -309,7 +320,7 @@ return function(scope, stmts, warn)
         rtypes = infer_exprs(node.rights)
         ltypes = infer_exprs(node.lefts)
         for i, ltype in ipairs(ltypes) do
-            check(ltype, rtypes[i] or ty["nil"](), node, "assigment ")
+            check(ltype, rtypes[i] or ty["or"](ty.any(), ty["nil"]()), node, "assigment ")
         end
     end
     Stmt[TStmt.Do] = function(node)
@@ -365,7 +376,7 @@ return function(scope, stmts, warn)
         types = infer_exprs(node.exprs)
         local rtuple = scope.get_returns()
         if rtuple then
-            for i, r in ipairs(rtuple.types) do
+            for i, r in ipairs(rtuple) do
                 if types[i] then
                     check(r, types[i], node.exprs[i] or node, "return type ")
                 end

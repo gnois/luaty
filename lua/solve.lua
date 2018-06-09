@@ -23,16 +23,16 @@ end
 Subst[TType.Ref] = function(node, tvar, texp)
     if node.ins then
         local ins, outs = {}, {}
-        for i, p in ipairs(node.ins.types) do
+        for i, p in ipairs(node.ins) do
             ins[i] = subst(p, tvar, texp)
         end
-        for i, r in ipairs(node.outs.types) do
+        for i, r in ipairs(node.outs) do
             outs[i] = subst(r, tvar, texp)
         end
         return ty.func(ty.tuple(ins), ty.tuple(outs))
     end
     local tytys = {}
-    for i, tk in ipairs(node.tytys) do
+    for i, tk in ipairs(node) do
         tytys[i] = {subst(tk[1], tvar, texp), tk[2] and subst(tk[2], tvar, texp)}
     end
     return ty.tbl(tytys)
@@ -61,16 +61,16 @@ end
 Apply[TType.Ref] = function(node)
     if node.ins then
         local ins, outs = {}, {}
-        for i, p in ipairs(node.ins.types) do
+        for i, p in ipairs(node.ins) do
             ins[i] = apply(p)
         end
-        for i, r in ipairs(node.outs.types) do
+        for i, r in ipairs(node.outs) do
             outs[i] = apply(r)
         end
         return ty.func(ty.tuple(ins), ty.tuple(outs))
     end
     local tytys = {}
-    for i, tk in ipairs(node.tytys) do
+    for i, tk in ipairs(node) do
         tytys[i] = {apply(tk[1]), tk[2] and apply(tk[2])}
     end
     return ty.tbl(tytys)
@@ -95,19 +95,19 @@ local occurs = function(x, y)
 end
 Occur[TType.Ref] = function(node, y)
     if node.ins then
-        for _, p in ipairs(node.ins.types) do
+        for _, p in ipairs(node.ins) do
             if occurs(p, y) then
                 return true
             end
         end
-        for _, r in ipairs(node.outs.types) do
+        for _, r in ipairs(node.outs) do
             if occurs(r, y) then
                 return true
             end
         end
         return false
     end
-    for _, tk in ipairs(node.tytys) do
+    for _, tk in ipairs(node) do
         if occurs(tk[1], y) or tk[2] and occurs(tk[2], y) then
             return true
         end
@@ -133,7 +133,7 @@ local extend = function(tvar, texp)
 end
 local unify
 local unify_func = function(x, y)
-    local xs, ys = x.ins.types, y.ins.types
+    local xs, ys = x.ins, y.ins
     local i, n = 0, #xs
     local ok, err
     while i < n do
@@ -141,10 +141,13 @@ local unify_func = function(x, y)
         if ys[i] then
             ok, err = unify(xs[i], ys[i])
             if not ok then
-                return false, err
+                return false, "parameter " .. i .. " " .. err
             end
         else
-            return false, "expecting " .. n .. " arguments but only got " .. i - 1
+            if not xs[i].varargs then
+                return false, "expecting " .. n .. " arguments but only got " .. i - 1
+            end
+            return true
         end
     end
     n = #ys
@@ -206,11 +209,9 @@ unify = function(x, y)
             if x.ins and y.ins then
                 return unify_func(x, y)
             end
-            if x.tytys and y.tytys then
-                return unify_tbl(x, y)
-            end
+            return unify_tbl(x, y)
         end
     end
-    return false, "expecting " .. ty.tostr(x) .. " instead of " .. ty.tostr(y)
+    return false, "expecting <" .. ty.tostr(x) .. "> instead of <" .. ty.tostr(y) .. ">"
 end
 return {apply = apply, unify = unify}

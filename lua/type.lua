@@ -30,13 +30,13 @@ local Type = {
         return create(TType.Val, {type = "bool"})
     end
     , tuple = function(types)
-        return create(TType.Tuple, {types = types})
+        return create(TType.Tuple, types)
     end
     , func = function(ins, outs)
         return create(TType.Ref, {ins = ins, outs = outs})
     end
-    , tbl = function(tytys)
-        return create(TType.Ref, {tytys = tytys})
+    , tbl = function(typetypes)
+        return create(TType.Ref, typetypes)
     end
     , ["or"] = function(left, right)
         return create(TType.Or, {left = left, right = right})
@@ -87,29 +87,27 @@ Str[TType.Ref] = function(t)
         local out = {"[", tolst(t.ins), ":", tolst(t.outs), "]"}
         return table.concat(out)
     end
-    if t.tytys then
-        local out, o = {}, 1
-        local val
-        for _, ty in ipairs(t.tytys) do
-            local vty = ty[1]
-            local kty = ty[2]
-            if kty then
-                if "string" == type(kty) then
-                    out[o] = kty .. ": " .. tostr(vty)
-                else
-                    out[o] = tostr(kty) .. ": " .. tostr(vty)
-                end
-                o = o + 1
+    local out, o = {}, 1
+    local val
+    for _, ty in ipairs(t) do
+        local vty = ty[1]
+        local kty = ty[2]
+        if kty then
+            if "string" == type(kty) then
+                out[o] = kty .. ": " .. tostr(vty)
             else
-                val = tostr(vty)
+                out[o] = tostr(kty) .. ": " .. tostr(vty)
             end
+            o = o + 1
+        else
+            val = tostr(vty)
         end
-        local ls = table.concat(out, ", ")
-        if val then
-            ls = val .. ", " .. ls
-        end
-        return "{" .. ls .. "}"
     end
+    local ls = table.concat(out, ", ")
+    if val then
+        ls = val .. ", " .. ls
+    end
+    return "{" .. ls .. "}"
 end
 Str[TType.Or] = function(t)
     return tostr(t.left) .. "|" .. tostr(t.right)

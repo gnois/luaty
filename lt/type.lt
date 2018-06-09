@@ -43,17 +43,19 @@ var Type = {
 	, bool = ->
 		return create(TType.Val, {type = "bool"})
 
+	-- array of types
 	, tuple = \types ->
-		return create(TType.Tuple, {types = types})
+		return create(TType.Tuple, types)
 
 	-- ins and outs are tuples
 	, func = \ins, outs ->
 		return create(TType.Ref, {ins = ins, outs = outs})
 
-	, tbl = \tytys ->
-		-- Lua table key can be any type
-		-- If it's string, we'll use back the string literal, else it'll be a Type object
-		return create(TType.Ref, {tytys = tytys})
+	-- Lua table key can be any type
+	-- If it's string, we'll use back the string literal, else it'll be a Type object
+	-- typetypes is array of { type: type } or { name: type }
+	, tbl = \typetypes ->
+		return create(TType.Ref, typetypes)
 
 	, or = \left, right ->
 		return create(TType.Or, {left = left, right = right})
@@ -107,26 +109,25 @@ Str[TType.Ref] = \t ->
 	if t.ins
 		var out = {'[', tolst(t.ins), ':', tolst(t.outs), ']'}
 		return table.concat(out)
-	
-	if t.tytys
-		var out, o = {}, 1
-		var val
-		for _, ty in ipairs(t.tytys)
-			var vty = ty[1]
-			var kty = ty[2]
-			if kty
-				if "string" == type(kty)
-					out[o] = kty .. ': ' .. tostr(vty)
-				else
-					out[o] = tostr(kty) .. ': ' .. tostr(vty)
-				o = o + 1
+
+	var out, o = {}, 1
+	var val
+	for _, ty in ipairs(t)
+		var vty = ty[1]
+		var kty = ty[2]
+		if kty
+			if "string" == type(kty)
+				out[o] = kty .. ': ' .. tostr(vty)
 			else
-				val = tostr(vty)
-		
-		var ls = table.concat(out, ', ')
-		if val
-			ls = val .. ', ' .. ls
-		return '{' .. ls .. '}'
+				out[o] = tostr(kty) .. ': ' .. tostr(vty)
+			o = o + 1
+		else
+			val = tostr(vty)
+	
+	var ls = table.concat(out, ', ')
+	if val
+		ls = val .. ', ' .. ls
+	return '{' .. ls .. '}'
 
 
 Str[TType.Or] = \t ->

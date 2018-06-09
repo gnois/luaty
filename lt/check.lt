@@ -5,6 +5,13 @@ var TStmt = Tag.Stmt
 var TExpr = Tag.Expr
 var TType = Tag.Type
 
+
+var relational = \op ->
+	return op == '>' or op == '>=' or op == '<' or op == '<=' or op == '==' or op == '~='
+
+var arithmetic = \op ->
+	return op == '+' or op == '-' or op == '*' or op == '/' or op == '^'
+
 return \scope, stmts, warn ->
 
 	var Stmt = {}
@@ -21,9 +28,12 @@ return \scope, stmts, warn ->
 	var check = \x, y, node, msg ->
 		var ok, err = solv.unify(x, y)
 		if not ok
-			warn(node.line, node.col, 1, (msg or "") .. err)
-	
-	
+			warn(node.line, node.col, 1, msg .. err)
+
+	var check_op = \x, y, node, op ->
+		check(x, y, node, "operator `" .. op .. "` ")
+
+
 	-- check type annotation
 	var check_type = \tnode, loc ->
 		var rule = Type[tnode.tag]
@@ -70,16 +80,15 @@ return \scope, stmts, warn ->
 			warn(rights[1].line, rights[1].col, 1, "assigning " .. r .. " values to " .. l .. " variable(s)")
 
 	--------- Types --------------------------
-	Type[TType.Tuple] = \node, loc ->
-		check_types(node.types, loc)
-		
 	Type[TType.Ref] = \node, loc ->
 		if node.ins
+			check_types(node.ins, loc)
+			check_types(node.outs, loc)
 		
-		if node.tytys
+		else
 			var vtypes = {}
 			var keys = {}
-			for i, vk in ipairs(node.tytys)
+			for i, vk in ipairs(node)
 				var key = vk[2]
 				if key
 					var dup = 0
@@ -151,7 +160,7 @@ return \scope, stmts, warn ->
 		for i, p in ipairs(node.params)
 			ptypes[i] = solv.apply(infer_expr(p))
 			if node.types and node.types[i]
-				check(ptypes[i], node.types[i], p, "parameter type annotation ")
+				check(ptypes[i], node.types[i], p, "parameter " .. (node.params[i].tag == TExpr.Vararg and "..." or node.params[i].name) .. " ")
 				ptypes[i] = node.types[i]
 		scope.end_func()
 		return ty.func(ty.tuple(ptypes), ty.tuple(scope.get_returns() or {}))
@@ -200,7 +209,7 @@ return \scope, stmts, warn ->
 			-- if index is number, it can be float, so we cannot know
 			-- else index is its runtime value, so we cannot know
 		ot = infer_expr(node.obj)
-		check(ot, ty.tbl({}), node)
+		check(ty.tbl({}), ot, node, "index operator ")
 		return ty.any()
 
 	Expr[TExpr.Property] = \node ->
@@ -210,7 +219,7 @@ return \scope, stmts, warn ->
 		var tytys = {
 			{ vt, node.prop }
 		}
-		check(ot, ty.tbl(tytys), node, "index operator ")
+		check(ty.tbl(tytys), ot, node, "property `" .. node.prop .. "` ")
 		return solv.apply(vt)
 
 	Expr[TExpr.Invoke] = \node ->
@@ -221,7 +230,7 @@ return \scope, stmts, warn ->
 		var tytys = {
 			{ ty.func(ty.tuple(atypes), ty.tuple({retype})), node.prop }
 		}
-		check(ot, ty.tbl(tytys), node, "method invocation ")
+		check(ty.tbl(tytys), ot, node, "method `" .. node.prop .. "` ")
 		return solv.apply(retype)
 
 	Expr[TExpr.Call] = \node ->
@@ -229,7 +238,7 @@ return \scope, stmts, warn ->
 		atypes = infer_exprs(node.args)
 		ftype = infer_expr(node.func)
 		var retype = ty.new()
-		check(ftype, ty.func(ty.tuple(atypes), ty.tuple({retype})), node, "function call ")
+		check(ftype, ty.func(ty.tuple(atypes), ty.tuple({retype})), node, "function ")
 		return solv.apply(retype)
 
 	Expr[TExpr.Unary] = \node ->
@@ -237,10 +246,10 @@ return \scope, stmts, warn ->
 		rtype = infer_expr(node.right)
 		var op = node.op
 		if op == '#'
-			check(rtype, ty.or(ty.tbl({}), ty.str()), node, op .. " operator ")
+			check_op(ty.or(ty.tbl({}), ty.str()), rtype, node, op)
 			return ty.num()
 		if op == '-'
-			check(rtype, ty.num(), node, op .. " operator ")
+			check_op(ty.num(), rtype, node, op)
 			return ty.num()
 		-- op == 'not'
 		return ty.bool()
@@ -254,10 +263,15 @@ return \scope, stmts, warn ->
 		if op == 'and'
 			return rtype
 
-		if op == '+' or op == '-' or op == '*' or op == '/' or op == '^' or op == '>' or op == '>=' or op == '<' or op == '<=' or op == '==' or op == '..'
-			check(rtype, ltype, node, op .. " operator ")
-			if op == '>' or op == '>=' or op == '<' or op == '<=' or op == '=='
+		if arithmetic(op) or relational(op)
+			check_op(ltype, rtype, node, op)
+			if relational(op)
 				return ty.bool()
+		else if op == '..'
+			var strnum = ty.or(ty.num(), ty.str())
+			check_op(strnum, rtype, node, op)
+			check_op(strnum, ltype, node, op)
+			return ty.str()
 		-- op == 'or'
 		return ltype
 
@@ -288,7 +302,7 @@ return \scope, stmts, warn ->
 		rtypes = infer_exprs(node.rights)
 		ltypes = infer_exprs(node.lefts)
 		for i, ltype in ipairs(ltypes)
-			check(ltype, rtypes[i] or ty.nil(), node, "assigment ")
+			check(ltype, rtypes[i] or ty.or(ty.any(), ty.nil()), node, "assigment ")
 
 	Stmt[TStmt.Do] = \node ->
 		check_block(node.body)
@@ -342,7 +356,7 @@ return \scope, stmts, warn ->
 		types = infer_exprs(node.exprs)
 		var rtuple = scope.get_returns()
 		if rtuple
-			for i, r in ipairs(rtuple.types)
+			for i, r in ipairs(rtuple)
 				if types[i]
 					check(r, types[i], node.exprs[i] or node, "return type ")
 		else
