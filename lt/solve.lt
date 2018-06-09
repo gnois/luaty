@@ -1,0 +1,230 @@
+var ty = require('lua.type')
+var Tag = require('lua.tag')
+var TType = Tag.Type
+
+-- type var map
+var subs = {}
+
+var Subst = {}
+var subst = \node, tvar, texp ->
+	assert(tvar.tag == TType.New)
+	var rule = Subst[node.tag]
+	if rule
+		return rule(node, tvar, texp)
+	return node
+
+Subst[TType.New] = \node, tvar, texp ->
+	if node.id == tvar.id
+		return texp
+	return node
+
+Subst[TType.Ref] = \node, tvar, texp ->
+	if node.ins
+		var ins, outs = {}, {}
+		for i, p in ipairs(node.ins.types)
+			ins[i] = subst(p, tvar, texp)
+		for i, r in ipairs(node.outs.types)
+			outs[i] = subst(r, tvar, texp)
+		return ty.func(ty.tuple(ins), ty.tuple(outs))
+
+	var tytys = {}
+	for i, tk in ipairs(node.tytys)
+		tytys[i] = { subst(tk[1], tvar, texp), tk[2] and subst(tk[2], tvar, texp) }
+	return ty.tbl(tytys)
+
+Subst[TType.Or] = \node, tvar, texp ->
+	var left = subst(node.left, tvar, texp)
+	var right = subst(node.right, tvar, texp)
+	return ty.or(left, right)
+
+Subst[TType.And] = \node, tvar, texp ->
+	var left = subst(node.left, tvar, texp)
+	var right = subst(node.right, tvar, texp)
+	return ty.and(left, right)
+
+
+
+var Apply = {}
+var apply = \y ->
+	var rule = Apply[y.tag]
+	if rule
+		return rule(y)
+	return y
+
+Apply[TType.New] = \node ->
+	return subs[node.id] or node
+
+Apply[TType.Ref] = \node ->
+	if node.ins
+		var ins, outs = {}, {}
+		for i, p in ipairs(node.ins.types)
+			ins[i] = apply(p)
+		for i, r in ipairs(node.outs.types)
+			outs[i] = apply(r)
+		return ty.func(ty.tuple(ins), ty.tuple(outs))
+
+	var tytys = {}
+	for i, tk in ipairs(node.tytys)
+		tytys[i] = { apply(tk[1]), tk[2] and apply(tk[2]) }
+	return ty.tbl(tytys)
+
+Apply[TType.Or] = \node ->
+	var left = apply(node.left)
+	var right = apply(node.right)
+	return ty.or(left, right)
+
+Apply[TType.And] = \node ->
+	var left = apply(node.left)
+	var right = apply(node.right)
+	return ty.and(left, right)
+
+
+var Occur = {}
+var occurs = \x, y ->
+	var rule = Occur[x.tag]
+	if rule
+		return rule(x, y)
+	return false
+
+Occur[TType.Ref] = \node, y ->
+	if node.ins
+		for _, p in ipairs(node.ins.types)
+			if occurs(p, y)
+				return true
+		for _, r in ipairs(node.outs.types)
+			if occurs(r, y)
+				return true
+		return false
+
+	for _, tk in ipairs(node.tytys)
+		if occurs(tk[1], y) or (tk[2] and occurs(tk[2], y))
+			return true
+	return false
+
+Occur[TType.Or] = \node, y ->
+	return occurs(node.left, y) or occurs(node.right, y)
+
+Occur[TType.And] = \node, y ->
+	return occurs(node.left, y) or occurs(node.right, y)
+
+
+-- a substitution is a map of {id: texp}
+var extend = \tvar, texp ->
+	assert(tvar.tag == TType.New)
+	if occurs(tvar, texp)
+		return false, "cannot infer recursive type"
+
+	for id, t in ipairs(subs)
+		subs[id] = subst(t, tvar, texp)
+	subs[tvar.id] = texp
+	return true
+
+
+
+var unify
+
+var unify_func = \x, y ->
+	var xs, ys = x.ins.types, y.ins.types
+	var i, n = 0, #xs
+	-- check if too few args
+	var ok, err
+	while i < n
+		i = i + 1
+		if ys[i]
+			ok, err = unify(xs[i], ys[i])
+			if not ok
+				return false, err
+		else
+			return false, "expecting " .. n .. " arguments but only got " .. (i-1)
+
+	-- check if too few args
+	n = #ys
+	if i < n
+		if i < 1 or not xs[i].varargs
+			return false, "expecting only " .. i .. " arguments but got " .. n
+	--unify_tuple(y, x.outs, y.outs, false)
+	return true
+
+
+var unify_tbl = \x, y ->
+--``
+	var keys, k = {}, 0
+	for _, tkx in ipairs(x.tytys)
+		for __, tky in ipairs(y.tytys)
+			if tkx[2] == tky[2]
+				k = k + 1
+				keys[k] = tkx[2]
+				unify(tkx[1], tky[1])
+	
+	-- for keys that didnt match, check if they are nillable
+	for _, key in ipairs(keys)
+		for __, tk in ipairs(x.tytys)
+			if tk[2] and tk[2] ~= key
+				var tkey2 = ty.new()
+				ty.nils(tkey2)
+				unify(tk[1], tkey2)
+		
+		for __, tk in ipairs(y.tytys)
+			if tk[2] and tk[2] ~= key
+				var key2 = ty.new()
+				ty.nils(key2)
+				unify(tk[1], key2)
+``
+	return true
+
+-- return false, msg if type mismatch
+unify = \x, y ->
+	x = apply(x)
+	y = apply(y)
+
+	if x.tag == TType.New
+		return extend(x, y)
+
+	if y.tag == TType.New
+		return extend(y, x)
+
+	-- any match all except pure nil
+	if x.tag == TType.Any and y.tag ~= TType.Nil
+		return true
+		
+	if y.tag == TType.Any and x.tag ~= TType.Nil
+		return true
+
+	if x.tag == TType.Or
+		if unify(x.left, y) or unify(x.right, y)
+			return true
+
+	if y.tag == TType.Or
+		if unify(x, y.left) or unify(x, y.right)
+			return true
+
+	if x.tag == TType.And
+		if unify(x.left, y) and unify(x.right, y)
+			return true
+
+	if y.tag == TType.And
+		if unify(x, y.right) and unify(x, y.right)
+			return true
+
+	if x.tag == y.tag
+		if x.tag == TType.Nil
+			return true
+
+		if x.tag == TType.Val
+			if x.type == y.type
+				return true
+				
+		if x.tag == TType.Ref
+			if x.ins and y.ins
+				return unify_func(x, y)
+			
+			if x.tytys and y.tytys
+				return unify_tbl(x, y)
+
+	return false, "expecting " .. ty.tostr(x) .. " instead of " .. ty.tostr(y)
+
+
+return {
+	apply = apply
+	, unify = unify
+}

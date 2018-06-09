@@ -63,9 +63,9 @@ var compile = \reader, options, color ->
 				var sc = scope(options.declares, warn)
 				check(sc, tree, warn)
 				if continue()
-					return generate(tree), warning(color)
+					return generate(tree), warning()
 
-	return nil, warning(color)
+	return nil, warning()
 
 
 return {

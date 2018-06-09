@@ -55,12 +55,12 @@ local compile = function(reader, options, color)
                 local sc = scope(options.declares, warn)
                 check(sc, tree, warn)
                 if continue() then
-                    return generate(tree), warning(color)
+                    return generate(tree), warning()
                 end
             end
         end
     end
-    return nil, warning(color)
+    return nil, warning()
 end
 return {string = function(src, options, color)
     return compile(read.string(src), options or {}, color)

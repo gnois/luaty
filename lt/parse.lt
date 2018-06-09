@@ -1,12 +1,12 @@
 -- Grammar spec refer to https://github.com/Microsoft/TypeScript/blob/master/doc/spec.md#38-specifying-types
 
 var ast = require('lua.ast')
+var ty = require('lua.type')
 var operator = require('lua.operator')
 var reserved = require('lua.reserved')
 
 var Stmt = ast.Stmt
 var Expr = ast.Expr
-var Type = ast.Type
 var Keyword = reserved.Keyword
 var LJ_52 = false
 
@@ -170,7 +170,7 @@ return \ls, warn ->
 		if dented and not lex_dedent()
 			err_instead(3, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), loc.line)
 		lex_match('}', '{', loc.line)
-		return Type.tbl(vks, loc)
+		return ty.tbl(vks)
 
 	-- How to parse union of tuples?
 	var type_tuple = \isparam ->
@@ -192,7 +192,7 @@ return \ls, warn ->
 					parse_error(2, "invalid %s type %s", which, ls.astext(ls.token))
 					``
 			until not lex_opt(',')
-		return Type.tuple(list)
+		return ty.tuple(list)
 
 
 	var type_func = \loc ->
@@ -204,14 +204,14 @@ return \ls, warn ->
 			returns = type_tuple(false)
 		
 		lex_match(']', '[', loc.line)
-		return Type.func(params, returns, loc)
+		return ty.func(params, returns)
 
 
 	var type_prefix = ->
 		var loc = ls.loc()
 		var typ
 		if ls.token == 'TK_name'
-			typ = Type.custom(ls.value, loc)
+			typ = ty.custom(ls.value)
 			ls.step()
 		else if ls.token == '('
 			ls.step()
@@ -227,7 +227,7 @@ return \ls, warn ->
 			ls.step() 
 			if ls.token ~= 'TK_name'
 				break
-			typ = Type.index(typ, ls.value, ls.loc())
+			typ = ty.index(typ, ls.value)
 			ls.step()  -- skip TK_name
 			
 		return typ
@@ -240,13 +240,13 @@ return \ls, warn ->
 			val = ls.value
 		var typ
 		if val == 'any'
-			typ = Type.any(loc)
+			typ = ty.any()
 		else if val == 'num'
-			typ = Type.num(loc)
+			typ = ty.num()
 		else if val == 'str'
-			typ = Type.str(loc)
+			typ = ty.str()
 		else if val == 'bool'
-			typ = Type.bool(loc)
+			typ = ty.bool()
 		else
 			if ls.token == '['
 				return type_func(loc)
@@ -262,9 +262,8 @@ return \ls, warn ->
 		var tk = ls.token
 		if tk == '$'
 			ls.step()
-			var loc = ls.loc()
 			var t = type_binary(operator.unary_priority)
-			return Type.typeof(t, loc)
+			return ty.typeof(t)
 		else
 			return type_basic()
 
@@ -274,15 +273,13 @@ return \ls, warn ->
 		var op = ls.token
 		while operator.is_typeop(op) and operator.left_priority(op) > limit
 			ls.step()
-			var loc = ls.loc()
 			var r, nextop = type_binary(operator.right_priority(op))
 			if op == '?'
-				if not ast.nils(l)
-					parse_error(1, "type %s is already nillable", ls_value())
+				l = ty.or(l, ty.nil())
 			else if op == '|'
-				l = Type.or(l, r, loc)
+				l = ty.or(l, r)
 			else if op == '&'
-				l = Type.and(l, r, loc)
+				l = ty.and(l, r)
 			else
 				parse_error(3, "unexpected %s", ls_value() or ls.astext(ls.token))
 				break
@@ -293,17 +290,18 @@ return \ls, warn ->
 	parse_type = \varargs ->
 		var typ = type_binary(0) -- Priority 0: parse whole type
 		if typ and varargs
-			if not ast.varargs(typ)
-				parse_error(1, "type %s is already a vararg", ls_value())
+			return ast.varargs(typ)
 		return typ
 
 	-- read optional type
-	var opt_type = \ls, n, varargs ->
-		var typ = parse_type(varargs)
-		if typ
-			if not ls
-				ls = {}
-			ls[n] = typ
+	var opt_type = \types, n, varargs ->
+		var t = parse_type(varargs)
+		if t
+			if not types
+				types = {}
+			types[n] = t
+		return types
+
 
 	--- Expressions ------------------------------------------------
 	var expr_primary, expr, expr_unop, expr_binop, expr_simple, expr_list, expr_table
@@ -585,7 +583,7 @@ return \ls, warn ->
 		do
 			n = n + 1
 			vars[n] = Expr.id(lex_str())
-			opt_type(types, n)
+			types = opt_type(types, n)
 		until not lex_opt(',')
 		lex_check('TK_in')
 		var exps = expr_list()
@@ -654,7 +652,7 @@ return \ls, warn ->
 		do
 			i = i + 1
 			lhs[i] = Expr.id(lex_str())
-			opt_type(types, n)
+			types = opt_type(types, i)
 		until not lex_opt(',')
 
 		var rhs = {}
@@ -816,14 +814,14 @@ return \ls, warn ->
 				if ls.token == 'TK_name' or (not LJ_52 and ls.token == 'TK_goto')
 					n = n + 1
 					params[n] = Expr.id(lex_str())
-					opt_type(ptypes, n)
+					ptypes = opt_type(ptypes, n)
 
 				else if ls.token == '...'
 					ls.step()
 					varargs = true
 					n = n + 1
 					params[n] = Expr.vararg(ls)
-					opt_type(ptypes, n, true)
+					ptypes = opt_type(ptypes, n, true)
 
 					if ls.next() ~= ':'
 						break
@@ -831,7 +829,7 @@ return \ls, warn ->
 					ls.step()  -- skip ':'
 					var r = 1
 					do
-						opt_type(rtypes, n)
+						rtypes = opt_type(rtypes, r)
 						r = r + 1
 					until not lex_opt(',')
 					break
@@ -851,7 +849,11 @@ return \ls, warn ->
 				err_warn("at least 2 parameters needed with `~>`")
 		else
 			err_expect('->')
-		return curry, params, types, varargs, retypes
+		if ptypes
+			ptypes = ty.tuple(ptypes)
+		if rtypes
+			rtypes = ty.tuple(rtypes)
+		return curry, params, ptypes, varargs, rtypes
 		
 
 

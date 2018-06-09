@@ -2,11 +2,11 @@
 -- Generated from parse.lt
 --
 local ast = require("lua.ast")
+local ty = require("lua.type")
 local operator = require("lua.operator")
 local reserved = require("lua.reserved")
 local Stmt = ast.Stmt
 local Expr = ast.Expr
-local Type = ast.Type
 local Keyword = reserved.Keyword
 local LJ_52 = false
 local EndOfBlock = {
@@ -176,7 +176,7 @@ return function(ls, warn)
             err_instead(3, "%s expected to match %s at line %d", ls.astext("TK_dedent"), ls.astext("TK_indent"), loc.line)
         end
         lex_match("}", "{", loc.line)
-        return Type.tbl(vks, loc)
+        return ty.tbl(vks)
     end
     local type_tuple = function(isparam)
         local list, l = {}, 0
@@ -193,7 +193,7 @@ return function(ls, warn)
                 end
             until not lex_opt(",")
         end
-        return Type.tuple(list)
+        return ty.tuple(list)
     end
     local type_func = function(loc)
         ls.step()
@@ -204,13 +204,13 @@ return function(ls, warn)
             returns = type_tuple(false)
         end
         lex_match("]", "[", loc.line)
-        return Type.func(params, returns, loc)
+        return ty.func(params, returns)
     end
     local type_prefix = function()
         local loc = ls.loc()
         local typ
         if ls.token == "TK_name" then
-            typ = Type.custom(ls.value, loc)
+            typ = ty.custom(ls.value)
             ls.step()
         elseif ls.token == "(" then
             ls.step()
@@ -224,7 +224,7 @@ return function(ls, warn)
             if ls.token ~= "TK_name" then
                 break
             end
-            typ = Type.index(typ, ls.value, ls.loc())
+            typ = ty.index(typ, ls.value)
             ls.step()
         end
         return typ
@@ -237,13 +237,13 @@ return function(ls, warn)
         end
         local typ
         if val == "any" then
-            typ = Type.any(loc)
+            typ = ty.any()
         elseif val == "num" then
-            typ = Type.num(loc)
+            typ = ty.num()
         elseif val == "str" then
-            typ = Type.str(loc)
+            typ = ty.str()
         elseif val == "bool" then
-            typ = Type.bool(loc)
+            typ = ty.bool()
         else
             if ls.token == "[" then
                 return type_func(loc)
@@ -260,9 +260,8 @@ return function(ls, warn)
         local tk = ls.token
         if tk == "$" then
             ls.step()
-            local loc = ls.loc()
             local t = type_binary(operator.unary_priority)
-            return Type.typeof(t, loc)
+            return ty.typeof(t)
         else
             return type_basic()
         end
@@ -272,16 +271,13 @@ return function(ls, warn)
         local op = ls.token
         while operator.is_typeop(op) and operator.left_priority(op) > limit do
             ls.step()
-            local loc = ls.loc()
             local r, nextop = type_binary(operator.right_priority(op))
             if op == "?" then
-                if not ast.nils(l) then
-                    parse_error(1, "type %s is already nillable", ls_value())
-                end
+                l = ty["or"](l, ty["nil"]())
             elseif op == "|" then
-                l = Type["or"](l, r, loc)
+                l = ty["or"](l, r)
             elseif op == "&" then
-                l = Type["and"](l, r, loc)
+                l = ty["and"](l, r)
             else
                 parse_error(3, "unexpected %s", ls_value() or ls.astext(ls.token))
                 break
@@ -293,20 +289,19 @@ return function(ls, warn)
     parse_type = function(varargs)
         local typ = type_binary(0)
         if typ and varargs then
-            if not ast.varargs(typ) then
-                parse_error(1, "type %s is already a vararg", ls_value())
-            end
+            return ast.varargs(typ)
         end
         return typ
     end
-    local opt_type = function(ls, n, varargs)
-        local typ = parse_type(varargs)
-        if typ then
-            if not ls then
-                ls = {}
+    local opt_type = function(types, n, varargs)
+        local t = parse_type(varargs)
+        if t then
+            if not types then
+                types = {}
             end
-            ls[n] = typ
+            types[n] = t
         end
+        return types
     end
     local expr_primary, expr, expr_unop, expr_binop, expr_simple, expr_list, expr_table
     local parse_body, parse_args, parse_block
@@ -585,7 +580,7 @@ return function(ls, warn)
         repeat
             n = n + 1
             vars[n] = Expr.id(lex_str())
-            opt_type(types, n)
+            types = opt_type(types, n)
         until not lex_opt(",")
         lex_check("TK_in")
         local exps = expr_list()
@@ -651,7 +646,7 @@ return function(ls, warn)
         repeat
             i = i + 1
             lhs[i] = Expr.id(lex_str())
-            opt_type(types, n)
+            types = opt_type(types, i)
         until not lex_opt(",")
         local rhs = {}
         if lex_opt("=") then
@@ -803,13 +798,13 @@ return function(ls, warn)
                 if ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
                     n = n + 1
                     params[n] = Expr.id(lex_str())
-                    opt_type(ptypes, n)
+                    ptypes = opt_type(ptypes, n)
                 elseif ls.token == "..." then
                     ls.step()
                     varargs = true
                     n = n + 1
                     params[n] = Expr.vararg(ls)
-                    opt_type(ptypes, n, true)
+                    ptypes = opt_type(ptypes, n, true)
                     if ls.next() ~= ":" then
                         break
                     end
@@ -817,7 +812,7 @@ return function(ls, warn)
                     ls.step()
                     local r = 1
                     repeat
-                        opt_type(rtypes, n)
+                        rtypes = opt_type(rtypes, r)
                         r = r + 1
                     until not lex_opt(",")
                     break
@@ -841,7 +836,13 @@ return function(ls, warn)
         else
             err_expect("->")
         end
-        return curry, params, types, varargs, retypes
+        if ptypes then
+            ptypes = ty.tuple(ptypes)
+        end
+        if rtypes then
+            rtypes = ty.tuple(rtypes)
+        end
+        return curry, params, ptypes, varargs, rtypes
     end
     parse_body = function(line)
         local curry, params, types, varargs, retypes = parse_params()
