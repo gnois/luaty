@@ -1,5 +1,5 @@
 local term = require("term")
-local compile = require("lua.compile")
+local compiler = require("lua.compile")
 local color = term.color
 
 function usage(err)
@@ -46,6 +46,8 @@ if #paths > 2 then
     usage("Error: too many files given")
 end
 
+local compile = compiler({declares = decls}, color)
+
 if run and not paths[1] then
     -- REPL
     -- https://stackoverflow.com/questions/20410082/why-does-the-lua-repl-require-you-to-prepend-an-equal-sign-in-order-to-get-a-val
@@ -71,7 +73,7 @@ if run and not paths[1] then
         elseif #s == 0 then
             local str = table.concat(list, '\n')
             list = {}
-            local code, warns = compile.string(str, {declares = decls}, color)
+            local code, warns = compile.string(str)
             if warns then
                 io.stderr:write(warns .. "\n")
             end
@@ -103,7 +105,7 @@ elseif paths[1] then
     if not run then
         io.stderr:write(" Making " .. dest .. " ...\n")
     end
-    local code, warns = compile.file(paths[1], {declares = decls}, color)
+    local code, warns = compile.file(paths[1])
 
     if warns then
         io.stderr:write(warns .. "\n")

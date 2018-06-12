@@ -1,5 +1,5 @@
 local term = require("term")
-local compile = require("lua.compile")
+local compiler = require("lua.compile")
 
 local slash = term.slash
 local color = term.color
@@ -61,6 +61,7 @@ function scandir(directory)
 end
 
 
+local compile = compiler({}, color)
 -- begin passing tests
 print('Scanning ' .. folder .. ' folder...')
 
@@ -69,7 +70,7 @@ for k, v in pairs(files) do
     if #v > 0 and string.sub(v, -string.len('.lt'))=='.lt' then
         print('\n' .. v .. ':')
         filename = folder .. slash .. v
-        local code, warns = compile.file(filename, {}, color)
+        local code, warns = compile.file(filename)
         if not code then
             io.stderr:write(warns .. "\n")
             failed()
@@ -93,7 +94,7 @@ for k, v in pairs(files) do
     if #v > 0 and string.sub(v, -string.len('.lt'))=='.lt' then
         print('\n' .. v .. ':')
         filename = folder .. slash .. v
-        local code, warns = compile.file(filename, {}, color)
+        local code, warns = compile.file(filename)
         if not warns then
             failed()
         end

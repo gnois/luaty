@@ -20,15 +20,9 @@ var create = \tag, node ->
 	node.tag = tag
 	return node
 
-var id = 0
-
 -- table needed, coz some function names are keywords
 var Type = {
-	new = ->
-		id = id + 1
-		return create(TType.New, {id = id})
-
-	, any = ->
+	any = ->
 		return create(TType.Any, {})
 
 	, nil = ->
@@ -52,23 +46,37 @@ var Type = {
 		return create(TType.Ref, {ins = ins, outs = outs})
 
 	-- Lua table key can be any type
-	-- If it's string, we'll use back the string literal, else it'll be a Type object
+	-- If it's string, we'll use back the string literal, else it is a Type object
 	-- typetypes is array of { type: type } or { name: type }
-	, tbl = \typetypes ->
+	, tbl = \typetypes, meta ->
+		typetypes.meta = meta
 		return create(TType.Ref, typetypes)
 
-	, or = \left, right ->
-		return create(TType.Or, {left = left, right = right})
+	, or = \... ->
+		-- flatten
+		var list, l = {}, 1
+		for _, t in ipairs({...})
+			if t.tag == "TType.Or"
+				for __, tt in ipairs(t)
+					list[l] = tt
+					l = l + 1
+			else
+				list[l] = t
+				l = l + 1
+		return create(TType.Or, list)
 
-	, and = \left, right ->
-		return create(TType.And, {left = left, right = right})
-
+	--``
+	, and = \... ->
+		return create(TType.And, {...})
+	
 	, index = \obj, prop ->
 		return create(TType.Index, {obj = obj, prop = prop})
 
 	-- only identifier accepted, not ls
 	, typeof = \name ->
 		return create(TType.Typeof, {name = name})
+	--``
+
 }
 
 
@@ -97,13 +105,13 @@ Str[TType.New] = \t ->
 	return "T" .. t.id
 
 Str[TType.Any] = \t ->
-	return "any"
+	return "<any>"
 
 Str[TType.Nil] = \t ->
-	return "nil"
+	return "<nil>"
 
 Str[TType.Val] = \t ->
-	return t.type
+	return "<" .. t.type .. ">"
 
 Str[TType.Ref] = \t ->
 	if t.ins
@@ -131,10 +139,10 @@ Str[TType.Ref] = \t ->
 
 
 Str[TType.Or] = \t ->
-	return tostr(t.left) .. '|' .. tostr(t.right)
-
-Str[TType.And] = \t ->
-	return tostr(t.left) .. '&' .. tostr(t.right)
+	var list = {}
+	for i, x in ipairs(t)
+		list[i] = tostr(x)
+	return table.concat(list, '|')
 
 
 
@@ -182,14 +190,19 @@ same = \a, b ->
 	return false
 
 
+-- shortcut
+var any_t = Type.any()
+var nil_t = Type.nil()
+var num_t = Type.num()
+var str_t = Type.str()
+var bool_t = Type.bool()
 
 return {
-	new = Type.new
-	, any = Type.any
-	, nil = Type.nil
-	, num = Type.num
-	, str = Type.str
-	, bool = Type.bool
+	any = -> return any_t
+	, nil = -> return nil_t
+	, num = -> return num_t
+	, str = -> return str_t
+	, bool = -> return bool_t
 	, tuple = Type.tuple
 	, func = Type.func
 	, tbl = Type.tbl

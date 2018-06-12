@@ -8,13 +8,8 @@ local create = function(tag, node)
     node.tag = tag
     return node
 end
-local id = 0
 local Type = {
-    new = function()
-        id = id + 1
-        return create(TType.New, {id = id})
-    end
-    , any = function()
+    any = function()
         return create(TType.Any, {})
     end
     , ["nil"] = function()
@@ -35,20 +30,24 @@ local Type = {
     , func = function(ins, outs)
         return create(TType.Ref, {ins = ins, outs = outs})
     end
-    , tbl = function(typetypes)
+    , tbl = function(typetypes, meta)
+        typetypes.meta = meta
         return create(TType.Ref, typetypes)
     end
-    , ["or"] = function(left, right)
-        return create(TType.Or, {left = left, right = right})
-    end
-    , ["and"] = function(left, right)
-        return create(TType.And, {left = left, right = right})
-    end
-    , index = function(obj, prop)
-        return create(TType.Index, {obj = obj, prop = prop})
-    end
-    , typeof = function(name)
-        return create(TType.Typeof, {name = name})
+    , ["or"] = function(...)
+        local list, l = {}, 1
+        for _, t in ipairs({...}) do
+            if t.tag == "TType.Or" then
+                for __, tt in ipairs(t) do
+                    list[l] = tt
+                    l = l + 1
+                end
+            else
+                list[l] = t
+                l = l + 1
+            end
+        end
+        return create(TType.Or, list)
     end
 }
 local varargs = function(t)
@@ -74,13 +73,13 @@ Str[TType.New] = function(t)
     return "T" .. t.id
 end
 Str[TType.Any] = function(t)
-    return "any"
+    return "<any>"
 end
 Str[TType.Nil] = function(t)
-    return "nil"
+    return "<nil>"
 end
 Str[TType.Val] = function(t)
-    return t.type
+    return "<" .. t.type .. ">"
 end
 Str[TType.Ref] = function(t)
     if t.ins then
@@ -110,10 +109,11 @@ Str[TType.Ref] = function(t)
     return "{" .. ls .. "}"
 end
 Str[TType.Or] = function(t)
-    return tostr(t.left) .. "|" .. tostr(t.right)
-end
-Str[TType.And] = function(t)
-    return tostr(t.left) .. "&" .. tostr(t.right)
+    local list = {}
+    for i, x in ipairs(t) do
+        list[i] = tostr(x)
+    end
+    return table.concat(list, "|")
 end
 local same
 same = function(a, b)
@@ -162,13 +162,27 @@ same = function(a, b)
     end
     return false
 end
+local any_t = Type.any()
+local nil_t = Type["nil"]()
+local num_t = Type.num()
+local str_t = Type.str()
+local bool_t = Type.bool()
 return {
-    new = Type.new
-    , any = Type.any
-    , ["nil"] = Type["nil"]
-    , num = Type.num
-    , str = Type.str
-    , bool = Type.bool
+    any = function()
+        return any_t
+    end
+    , ["nil"] = function()
+        return nil_t
+    end
+    , num = function()
+        return num_t
+    end
+    , str = function()
+        return str_t
+    end
+    , bool = function()
+        return bool_t
+    end
     , tuple = Type.tuple
     , func = Type.func
     , tbl = Type.tbl

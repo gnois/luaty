@@ -3,7 +3,7 @@
 --
 local ty = require("lua.type")
 local Tag = require("lua.tag")
-local solv = require("lua.solve")
+local solve = require("lua.solve")
 local TStmt = Tag.Stmt
 local TExpr = Tag.Expr
 local TType = Tag.Type
@@ -17,6 +17,12 @@ return function(scope, stmts, warn)
     local Stmt = {}
     local Expr = {}
     local Type = {}
+    local solv = solve()
+    local id = 0
+    local new = function()
+        id = id + 1
+        return {tag = TType.New, id = id}
+    end
     local fail = function(node)
         local msg = (node.tag or "nil") .. " cannot match a statement type"
         if node.line and node.col then
@@ -153,7 +159,7 @@ return function(scope, stmts, warn)
                 warn(node.line, node.col, 1, "undeclared identifier `" .. node.name .. "`")
             end
             if not t then
-                t = ty.new()
+                t = new()
             end
         end
         return t
@@ -163,7 +169,7 @@ return function(scope, stmts, warn)
         check_types(node.types, node)
         check_types(node.retypes, node)
         for i, p in ipairs(node.params) do
-            local t = node.types and node.types[i] or ty.new()
+            local t = node.types and node.types[i] or new()
             if p.tag == TExpr.Vararg then
                 scope.varargs()
                 t = ty.varargs(t)
@@ -181,8 +187,9 @@ return function(scope, stmts, warn)
                 ptypes[i] = node.types[i]
             end
         end
+        local retuples = scope.get_returns()
         scope.end_func()
-        return ty.func(ty.tuple(ptypes), ty.tuple(scope.get_returns() or {}))
+        return ty.func(ty.tuple(ptypes), retuples or ty.tuple({}))
     end
     Expr[TExpr.Table] = function(node)
         local keys = {}
@@ -235,16 +242,16 @@ return function(scope, stmts, warn)
     Expr[TExpr.Property] = function(node)
         local ot
         ot = infer_expr(node.obj)
-        local vt = ty.new()
+        local vt = new()
         local tytys = {{vt, node.prop}}
-        check(ty.tbl(tytys), ot, node, "property `" .. node.prop .. "` ")
+        check(ty.tbl(tytys), ot, node, "operator `." .. node.prop .. "` ")
         return solv.apply(vt)
     end
     Expr[TExpr.Invoke] = function(node)
         local atypes, ot
         atypes = infer_exprs(node.args)
         ot = infer_expr(node.obj)
-        local retype = ty.new()
+        local retype = new()
         local tytys = {{ty.func(ty.tuple(atypes), ty.tuple({retype})), node.prop}}
         check(ty.tbl(tytys), ot, node, "method `" .. node.prop .. "` ")
         return solv.apply(retype)
@@ -253,7 +260,7 @@ return function(scope, stmts, warn)
         local atypes, ftype
         atypes = infer_exprs(node.args)
         ftype = infer_expr(node.func)
-        local retype = ty.new()
+        local retype = new()
         check(ftype, ty.func(ty.tuple(atypes), ty.tuple({retype})), node, "function ")
         return solv.apply(retype)
     end
@@ -272,9 +279,9 @@ return function(scope, stmts, warn)
         return ty.bool()
     end
     Expr[TExpr.Binary] = function(node)
-        local rtype, ltype
-        rtype = infer_expr(node.right)
+        local ltype, rtype
         ltype = infer_expr(node.left)
+        rtype = infer_expr(node.right)
         local op = node.op
         if op == "and" then
             return rtype
@@ -308,7 +315,7 @@ return function(scope, stmts, warn)
             else
                 ltype = rtypes[i]
                 if not ltype then
-                    ltype = ty.new()
+                    ltype = new()
                 end
             end
             declare(var, ltype)
@@ -397,5 +404,9 @@ return function(scope, stmts, warn)
     scope.begin_func()
     scope.varargs()
     check_block(stmts)
+    local rtuple = scope.get_returns()
     scope.end_func()
+    if rtuple then
+        return solv.apply(rtuple[1])
+    end
 end

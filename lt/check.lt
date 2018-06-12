@@ -1,6 +1,6 @@
 var ty = require('lua.type')
 var Tag = require('lua.tag')
-var solv = require('lua.solve')
+var solve = require('lua.solve')
 var TStmt = Tag.Stmt
 var TExpr = Tag.Expr
 var TType = Tag.Type
@@ -17,7 +17,14 @@ return \scope, stmts, warn ->
 	var Stmt = {}
 	var Expr = {}
 	var Type = {}
+	var solv = solve()
 	
+	var id = 0
+	var new = ->
+		id = id + 1
+		return { tag = TType.New, id = id }
+
+
 	var fail = \node ->
 		var msg = (node.tag or 'nil') .. " cannot match a statement type"
 		if node.line and node.col
@@ -139,7 +146,7 @@ return \scope, stmts, warn ->
 			if line == 0
 				warn(node.line, node.col, 1, "undeclared identifier `" .. node.name .. "`")
 			if not t
-				t = ty.new()
+				t = new()
 		return t
 		
 	Expr[TExpr.Function] = \node ->
@@ -147,7 +154,7 @@ return \scope, stmts, warn ->
 		check_types(node.types, node)
 		check_types(node.retypes, node)
 		for i, p in ipairs(node.params)
-			var t = node.types and node.types[i] or ty.new()
+			var t = node.types and node.types[i] or new()
 			if p.tag == TExpr.Vararg
 				scope.varargs()
 				t = ty.varargs(t)
@@ -156,14 +163,17 @@ return \scope, stmts, warn ->
 		-- retypes can be null, means not set yet
 		scope.set_returns(node.retypes)
 		check_block(node.body)
+		-- check parameter usage
 		var ptypes = {}
 		for i, p in ipairs(node.params)
 			ptypes[i] = solv.apply(infer_expr(p))
 			if node.types and node.types[i]
 				check(ptypes[i], node.types[i], p, "parameter " .. (node.params[i].tag == TExpr.Vararg and "..." or node.params[i].name) .. " ")
 				ptypes[i] = node.types[i]
+		
+		var retuples = scope.get_returns()
 		scope.end_func()
-		return ty.func(ty.tuple(ptypes), ty.tuple(scope.get_returns() or {}))
+		return ty.func(ty.tuple(ptypes), retuples or ty.tuple({}))
 
 	Expr[TExpr.Table] = \node ->
 		-- check for duplicate key
@@ -215,18 +225,18 @@ return \scope, stmts, warn ->
 	Expr[TExpr.Property] = \node ->
 		var ot
 		ot = infer_expr(node.obj)
-		var vt = ty.new()
+		var vt = new()
 		var tytys = {
 			{ vt, node.prop }
 		}
-		check(ty.tbl(tytys), ot, node, "property `" .. node.prop .. "` ")
+		check(ty.tbl(tytys), ot, node, "operator `." .. node.prop .. "` ")
 		return solv.apply(vt)
 
 	Expr[TExpr.Invoke] = \node ->
 		var atypes, ot
 		atypes = infer_exprs(node.args)
 		ot = infer_expr(node.obj)
-		var retype = ty.new()
+		var retype = new()
 		var tytys = {
 			{ ty.func(ty.tuple(atypes), ty.tuple({retype})), node.prop }
 		}
@@ -237,7 +247,7 @@ return \scope, stmts, warn ->
 		var atypes, ftype
 		atypes = infer_exprs(node.args)
 		ftype = infer_expr(node.func)
-		var retype = ty.new()
+		var retype = new()
 		check(ftype, ty.func(ty.tuple(atypes), ty.tuple({retype})), node, "function ")
 		return solv.apply(retype)
 
@@ -255,9 +265,9 @@ return \scope, stmts, warn ->
 		return ty.bool()
 
 	Expr[TExpr.Binary] = \node ->
-		var rtype, ltype
-		rtype = infer_expr(node.right)
+		var ltype, rtype
 		ltype = infer_expr(node.left)
+		rtype = infer_expr(node.right)
 		
 		var op = node.op
 		if op == 'and'
@@ -293,7 +303,7 @@ return \scope, stmts, warn ->
 			else
 				ltype = rtypes[i]
 				if not ltype
-					ltype = ty.new() --ty.or(ty.new(), ty.nil())
+					ltype = new() --ty.or(new(), ty.nil())
 			declare(var, ltype)
 
 	Stmt[TStmt.Assign] = \node ->
@@ -377,6 +387,10 @@ return \scope, stmts, warn ->
 	scope.begin_func()
 	scope.varargs()
 	check_block(stmts)
+	var rtuple = scope.get_returns()
 	scope.end_func()
-
+	-- lua require('..') can only return single value
+	if rtuple
+		return solv.apply(rtuple[1])
+	
 
