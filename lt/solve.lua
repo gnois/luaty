@@ -1,8 +1,8 @@
 --
 -- Generated from solve.lt
 --
-local ty = require("lua.type")
-local Tag = require("lua.tag")
+local ty = require("lt.type")
+local Tag = require("lt.tag")
 local TType = Tag.Type
 return function()
     local subs = {}
@@ -21,17 +21,17 @@ return function()
         end
         return node
     end
-    Subst[TType.Ref] = function(node, tvar, texp)
-        if node.ins then
-            local ins, outs = {}, {}
-            for i, p in ipairs(node.ins) do
-                ins[i] = subst(p, tvar, texp)
-            end
-            for i, r in ipairs(node.outs) do
-                outs[i] = subst(r, tvar, texp)
-            end
-            return ty.func(ty.tuple(ins), ty.tuple(outs))
+    Subst[TType.Func] = function(node, tvar, texp)
+        local ins, outs = {}, {}
+        for i, p in ipairs(node.ins) do
+            ins[i] = subst(p, tvar, texp)
         end
+        for i, r in ipairs(node.outs) do
+            outs[i] = subst(r, tvar, texp)
+        end
+        return ty.func(ty.tuple(ins), ty.tuple(outs))
+    end
+    Subst[TType.Tbl] = function(node, tvar, texp)
         local tytys = {}
         for i, tk in ipairs(node) do
             tytys[i] = {subst(tk[1], tvar, texp), tk[2] and subst(tk[2], tvar, texp)}
@@ -56,17 +56,17 @@ return function()
     Apply[TType.New] = function(node)
         return subs[node.id] or node
     end
-    Apply[TType.Ref] = function(node)
-        if node.ins then
-            local ins, outs = {}, {}
-            for i, p in ipairs(node.ins) do
-                ins[i] = apply(p)
-            end
-            for i, r in ipairs(node.outs) do
-                outs[i] = apply(r)
-            end
-            return ty.func(ty.tuple(ins), ty.tuple(outs))
+    Apply[TType.Func] = function(node)
+        local ins, outs = {}, {}
+        for i, p in ipairs(node.ins) do
+            ins[i] = apply(p)
         end
+        for i, r in ipairs(node.outs) do
+            outs[i] = apply(r)
+        end
+        return ty.func(ty.tuple(ins), ty.tuple(outs))
+    end
+    Apply[TType.Tbl] = function(node)
         local tytys = {}
         for i, tk in ipairs(node) do
             tytys[i] = {apply(tk[1]), tk[2] and apply(tk[2])}
@@ -82,36 +82,39 @@ return function()
     end
     local Occur = {}
     local occurs = function(x, y)
-        local rule = Occur[x.tag]
+        local rule = Occur[y.tag]
         if rule then
             return rule(x, y)
         end
         return false
     end
-    Occur[TType.Ref] = function(node, y)
-        if node.ins then
-            for _, p in ipairs(node.ins) do
-                if occurs(p, y) then
-                    return true
-                end
+    Occur[TType.New] = function(x, node)
+        return x.id == node.id
+    end
+    Occur[TType.Func] = function(x, node)
+        for _, p in ipairs(node.ins) do
+            if occurs(x, p) then
+                return true
             end
-            for _, r in ipairs(node.outs) do
-                if occurs(r, y) then
-                    return true
-                end
-            end
-            return false
         end
-        for _, tk in ipairs(node) do
-            if occurs(tk[1], y) or tk[2] and occurs(tk[2], y) then
+        for _, r in ipairs(node.outs) do
+            if occurs(x, r) then
                 return true
             end
         end
         return false
     end
-    Occur[TType.Or] = function(node, y)
+    Occur[TType.Tbl] = function(x, node)
+        for _, tk in ipairs(node) do
+            if occurs(x, tk[1]) or tk[2] and occurs(x, tk[2]) then
+                return true
+            end
+        end
+        return false
+    end
+    Occur[TType.Or] = function(x, node)
         for _, t in ipairs(node) do
-            if occurs(t, y) then
+            if occurs(x, t) then
                 return true
             end
         end
@@ -120,7 +123,7 @@ return function()
     local extend = function(tvar, texp)
         assert(tvar.tag == TType.New)
         if occurs(tvar, texp) then
-            return false, "cannot infer recursive type"
+            return false, ty.tostr(texp) .. " contains recursive type " .. ty.tostr(tvar)
         end
         for id, t in ipairs(subs) do
             subs[id] = subst(t, tvar, texp)
@@ -174,13 +177,13 @@ return function()
                         return false, err .. " for key `" .. key_str(ttx[2]) .. "`"
                     end
                 else
-                    return false, "expects key `" .. key_str(ttx[2]) .. "`"
+                    return false, "expects key `" .. key_str(ttx[2]) .. "` in " .. ty.tostr(y)
                 end
             end
         end
         return true
     end
-    unify = function(x, y)
+    unify = function(x, y, ignore)
         if x == y then
             return true
         end
@@ -200,14 +203,14 @@ return function()
         end
         if x.tag == TType.Or then
             for _, t in ipairs(x) do
-                if unify(t, y) then
+                if unify(t, y, true) then
                     return true
                 end
             end
         end
         if y.tag == TType.Or then
             for _, t in ipairs(y) do
-                if unify(x, t) then
+                if unify(x, t, true) then
                     return true
                 end
             end
@@ -221,14 +224,14 @@ return function()
                     return true
                 end
             end
-            if x.tag == TType.Ref then
-                if x.ins and y.ins then
-                    return unify_func(x, y)
-                end
+            if x.tag == TType.Func then
+                return unify_func(x, y)
+            end
+            if x.tag == TType.Tbl then
                 return unify_tbl(x, y)
             end
         end
-        return false, "expects " .. ty.tostr(x) .. " instead of " .. ty.tostr(y)
+        return false, ignore and "" or "expects " .. ty.tostr(x) .. " instead of " .. ty.tostr(y)
     end
     return {apply = apply, unify = unify}
 end

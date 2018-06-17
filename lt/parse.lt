@@ -1,9 +1,9 @@
 -- Grammar spec refer to https://github.com/Microsoft/TypeScript/blob/master/doc/spec.md#38-specifying-types
 
-var ast = require('lua.ast')
-var ty = require('lua.type')
-var operator = require('lua.operator')
-var reserved = require('lua.reserved')
+var ast = require('lt.ast')
+var ty = require('lt.type')
+var operator = require('lt.operator')
+var reserved = require('lt.reserved')
 
 var Stmt = ast.Stmt
 var Expr = ast.Expr

@@ -1,4 +1,4 @@
-var Tag = require('lua.tag')
+var Tag = require('lt.tag')
 var TType = Tag.Type
 
 --``
@@ -43,14 +43,14 @@ var Type = {
 
 	-- ins and outs are tuples
 	, func = \ins, outs ->
-		return create(TType.Ref, {ins = ins, outs = outs})
+		return create(TType.Func, {ins = ins, outs = outs})
 
 	-- Lua table key can be any type
 	-- If it's string, we'll use back the string literal, else it is a Type object
 	-- typetypes is array of { type: type } or { name: type }
 	, tbl = \typetypes, meta ->
 		typetypes.meta = meta
-		return create(TType.Ref, typetypes)
+		return create(TType.Tbl, typetypes)
 
 	, or = \... ->
 		-- flatten
@@ -113,11 +113,10 @@ Str[TType.Nil] = \t ->
 Str[TType.Val] = \t ->
 	return "<" .. t.type .. ">"
 
-Str[TType.Ref] = \t ->
-	if t.ins
-		var out = {'[', tolst(t.ins), ':', tolst(t.outs), ']'}
-		return table.concat(out)
+Str[TType.Func] = \t ->
+	return table.concat({'[', tolst(t.ins), ':', tolst(t.outs), ']'})
 
+Str[TType.Tbl] = \t ->
 	var out, o = {}, 1
 	var val
 	for _, ty in ipairs(t)
@@ -131,11 +130,10 @@ Str[TType.Ref] = \t ->
 			o = o + 1
 		else
 			val = tostr(vty)
-	
-	var ls = table.concat(out, ', ')
+
 	if val
-		ls = val .. ', ' .. ls
-	return '{' .. ls .. '}'
+		out[o] = val
+	return '{' .. table.concat(out, ', ') .. '}'
 
 
 Str[TType.Or] = \t ->

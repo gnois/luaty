@@ -1,7 +1,7 @@
 --
 -- Generated from scope.lt
 --
-local reserved = require("lua.reserved")
+local reserved = require("lt.reserved")
 local Builtin = reserved.Builtin
 local unused = {_ = true, __ = true, ___ = true}
 local Function = "Function"

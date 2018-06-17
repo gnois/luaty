@@ -1,7 +1,7 @@
-var Tag = require('lua.tag')
-var reserved = require('lua.reserved')
-var operator = require('lua.operator')
-var chars = require('lua.chars')
+var Tag = require('lt.tag')
+var reserved = require('lt.reserved')
+var operator = require('lt.operator')
+var chars = require('lt.chars')
 
 var TStmt = Tag.Stmt
 var TExpr = Tag.Expr

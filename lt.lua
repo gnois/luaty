@@ -1,34 +1,43 @@
+--
+-- Generated from lt.lt
+--
 local term = require("term")
-local compiler = require("lua.compile")
+local compiler = require("lt.compile")
 local color = term.color
-
-function usage(err)
-    local spec = [[
+local usage = function(err)
+    local spec = [=[
 Usage: 
-  luajit lt.lua [-c] [src.lt] [dst.lua] [-d xvar]
+  luajit lt.lua [-f] [-c] src.lt [-d xvar]
   where:
-    -c        Transpile src.lt into dst.lua without running. dst.lua is optional, default to src.lua if omitted
+    -c        Transpile src.lt and its dependecies into src.lua, *.lua ... without running
+    -f        Transpile src.lt and its dependecies into src.lua, *.lua ... without running, overwriting them if they exist
     -d xvar   Declares `xvar` to silent undeclared identifier warning
     
   Running without parameters enters Read-Generate-Eval-Print loop
-]]
-    err = err or ''
-    err = err .. '\n' .. spec
+]=]
+    err = err or ""
+    err = err .. "\n" .. spec
     term.usage(err)
 end
-
-
 local run = true
+local force = false
+local already = false
 local paths = {}
 local decls = {}
-
 for s, p in term.scan({...}) do
-    if s == 'c' then
+    if s == "c" or s == "f" then
+        if already then
+            usage("Error: use -c or -f only")
+        end
+        already = true
         run = false
+        if s == "f" then
+            force = true
+        end
         if p then
             table.insert(paths, p)
         end
-    elseif s == 'd' then
+    elseif s == "d" then
         if p then
             decls[p] = true
         else
@@ -42,51 +51,43 @@ for s, p in term.scan({...}) do
         end
     end
 end
-if #paths > 2 then
-    usage("Error: too many files given")
+if #paths > 1 then
+    usage("Error: only one file accepted")
 end
-
 local compile = compiler({declares = decls}, color)
-
 if run and not paths[1] then
-    -- REPL
-    -- https://stackoverflow.com/questions/20410082/why-does-the-lua-repl-require-you-to-prepend-an-equal-sign-in-order-to-get-a-val
-    function print_results(...)
-        -- This function takes care of nils at the end of results and such
-        if select('#', ...) > 1 then
+    local print_results = function(...)
+        if select("#", ...) > 1 then
             print(select(2, ...))
         end
     end
-    print("Luaty")
-    print("-- empty line to transpile --\n")
+    print("Luaty  \n-- empty line to transpile --")
     local list = {}
     repeat
         if #list > 0 then
-            io.stdout:write('>>')
+            io.stdout:write(">>")
         else
-            io.stdout:write('> ')
+            io.stdout:write("> ")
         end
         io.stdout:flush()
         local s = io.stdin:read()
-        if s == 'exit' or s == 'quit' then
+        if s == "exit" or s == "quit" then
             break
         elseif #s == 0 then
-            local str = table.concat(list, '\n')
+            local str = table.concat(list, "\n")
             list = {}
-            local code, warns = compile.string(str)
+            local typ, code, warns = compile.string(str)
             if warns then
-                io.stderr:write(warns .. "\n")
+                print(warns)
             end
             if code then
                 print(color.yellow .. code .. color.reset)
                 local fn, err = loadstring(code)
-                if err then -- Maybe it's an expression
-                    -- This is a bad hack, but it might work well enough
-                    fn = load('return (' .. fn .. ')', 'stdin')
+                if err then
+                    fn = load("return (" .. fn .. ")", "stdin")
                 end
-
                 if fn then
-                    io.stdout:write('=>')
+                    io.stdout:write("=>")
                     print_results(pcall(fn))
                 else
                     print(err)
@@ -96,46 +97,55 @@ if run and not paths[1] then
             list[#list + 1] = s
         end
     until false
-
 elseif paths[1] then
-    local dest = paths[2] or string.gsub(paths[1], "%.lt", '.lua')
-    while dest == paths[1] do
-        dest = dest .. '.lua'
-    end
-    if not run then
-        io.stderr:write(" Making " .. dest .. " ...\n")
-    end
-    local code, warns = compile.file(paths[1])
-
-    if warns then
-        io.stderr:write(warns .. "\n")
-    end
-
-    if code then
-        if run then
-            -- should not have another filename
-            if paths[2] then
-                usage("Error: cannot run more than one file")
-            end
+    local typ, code, warns, imports = compile.file(paths[1])
+    if run then
+        if warns then
+            print(warns)
+        end
+        if code then
             local fn = assert(loadstring(code))
             fn()
         else
-            --print("Compiled " .. paths[1] .. " to " .. dest)
-            local f, err = io.open(dest, 'wb')
-            if not f then
-                error(err)
-            end
-            
-            -- get the filename without path
-            local basename = string.gsub(paths[1], "(.*[/\\])(.*)", "%2")
-            f:write("--\n-- Generated from " .. basename .. "\n--")
-            f:write(code)
+            print(" Fail to run " .. paths[1])
         end
     else
-        if run then
-            io.stderr:write(" Fail to run " .. paths[1] .. "\n")
-        else
-            io.stderr:write(" Fail to make " .. dest .. "\n")
+        local skips, s = {}, 0
+        for key, file in pairs(imports) do
+            print(file.path)
+            local dest = string.gsub(file.path, "%.lt", ".lua")
+            while dest == paths[1] do
+                dest = dest .. ".lua"
+            end
+            if file.warns then
+                print(file.warns)
+            end
+            if file.code then
+                if not force then
+                    local f = io.open(dest, "r")
+                    if f then
+                        skips[dest] = true
+                        f:close()
+                    end
+                end
+                if not skips[dest] then
+                    local f, err = io.open(dest, "wb")
+                    if not f then
+                        error(err)
+                    end
+                    local basename = string.gsub(file.path, "(.*[/\\])(.*)", "%2")
+                    f:write("--\n-- Generated from " .. basename .. "\n--")
+                    f:write(file.code)
+                    f:close()
+                end
+            else
+                print("   Fail to generate " .. dest)
+            end
+        end
+        if not force then
+            for k in pairs(skips) do
+                print(color.red .. k .. " already existed so is not overwritten" .. color.reset)
+            end
         end
     end
 else

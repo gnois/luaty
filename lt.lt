@@ -1,0 +1,155 @@
+var term = require('term')
+var compiler = require('lt.compile')
+var color = term.color
+
+var usage = \err ->
+	var spec = ``
+Usage: 
+  luajit lt.lua [-f] [-c] src.lt [-d xvar]
+  where:
+    -c        Transpile src.lt and its dependecies into src.lua, *.lua ... without running
+    -f        Transpile src.lt and its dependecies into src.lua, *.lua ... without running, overwriting them if they exist
+    -d xvar   Declares `xvar` to silent undeclared identifier warning
+    
+  Running without parameters enters Read-Generate-Eval-Print loop
+``
+	err = err or ''
+	err = err .. '\n' .. spec
+	term.usage(err)
+
+
+
+var run = true
+var force = false
+var already = false
+var paths = {}
+var decls = {}
+
+for s, p in term.scan({...})
+	if s == 'c' or s == 'f'
+		if already
+			usage("Error: use -c or -f only")
+		already = true
+		run = false
+		if s == 'f'
+			force = true
+		if p
+			table.insert(paths, p)
+	else if s == 'd'
+		if p
+			decls[p] = true
+		else
+			usage("Error: -d requires identifier")
+	else
+		if p
+			table.insert(paths, p)
+		else if s ~= ""
+			usage("Error: unknown switch -" .. s)
+
+
+if #paths > 1
+	usage("Error: only one file accepted")
+
+var compile = compiler({declares = decls}, color)
+
+if run and not paths[1]
+	-- REPL
+	-- https://stackoverflow.com/questions/20410082/why-does-the-lua-repl-require-you-to-prep-an-equal-sign-in-order-to-get-a-val
+	var print_results = \... ->
+		-- This function takes care of nils at the  of results and such
+		if select('#', ...) > 1
+			print(select(2, ...))
+
+
+	print("Luaty  \n-- empty line to transpile --")
+	var list = {}
+	do
+		if #list > 0
+			io.stdout.write(@, '>>')
+		else
+			io.stdout.write(@, '> ')
+		
+		io.stdout.flush(@)
+		var s = io.stdin.read(@)
+		if s == 'exit' or s == 'quit'
+			break
+		else if #s == 0
+			var str = table.concat(list, "\n")
+			list = {}
+			var typ, code, warns = compile.string(str)
+			if warns
+				print(warns)
+			
+			if code
+				print(color.yellow .. code .. color.reset)
+				var fn, err = loadstring(code)
+				if err -- Maybe it's an expression
+					-- This is a bad hack, but it might work
+					fn = load('return (' .. fn .. ')', 'stdin')
+				
+
+				if fn
+					io.stdout.write(@, '=>')
+					print_results(pcall(fn))
+				else
+					print(err)
+
+		else
+			list[#list + 1] = s
+		
+	until false
+
+else if paths[1]
+	var typ, code, warns, imports = compile.file(paths[1])
+
+	if run
+		if warns
+			print(warns)
+		
+		if code
+			var fn = assert(loadstring(code))
+			fn()
+		else
+			print(" Fail to run " .. paths[1])
+		
+	else
+		var skips, s = {}, 0
+		
+		for key, file in pairs(imports)
+			print(file.path)
+			var dest = string.gsub(file.path, "%.lt", ".lua")
+			-- never overwrite source file
+			while dest == paths[1]
+				dest = dest .. ".lua"
+			
+
+			if file.warns
+				print(file.warns)
+			
+			if file.code
+				if not force
+					var f = io.open(dest, 'r')
+					if f
+						skips[dest] = true
+						f.close(@)
+
+				if not skips[dest]
+					var f, err = io.open(dest, 'wb')
+					if not f
+						error(err)
+
+					-- get the filename without path
+					var basename = string.gsub(file.path, "(.*[/\\])(.*)", "%2")
+					f.write(@, "--\n-- Generated from " .. basename .. "\n--")
+					f.write(@, file.code)
+					f.close(@)
+			else
+				print("   Fail to generate " .. dest)
+		
+		if not force
+			for k in pairs(skips)
+				print(color.red .. k .. " already existed so is not overwritten" .. color.reset)
+
+		
+else
+	usage("Error: no file given")

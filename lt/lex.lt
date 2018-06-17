@@ -1,8 +1,8 @@
 var bit = require('bit')
 var ffi = require('ffi')
-var chars = require('lua.chars')
-var stack = require('lua.stack')
-var reserved = require('lua.reserved')
+var chars = require('lt.chars')
+var stack = require('lt.stack')
+var reserved = require('lt.reserved')
 var Keyword = reserved.Keyword
 
 var complex = ffi.typeof('complex')
@@ -50,7 +50,7 @@ return \read, warn ->
 		, prevcol = 1
 		, line = 1
 		, col = 1
-		, token = 'TK_eof'
+		, token = nil
 		, value = nil
 	}
 
@@ -73,7 +73,7 @@ return \read, warn ->
 			col = state.col
 		else
 			col = state.col - col
-		warn(state.line, col, 21, string.format(em, ...))
+		warn(state.line, col, 3, string.format(em, ...))
 
 
 	var popchar = ->
@@ -560,7 +560,8 @@ return \read, warn ->
 		state.prevline = state.line
 		state.prevcol = state.col
 		if lookahead.token == 'TK_eof' -- No lookahead token
-			state.token, state.value = lex()
+			if state.token ~= 'TK_eof'
+				state.token, state.value = lex()
 		else
 			state.token, state.value = lookahead.token, lookahead.value
 			lookahead.token = 'TK_eof'

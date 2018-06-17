@@ -1,32 +1,23 @@
-var read = require('lua.read')
-var lex = require('lua.lex')
-var scope = require('lua.scope')
-var parse = require('lua.parse')
-var check = require('lua.check')
-var transform = require('lua.transform')
-var generate = require('lua.generate')
+var read = require('lt.read')
+var lex = require('lt.lex')
+var scope = require('lt.scope')
+var parse = require('lt.parse')
+var check = require('lt.check')
+var transform = require('lt.transform')
+var generate = require('lt.generate')
 
---`
- options = {
-	declares = {ngx = true, xvars = true, ...}
-	, check = true
-	, silent = {...}
- }
---`
+var Slash = package.config.sub(@, 1, 1)
+var Circular = {}
 
-return \options, color ->
-
+var report = \color ->
 	-- severity color - 1,2,3
-	var severe_color = {color.yellow, color.magenta, color.red}
-	
-	var imports = {}
+	var Severe_Color = {color.yellow, color.magenta, color.red}
+	-- array of warnings, ordered by line,col
+	-- must be local, so that repl warnings are cleared
+	var warnings = {}
 
-	var compile = \reader ->
-		-- array of warnings, ordered by line,col
-		-- must be local, so that repl warnings are cleared
-		var warnings = {}
-
-		var warn = \line, col, severity, msg ->
+	return {
+		warn = \line, col, severity, msg ->
 			var w = { line = line, col = col, severity = severity, msg = msg }
 			
 			for i, m in ipairs(warnings)
@@ -41,41 +32,77 @@ return \options, color ->
 			table.insert(warnings, w)
 
 		-- convert to colored text
-		var warning = ->
+		, as_text = ->
 			var warns = {}
 			for i, m in ipairs(warnings)
-				var clr = severe_color[m.severity] or color.white
+				var clr = Severe_Color[m.severity] or color.white
 				warns[i] = string.format(" %d,%d:" .. clr ..  "  %s" .. color.reset, m.line, m.col, m.msg)
 			if #warns > 0
 				return table.concat(warns, "\n")
 
 		-- severity > 2 means its likely to crash the next stage
-		var continue = ->
+		, continue = ->
 			for _, w in ipairs(warnings)
 				if w.severity > 2
 					return false
 			return true
 
-		var lexer = lex(reader, warn)
-		if continue()
-			var tree = parse(lexer, warn)
-			if continue()
-				tree = transform(tree)
-				if continue()
-					var sc = scope(options.declares, warn)
-					var typ = check(sc, tree, warn)
-					if continue()
-						return generate(tree), warning()
+	}
+
+
+--`
+ options = {
+	declares = {ngx = true, xvars = true, ...}
+	, check = true
+	, silent = {...}
+ }
+--`
+return \options, color ->
+	var imports = {}
+	var compile, import
+	
+	compile = \reader ->
+		var ast, typ, luacode
 		
-		--imports[name] = { filepath = path, ast = tree, type = typ }
-		return nil, warning()
+		var r = report(color)
+		var lexer = lex(reader, r.warn)
+		if r.continue()
+			ast = parse(lexer, r.warn)
+			if ast[1]
+				if r.continue()
+					ast = transform(ast)
+					if r.continue()
+						var sc = scope(options.declares, r.warn)
+						typ = check(sc, ast, r.warn, import)
+						if r.continue()
+							luacode = generate(ast)
+			else
+				r.warn(0, 0, 1, "No such file or file is empty")
+		return typ, luacode, r.as_text()
+		
+
+	import = \name ->
+
+		var mod = imports[name]
+		if mod
+			if mod == Circular
+				return false, "Circular import of '" .. name .. "'"
+			return mod.type, mod.code, mod.warns
+
+		imports[name] = Circular
+		var path = string.gsub(name, "[.]", Slash) .. ".lt"
+		var typ, code, warns = compile(read.file(path))
+		
+		imports[name] = { path = path, type = typ, code = code, warns = warns }
+		return typ, code, warns, imports
 
 
 	return {
-		file = \filename ->
-			return compile(read.file(filename))
+		file = \src ->
+            -- loader accepts file without .lt
+			var f = string.gsub(src, "%.lt", "")
+			return import(f)
 
 		, string = \src ->
 			return compile(read.string(src))
-
 	}

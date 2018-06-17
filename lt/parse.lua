@@ -1,10 +1,10 @@
 --
 -- Generated from parse.lt
 --
-local ast = require("lua.ast")
-local ty = require("lua.type")
-local operator = require("lua.operator")
-local reserved = require("lua.reserved")
+local ast = require("lt.ast")
+local ty = require("lt.type")
+local operator = require("lt.operator")
+local reserved = require("lt.reserved")
 local Stmt = ast.Stmt
 local Expr = ast.Expr
 local Keyword = reserved.Keyword

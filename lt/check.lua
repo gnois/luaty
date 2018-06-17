@@ -1,9 +1,9 @@
 --
 -- Generated from check.lt
 --
-local ty = require("lua.type")
-local Tag = require("lua.tag")
-local solve = require("lua.solve")
+local ty = require("lt.type")
+local Tag = require("lt.tag")
+local solve = require("lt.solve")
 local TStmt = Tag.Stmt
 local TExpr = Tag.Expr
 local TType = Tag.Type
@@ -13,7 +13,7 @@ end
 local arithmetic = function(op)
     return op == "+" or op == "-" or op == "*" or op == "/" or op == "^"
 end
-return function(scope, stmts, warn)
+return function(scope, stmts, warn, import)
     local Stmt = {}
     local Expr = {}
     local Type = {}
@@ -90,46 +90,45 @@ return function(scope, stmts, warn)
             warn(rights[1].line, rights[1].col, 1, "assigning " .. r .. " values to " .. l .. " variable(s)")
         end
     end
-    Type[TType.Ref] = function(node, loc)
-        if node.ins then
-            check_types(node.ins, loc)
-            check_types(node.outs, loc)
-        else
-            local vtypes = {}
-            local keys = {}
-            for i, vk in ipairs(node) do
-                local key = vk[2]
-                if key then
-                    local dup = 0
-                    if "string" == type(key) then
-                        for n = 1, #keys do
-                            if "string" == type(keys[n]) and key == keys[n] then
-                                dup = n
-                            end
-                        end
-                    else
-                        check_type(key, loc)
-                        for n = 1, #keys do
-                            if keys[n] and ty.same(keys[n], key) then
-                                dup = n
-                            end
+    Type[TType.Func] = function(node, loc)
+        check_types(node.ins, loc)
+        check_types(node.outs, loc)
+    end
+    Type[TType.Tbl] = function(node, loc)
+        local vtypes = {}
+        local keys = {}
+        for i, vk in ipairs(node) do
+            local key = vk[2]
+            if key then
+                local dup = 0
+                if "string" == type(key) then
+                    for n = 1, #keys do
+                        if "string" == type(keys[n]) and key == keys[n] then
+                            dup = n
                         end
                     end
-                    if dup > 0 then
-                        warn(loc.line, loc.col, 1, "duplicate key types at position " .. i .. " and " .. dup .. " in table type annotation")
+                else
+                    check_type(key, loc)
+                    for n = 1, #keys do
+                        if keys[n] and ty.same(keys[n], key) then
+                            dup = n
+                        end
                     end
                 end
-                keys[i] = key
-                local vt = vk[1]
-                check_type(vt, loc)
-                if vt and not key then
-                    for n = 1, #vtypes do
-                        if vtypes[n] and ty.same(vtypes[n], vt) then
-                            warn(loc.line, loc.col, 1, "similar value types at position " .. i .. " and " .. n .. " in table type annotation")
-                        end
-                    end
-                    vtypes[i] = vt
+                if dup > 0 then
+                    warn(loc.line, loc.col, 1, "duplicate key types at position " .. i .. " and " .. dup .. " in table type annotation")
                 end
+            end
+            keys[i] = key
+            local vt = vk[1]
+            check_type(vt, loc)
+            if vt and not key then
+                for n = 1, #vtypes do
+                    if vtypes[n] and ty.same(vtypes[n], vt) then
+                        warn(loc.line, loc.col, 1, "similar value types at position " .. i .. " and " .. n .. " in table type annotation")
+                    end
+                end
+                vtypes[i] = vt
             end
         end
     end
@@ -236,7 +235,7 @@ return function(scope, stmts, warn)
         local it, ot
         it = infer_expr(node.idx)
         ot = infer_expr(node.obj)
-        check(ty.tbl({}), ot, node, "index operator ")
+        check(ty.tbl({}), ot, node, "indexer ")
         return ty.any()
     end
     Expr[TExpr.Property] = function(node)
@@ -244,7 +243,7 @@ return function(scope, stmts, warn)
         ot = infer_expr(node.obj)
         local vt = new()
         local tytys = {{vt, node.prop}}
-        check(ty.tbl(tytys), ot, node, "operator `." .. node.prop .. "` ")
+        check(ty.tbl(tytys), ot, node, "property `." .. node.prop .. "` ")
         return solv.apply(vt)
     end
     Expr[TExpr.Invoke] = function(node)
@@ -259,6 +258,9 @@ return function(scope, stmts, warn)
     Expr[TExpr.Call] = function(node)
         local atypes, ftype
         atypes = infer_exprs(node.args)
+        if node.func.tag == TExpr.Id and node.func.name == "require" then
+            return import(node.args[1].value) or ty["nil"]()
+        end
         ftype = infer_expr(node.func)
         local retype = new()
         check(ftype, ty.func(ty.tuple(atypes), ty.tuple({retype})), node, "function ")

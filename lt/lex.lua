@@ -3,9 +3,9 @@
 --
 local bit = require("bit")
 local ffi = require("ffi")
-local chars = require("lua.chars")
-local stack = require("lua.stack")
-local reserved = require("lua.reserved")
+local chars = require("lt.chars")
+local stack = require("lt.stack")
+local reserved = require("lt.reserved")
 local Keyword = reserved.Keyword
 local complex = ffi.typeof("complex")
 local is = chars.is
@@ -49,7 +49,7 @@ return function(read, warn)
         , prevcol = 1
         , line = 1
         , col = 1
-        , token = "TK_eof"
+        , token = nil
         , value = nil
     }
     local fmt_token = function(token)
@@ -74,7 +74,7 @@ return function(read, warn)
         else
             col = state.col - col
         end
-        warn(state.line, col, 21, string.format(em, ...))
+        warn(state.line, col, 3, string.format(em, ...))
     end
     local popchar = function()
         local k = p
@@ -566,7 +566,9 @@ return function(read, warn)
         state.prevline = state.line
         state.prevcol = state.col
         if lookahead.token == "TK_eof" then
-            state.token, state.value = lex()
+            if state.token ~= "TK_eof" then
+                state.token, state.value = lex()
+            end
         else
             state.token, state.value = lookahead.token, lookahead.value
             lookahead.token = "TK_eof"

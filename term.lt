@@ -1,0 +1,93 @@
+-- determine forward or back slash
+var slash = package.config.sub(@, 1, 1)
+
+-- ansi colors
+var color = {
+	reset     = "\27[0m"
+	, red     = "\27[91;1m"
+	, green   = "\27[92;1m"
+	, yellow  = "\27[93;1m"
+	, blue    = "\27[94;1m"
+	, magenta = "\27[95;1m"
+	, cyan    = "\27[96;1m"
+	, white   = "\27[97;1m"
+}
+
+-- print usage and exit
+var usage = \text ->
+	print(text)
+	os.exit(1)
+
+
+-- parses command line
+-- yields switch and its matching parameter if any
+var scan = \args ->
+	-- const
+	var yield = coroutine.yield
+	var null = ""
+
+	return coroutine.wrap(->
+		var switch = null
+		var k = 1
+		while args[k]
+			var arg = args[k]
+			if "-" == string.sub(arg, 1, 1)
+				-- previous loop had a switch
+				if switch ~= null
+					yield(switch)
+				switch = string.sub(arg, 2)
+			else
+				yield(switch, arg)
+				switch = null
+			k = k + 1
+
+		if switch ~= null
+			yield(switch)
+
+	)
+
+
+
+-- Window to support ANSI color, may not work on all Windows version
+if slash == '\\'
+	var bit = require("bit")
+	var ffi = require("ffi")
+	var kernel32 = ffi.load("kernel32")
+
+	ffi.cdef(``
+		typedef long BOOL;
+		typedef void* HANDLE;
+		typedef uint32_t DWORD;
+		typedef DWORD* LPDWORD;
+		static const int STD_OUTPUT_HANDLE                  = ((DWORD)-11);
+		static const int ENABLE_VIRTUAL_TERMINAL_PROCESSING = ((DWORD)4);
+		HANDLE GetStdHandle(DWORD nStdHandle);
+		BOOL GetConsoleMode(HANDLE hConsoleHandle, LPDWORD lpMode);
+		BOOL SetConsoleMode(HANDLE hConsoleHandle, DWORD dwMode);
+		DWORD GetLastError(void);
+	``)
+
+	var enable_VT = ->
+		var handle = kernel32.GetStdHandle(kernel32.STD_OUTPUT_HANDLE)
+		var lpMode = ffi.new("DWORD[1]")
+		var res = kernel32.GetConsoleMode(handle, lpMode)
+		if res ~= 0
+			var mode = bit.bor(lpMode[0], kernel32.ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+			var res = kernel32.SetConsoleMode(handle, mode)
+			if res ~= 0
+				return true
+
+		return false
+	
+	if not enable_VT()
+		-- print('No ANSI colors support, error ' .. kernel32.GetLastError())
+		color = setmetatable({}, {__index = -> return ""})
+
+
+
+return {
+	slash = slash
+	, color = color
+	, usage = usage
+	, scan = scan
+}

@@ -1,4 +1,4 @@
-var Tag = require('lua.tag')
+var Tag = require('lt.tag')
 
 var TStmt = Tag.Stmt
 var TExpr = Tag.Expr

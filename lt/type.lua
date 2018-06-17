@@ -1,7 +1,7 @@
 --
 -- Generated from type.lt
 --
-local Tag = require("lua.tag")
+local Tag = require("lt.tag")
 local TType = Tag.Type
 local create = function(tag, node)
     assert("table" == type(node))
@@ -28,11 +28,11 @@ local Type = {
         return create(TType.Tuple, types)
     end
     , func = function(ins, outs)
-        return create(TType.Ref, {ins = ins, outs = outs})
+        return create(TType.Func, {ins = ins, outs = outs})
     end
     , tbl = function(typetypes, meta)
         typetypes.meta = meta
-        return create(TType.Ref, typetypes)
+        return create(TType.Tbl, typetypes)
     end
     , ["or"] = function(...)
         local list, l = {}, 1
@@ -81,11 +81,10 @@ end
 Str[TType.Val] = function(t)
     return "<" .. t.type .. ">"
 end
-Str[TType.Ref] = function(t)
-    if t.ins then
-        local out = {"[", tolst(t.ins), ":", tolst(t.outs), "]"}
-        return table.concat(out)
-    end
+Str[TType.Func] = function(t)
+    return table.concat({"[", tolst(t.ins), ":", tolst(t.outs), "]"})
+end
+Str[TType.Tbl] = function(t)
     local out, o = {}, 1
     local val
     for _, ty in ipairs(t) do
@@ -102,11 +101,10 @@ Str[TType.Ref] = function(t)
             val = tostr(vty)
         end
     end
-    local ls = table.concat(out, ", ")
     if val then
-        ls = val .. ", " .. ls
+        out[o] = val
     end
-    return "{" .. ls .. "}"
+    return "{" .. table.concat(out, ", ") .. "}"
 end
 Str[TType.Or] = function(t)
     local list = {}

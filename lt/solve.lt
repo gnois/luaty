@@ -1,11 +1,41 @@
-var ty = require('lua.type')
-var Tag = require('lua.tag')
+var ty = require('lt.type')
+var Tag = require('lt.tag')
 var TType = Tag.Type
 
 return ->
 	-- list of type var to type expr
 	var subs = {}
 
+--```
+	var Cycle = {}
+	var cycle = \node, saved ->
+		var rule = Cycle[node.tag]
+		if rule
+			rule(node, saved)
+		return false
+	
+	Cycle[TType.Func] = \node, saved ->
+		for _, p in ipairs(node.ins)
+			cycle(p, saved)
+			if saved[p]
+				print("cycle detected: " .. ty.tostr(p))
+				return
+		for _, r in ipairs(node.outs)
+			cycle(r, saved)
+			if saved[r]
+				print("cycle detected: " .. ty.tostr(r))
+				return
+		saved[node] = true
+
+	Cycle[TType.Tbl] = \node, saved ->
+		for _, tk in ipairs(node)
+			if cycle(tk[1], saved)
+				return
+			if tk[2] and cycle(tk[2], saved)
+				return
+--```
+
+	------ subst --------------
 	var Subst = {}
 	var subst = \node, tvar, texp ->
 		assert(tvar.tag == TType.New)
@@ -19,15 +49,15 @@ return ->
 			return texp
 		return node
 
-	Subst[TType.Ref] = \node, tvar, texp ->
-		if node.ins
-			var ins, outs = {}, {}
-			for i, p in ipairs(node.ins)
-				ins[i] = subst(p, tvar, texp)
-			for i, r in ipairs(node.outs)
-				outs[i] = subst(r, tvar, texp)
-			return ty.func(ty.tuple(ins), ty.tuple(outs))
+	Subst[TType.Func] = \node, tvar, texp ->
+		var ins, outs = {}, {}
+		for i, p in ipairs(node.ins)
+			ins[i] = subst(p, tvar, texp)
+		for i, r in ipairs(node.outs)
+			outs[i] = subst(r, tvar, texp)
+		return ty.func(ty.tuple(ins), ty.tuple(outs))
 
+	Subst[TType.Tbl] = \node, tvar, texp ->
 		var tytys = {}
 		for i, tk in ipairs(node)
 			tytys[i] = { subst(tk[1], tvar, texp), tk[2] and subst(tk[2], tvar, texp) }
@@ -40,8 +70,7 @@ return ->
 		return ty.or(unpack(list))
 
 
-
-
+	------ apply --------------
 	var Apply = {}
 	var apply = \node ->
 		var rule = Apply[node.tag]
@@ -52,15 +81,15 @@ return ->
 	Apply[TType.New] = \node ->
 		return subs[node.id] or node
 
-	Apply[TType.Ref] = \node ->
-		if node.ins
-			var ins, outs = {}, {}
-			for i, p in ipairs(node.ins)
-				ins[i] = apply(p)
-			for i, r in ipairs(node.outs)
-				outs[i] = apply(r)
-			return ty.func(ty.tuple(ins), ty.tuple(outs))
+	Apply[TType.Func] = \node ->
+		var ins, outs = {}, {}
+		for i, p in ipairs(node.ins)
+			ins[i] = apply(p)
+		for i, r in ipairs(node.outs)
+			outs[i] = apply(r)
+		return ty.func(ty.tuple(ins), ty.tuple(outs))
 
+	Apply[TType.Tbl] = \node ->
 		var tytys = {}
 		for i, tk in ipairs(node)
 			tytys[i] = { apply(tk[1]), tk[2] and apply(tk[2]) }
@@ -73,41 +102,43 @@ return ->
 		return ty.or(unpack(list))
 
 
-
+	------ occur --------------
 	var Occur = {}
 	var occurs = \x, y ->
-		var rule = Occur[x.tag]
+		var rule = Occur[y.tag]
 		if rule
 			return rule(x, y)
 		return false
 
-	Occur[TType.Ref] = \node, y ->
-		if node.ins
-			for _, p in ipairs(node.ins)
-				if occurs(p, y)
-					return true
-			for _, r in ipairs(node.outs)
-				if occurs(r, y)
-					return true
-			return false
-		
+	Occur[TType.New] = \x, node ->
+		return x.id == node.id
+
+	Occur[TType.Func] = \x, node ->
+		for _, p in ipairs(node.ins)
+			if occurs(x, p)
+				return true
+		for _, r in ipairs(node.outs)
+			if occurs(x, r)
+				return true
+		return false
+
+	Occur[TType.Tbl] = \x, node ->
 		for _, tk in ipairs(node)
-			if occurs(tk[1], y) or (tk[2] and occurs(tk[2], y))
+			if occurs(x, tk[1]) or (tk[2] and occurs(x, tk[2]))
 				return true
 		return false
 
-	Occur[TType.Or] = \node, y ->
+	Occur[TType.Or] = \x, node ->
 		for _, t in ipairs(node)
-			if occurs(t, y)
+			if occurs(x, t)
 				return true
 		return false
-
 
 
 	var extend = \tvar, texp ->
 		assert(tvar.tag == TType.New)
 		if occurs(tvar, texp)
-			return false, "cannot infer recursive type"
+			return false, ty.tostr(texp) .. " contains recursive type " .. ty.tostr(tvar)
 
 		for id, t in ipairs(subs)
 			subs[id] = subst(t, tvar, texp)
@@ -115,7 +146,7 @@ return ->
 		return true
 
 
-
+	------ unification --------------
 	var unify
 
 	var unify_func = \x, y ->
@@ -145,7 +176,6 @@ return ->
 
 	-- return true if x is contained in y or y.meta
 	var unify_tbl = \x, y ->
-
 		var key_str = \k ->
 			return "string" == type(k) and k or ty.tostr(k)
 			
@@ -163,16 +193,15 @@ return ->
 					if not ok
 						return false, err .. " for key `" .. key_str(ttx[2]) .. "`"
 				else
-					return false, "expects key `" .. key_str(ttx[2]) .. "`"
+					return false, "expects key `" .. key_str(ttx[2]) .. "` in " .. ty.tostr(y)
 
 		return true
 
 	-- return false, msg if type mismatch
-	unify = \x, y ->
+	unify = \x, y, ignore ->
 		-- shortcut
 		if x == y
 			return true
-			
 		x = apply(x)
 		y = apply(y)
 
@@ -191,14 +220,13 @@ return ->
 
 		if x.tag == TType.Or
 			for _, t in ipairs(x)
-				if unify(t, y)
+				if unify(t, y, true)
 					return true
 
 		if y.tag == TType.Or
 			for _, t in ipairs(y)
-				if unify(x, t)
+				if unify(x, t, true)
 					return true
-
 
 		if x.tag == y.tag
 			if x.tag == TType.Nil
@@ -207,14 +235,14 @@ return ->
 			if x.tag == TType.Val
 				if x.type == y.type
 					return true
-					
-			if x.tag == TType.Ref
-				if x.ins and y.ins
-					return unify_func(x, y)
-				
+
+			if x.tag == TType.Func
+				return unify_func(x, y)
+
+			if x.tag == TType.Tbl
 				return unify_tbl(x, y)
 
-		return false, "expects " .. ty.tostr(x) .. " instead of " .. ty.tostr(y)
+		return false, ignore and "" or ("expects " .. ty.tostr(x) .. " instead of " .. ty.tostr(y))
 
 
 	return {

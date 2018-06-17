@@ -7,16 +7,24 @@ Builtin static analyzer
 ---
 
 During transpiling, Luaty warns about:
+  * simple function parameter type mismatch
+  * function parameter and argument count difference
   * unused variables
   * unused labels
   * assignment to undeclared (a.k.a global) variable
   * assignment having more expressions on the right side than the left
   * shadowed variables in the parent or the same scope
   * duplicate keys in table constructor
-  
+
 Lua code will be generated regardless.
 
 ```
+var j = \a -> return a
+j(4, 5)                   -- function expects only 1 arguments but got 2
+
+var k = \a -> return a + 0
+k('s')                    -- function parameter 1 expects <num> instead of <str>
+
 a = 1                     -- undeclared identifier a
 
 var c, d = 1, 2, 4        -- assigning 3 values to 2 variables
@@ -42,7 +50,7 @@ Due to [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule), Luaty coul
   * no more `do` after `for` and `while`
   * no more `then` after `if`
 
-It also changes some syntax:
+There are also minor syntax changes:
   * `repeat` becomes `do`
   * `elseif` becomes `else if`
   * `local` becomes `var`
@@ -105,26 +113,6 @@ print(get()['long-name'](@, 10))    -- `@` *just works*, get() is only called on
 ```
 
 
-Luaty supports disjoint union with pattern matching expressions
-```
-var tree = :!                 -- disjoint union is a normal expression
-   empty                      -- colon can be omitted if constructor does not take parameters
-   node: l, x, r
-
--- lets give shorter names
-var e = tree.empty()
-var n = tree.node
-
-var top = n(n(n(e, 3, e), 4, e), 5, n(e, 2, e))
-
-var depth
-depth = \t ->
-   return tree:t!        -- pattern match 't'
-      * return 0         -- `*` catches all, can appear in any order and can take parameters
-      node: l, _, r -> return 1 + math.max(depth(l), depth(r))
-
-assert(depth(top) == 3)
-```
 
 
 
@@ -135,21 +123,32 @@ Luaty only requires LuaJIT to run.
 
 With LuaJIT in your path, clone this repo, and cd into it.
 
+To transpile a Luaty *main.lt* file and its dependencies to *main.lua* and *dep1.lua*, *dep2.lua, ...* , use
+```
+luajit lt.lua -c /path/to/main.lt
+```
+
+The lua output file will not be generated if they already exist. To force overwriting, use -f instead of -c
+```
+luajit lt.lua -f /path/to/main.lt
+```
+
+
 To execute a Luaty source file, use
 ```
 luajit lt.lua /path/to/source.lt
 ```
 
-To transpile a Luaty *source.lt* file to *dest.lua*, use
-```
-luajit lt.lua -c /path/to/source.lt dest.lua
-```
-The output file is optional, and defaults to *source.lua*
 
 
 To run tests in the [tests folder](https://github.com/gnois/luaty/tree/master/tests), use
 ```
 luajit run-test.lua
+```
+
+To make Luaty itself, use
+```
+luajit lt.lua -f lt.lt
 ```
 
 

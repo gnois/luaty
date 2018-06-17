@@ -1,10 +1,10 @@
 --
 -- Generated from generate.lt
 --
-local Tag = require("lua.tag")
-local reserved = require("lua.reserved")
-local operator = require("lua.operator")
-local chars = require("lua.chars")
+local Tag = require("lt.tag")
+local reserved = require("lt.reserved")
+local operator = require("lt.operator")
+local chars = require("lt.chars")
 local TStmt = Tag.Stmt
 local TExpr = Tag.Expr
 local Keyword = reserved.Keyword

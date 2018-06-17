@@ -1,5 +1,5 @@
-var ast = require('lua.ast')
-var Tag = require('lua.tag')
+var ast = require('lt.ast')
+var Tag = require('lt.tag')
 var TStmt = Tag.Stmt
 var TExpr = Tag.Expr
 

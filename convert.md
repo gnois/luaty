@@ -28,7 +28,7 @@ Replace:
 
 * Leave `do` statements intact, but remove `do` after `while` and `for`
 
-Find: `do`
+Find: ` do`
 
 Replace:
 
@@ -47,7 +47,7 @@ Replace: `do`
 
 Find: `function (\w+)\((.*)\)`
 
-Replace: `\1 = \\\2 ->`
+Replace: `var \1 = \\\2 ->`
 
 * Convert member functions
 

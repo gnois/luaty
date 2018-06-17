@@ -1,6 +1,6 @@
-var ty = require('lua.type')
-var Tag = require('lua.tag')
-var solve = require('lua.solve')
+var ty = require('lt.type')
+var Tag = require('lt.tag')
+var solve = require('lt.solve')
 var TStmt = Tag.Stmt
 var TExpr = Tag.Expr
 var TType = Tag.Type
@@ -12,7 +12,7 @@ var relational = \op ->
 var arithmetic = \op ->
 	return op == '+' or op == '-' or op == '*' or op == '/' or op == '^'
 
-return \scope, stmts, warn ->
+return \scope, stmts, warn, import ->
 
 	var Stmt = {}
 	var Expr = {}
@@ -87,12 +87,11 @@ return \scope, stmts, warn ->
 			warn(rights[1].line, rights[1].col, 1, "assigning " .. r .. " values to " .. l .. " variable(s)")
 
 	--------- Types --------------------------
-	Type[TType.Ref] = \node, loc ->
-		if node.ins
-			check_types(node.ins, loc)
-			check_types(node.outs, loc)
+	Type[TType.Func] = \node, loc ->
+		check_types(node.ins, loc)
+		check_types(node.outs, loc)
 		
-		else
+	Type[TType.Tbl] = \node, loc ->
 			var vtypes = {}
 			var keys = {}
 			for i, vk in ipairs(node)
@@ -219,7 +218,7 @@ return \scope, stmts, warn ->
 			-- if index is number, it can be float, so we cannot know
 			-- else index is its runtime value, so we cannot know
 		ot = infer_expr(node.obj)
-		check(ty.tbl({}), ot, node, "index operator ")
+		check(ty.tbl({}), ot, node, "indexer ")
 		return ty.any()
 
 	Expr[TExpr.Property] = \node ->
@@ -229,7 +228,7 @@ return \scope, stmts, warn ->
 		var tytys = {
 			{ vt, node.prop }
 		}
-		check(ty.tbl(tytys), ot, node, "operator `." .. node.prop .. "` ")
+		check(ty.tbl(tytys), ot, node, "property `." .. node.prop .. "` ")
 		return solv.apply(vt)
 
 	Expr[TExpr.Invoke] = \node ->
@@ -246,6 +245,10 @@ return \scope, stmts, warn ->
 	Expr[TExpr.Call] = \node ->
 		var atypes, ftype
 		atypes = infer_exprs(node.args)
+		-- check imports
+		if node.func.tag == TExpr.Id and node.func.name == 'require'
+			return import(node.args[1].value) or ty.nil()
+
 		ftype = infer_expr(node.func)
 		var retype = new()
 		check(ftype, ty.func(ty.tuple(atypes), ty.tuple({retype})), node, "function ")
@@ -389,7 +392,7 @@ return \scope, stmts, warn ->
 	check_block(stmts)
 	var rtuple = scope.get_returns()
 	scope.end_func()
-	-- lua require('..') can only return single value
+	-- lua require() can only return single value
 	if rtuple
 		return solv.apply(rtuple[1])
 	

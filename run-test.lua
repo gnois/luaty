@@ -1,5 +1,5 @@
 local term = require("term")
-local compiler = require("lua.compile")
+local compiler = require("lt.compile")
 
 local slash = term.slash
 local color = term.color
@@ -29,9 +29,10 @@ for s, p in term.scan({...}) do
 end
 
 if not folder then
-    folder = '.' .. slash .. 'tests'
+    folder = 'tests'
 else  -- remove trailing slash(es)
     folder = string.gsub(folder, slash .. "*$", '')
+    folder = string.gsub(folder, '^.' .. slash, '')
 end
 
 
@@ -70,7 +71,7 @@ for k, v in pairs(files) do
     if #v > 0 and string.sub(v, -string.len('.lt'))=='.lt' then
         print('\n' .. v .. ':')
         filename = folder .. slash .. v
-        local code, warns = compile.file(filename)
+        local _, code, warns = compile.file(filename)
         if not code then
             io.stderr:write(warns .. "\n")
             failed()
@@ -94,7 +95,7 @@ for k, v in pairs(files) do
     if #v > 0 and string.sub(v, -string.len('.lt'))=='.lt' then
         print('\n' .. v .. ':')
         filename = folder .. slash .. v
-        local code, warns = compile.file(filename)
+        local _, code, warns = compile.file(filename)
         if not warns then
             failed()
         end

@@ -11,12 +11,12 @@ var string_reader = \src ->
 var file_reader = \filename ->
 	var f
 	if filename
-		f = assert(io.open(filename, 'r'), "cannot open file " .. filename)
+		f = io.open(filename, 'r')
 	else
 		f = io.stdin
 	
 	return ->
-		return f.read(@, Slab)
+		return f and f.read(@, Slab)
 
 return {
 	string = string_reader

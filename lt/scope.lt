@@ -1,4 +1,4 @@
-var reserved = require('lua.reserved')
+var reserved = require('lt.reserved')
 var Builtin = reserved.Builtin
 
 var unused = {

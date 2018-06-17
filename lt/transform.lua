@@ -1,8 +1,8 @@
 --
 -- Generated from transform.lt
 --
-local ast = require("lua.ast")
-local Tag = require("lua.tag")
+local ast = require("lt.ast")
+local Tag = require("lt.tag")
 local TStmt = Tag.Stmt
 local TExpr = Tag.Expr
 local id = ast.Expr.id

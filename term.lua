@@ -1,38 +1,30 @@
--- determine forward or back slash
-local slash = package.config:sub(1,1)
-
--- ansi colors
+--
+-- Generated from term.lt
+--
+local slash = package.config:sub(1, 1)
 local color = {
-    reset     = "\27[0m"
-    , red     = "\27[91;1m"
-    , green   = "\27[92;1m"
-    , yellow  = "\27[93;1m"
-    , blue    = "\27[94;1m"
+    reset = "\27[0m"
+    , red = "\27[91;1m"
+    , green = "\27[92;1m"
+    , yellow = "\27[93;1m"
+    , blue = "\27[94;1m"
     , magenta = "\27[95;1m"
-    , cyan    = "\27[96;1m"
-    , white   = "\27[97;1m"
+    , cyan = "\27[96;1m"
+    , white = "\27[97;1m"
 }
-
--- print usage and exit
-function usage(text)
-    io.stderr:write(text)
+local usage = function(text)
+    print(text)
     os.exit(1)
 end
-
--- parses command line
--- yields switch and its matching parameter if any
-function scan(args)
-    -- const
+local scan = function(args)
     local yield = coroutine.yield
     local null = ""
-    
     return coroutine.wrap(function()
         local switch = null
         local k = 1
         while args[k] do
             local arg = args[k]
             if "-" == string.sub(arg, 1, 1) then
-                -- previous loop had a switch
                 if switch ~= null then
                     yield(switch)
                 end
@@ -48,15 +40,11 @@ function scan(args)
         end
     end)
 end
-
-
--- Window to support ANSI color, may not work on all Windows version
-if slash == '\\' then
-	local bit = require("bit")
-	local ffi = require("ffi")
-	local kernel32 = ffi.load("kernel32")
-
-	ffi.cdef([[
+if slash == "\\" then
+    local bit = require("bit")
+    local ffi = require("ffi")
+    local kernel32 = ffi.load("kernel32")
+    ffi.cdef([=[
 		typedef long BOOL;
 		typedef void* HANDLE;
 		typedef uint32_t DWORD;
@@ -67,33 +55,24 @@ if slash == '\\' then
 		BOOL GetConsoleMode(HANDLE hConsoleHandle, LPDWORD lpMode);
 		BOOL SetConsoleMode(HANDLE hConsoleHandle, DWORD dwMode);
 		DWORD GetLastError(void);
-	]])
-
-	function enable_VT()
-		local handle = kernel32.GetStdHandle(kernel32.STD_OUTPUT_HANDLE)
-		local lpMode = ffi.new("DWORD[1]")
-		local res = kernel32.GetConsoleMode(handle, lpMode)
-		if res ~= 0 then
-			local mode = bit.bor(lpMode[0], kernel32.ENABLE_VIRTUAL_TERMINAL_PROCESSING)
-			local res = kernel32.SetConsoleMode(handle, mode)
-			if res ~= 0 then
-				return true
-			end
-		end
-		return false
-	end
-	if not enable_VT() then
-		print('Possibly no ANSI colors support, error ' .. kernel32.GetLastError())
-	else
-		-- success!
-		--io.stderr:write(color.magenta, "Using ANSI colors\n", color.reset)
-	end
+	]=])
+    local enable_VT = function()
+        local handle = kernel32.GetStdHandle(kernel32.STD_OUTPUT_HANDLE)
+        local lpMode = ffi.new("DWORD[1]")
+        local res = kernel32.GetConsoleMode(handle, lpMode)
+        if res ~= 0 then
+            local mode = bit.bor(lpMode[0], kernel32.ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+            local res = kernel32.SetConsoleMode(handle, mode)
+            if res ~= 0 then
+                return true
+            end
+        end
+        return false
+    end
+    if not enable_VT() then
+        color = setmetatable({}, {__index = function()
+            return ""
+        end})
+    end
 end
-
-
-return {
-    slash = slash
-    , color = color
-    , usage = usage
-    , scan = scan
-}
+return {slash = slash, color = color, usage = usage, scan = scan}
