@@ -48,7 +48,8 @@ var Type = {
 	-- Lua table key can be any type
 	-- If it's string, we'll use back the string literal, else it is a Type object
 	-- typetypes is array of { type: type } or { name: type }
-	, tbl = \typetypes ->
+	, tbl = \typetypes, meta ->
+		typetypes.meta = meta
 		return create(TType.Tbl, typetypes)
 
 	, or = \... ->
@@ -71,7 +72,7 @@ var Type = {
 	, index = \obj, prop ->
 		return create(TType.Index, {obj = obj, prop = prop})
 
-	-- only identifier accepted, not expr
+	-- only identifier accepted, not ls
 	, typeof = \name ->
 		return create(TType.Typeof, {name = name})
 	--``

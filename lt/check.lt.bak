@@ -213,8 +213,8 @@ return \scope, stmts, warn, import ->
 	Expr[TExpr.Index] = \node ->
 		var it, ot
 		it = infer_expr(node.idx)
-		-- if index type is string, check
-		-- else key index can be any type
+		-- if it is string, check
+		-- else ot can be any type
 			-- if index is number, it can be float, so we cannot know
 			-- else index is its runtime value, so we cannot know
 		ot = infer_expr(node.obj)

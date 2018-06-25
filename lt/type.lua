@@ -30,8 +30,7 @@ local Type = {
     , func = function(ins, outs)
         return create(TType.Func, {ins = ins, outs = outs})
     end
-    , tbl = function(typetypes, meta)
-        typetypes.meta = meta
+    , tbl = function(typetypes)
         return create(TType.Tbl, typetypes)
     end
     , ["or"] = function(...)

@@ -154,7 +154,7 @@ return ->
 		return true
 
 
-	-- return true if x is contained in y
+	-- return true if x is contained in y or y.meta
 	var unify_tbl = \x, y ->
 		var key_str = \k ->
 			return "string" == type(k) and k or ty.tostr(k)

@@ -156,6 +156,15 @@ return function()
                 return false, "expects only " .. i .. " arguments but got " .. n
             end
         end
+        xs, ys = x.outs, y.outs
+        i, n = 0, #xs
+        while i < n do
+            i = i + 1
+            ok, err = unify(xs[i], ys[i] or ty["nil"](), poke)
+            if not ok then
+                return false, "return value " .. i .. " " .. err
+            end
+        end
         return true
     end
     local unify_tbl = function(x, y)
