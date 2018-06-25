@@ -1,6 +1,6 @@
 
 Luaty is yet another indent sensitive language that compiles to Lua.
-It comes with static analyzer and a few features.
+It has a static analyzer, and some opinionated syntax.
 
 
 Builtin static analyzer
@@ -50,7 +50,7 @@ Due to [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule), Luaty coul
   * no more `do` after `for` and `while`
   * no more `then` after `if`
 
-There are also minor syntax changes:
+There are also some syntax changes:
   * `repeat` becomes `do`
   * `elseif` becomes `else if`
   * `local` becomes `var`
@@ -125,12 +125,12 @@ With LuaJIT in your path, clone this repo, and cd into it.
 
 To transpile a Luaty *main.lt* file and its dependencies to *main.lua* and *dep1.lua*, *dep2.lua, ...* , use
 ```
-luajit lt.lua -c /path/to/main.lt
+luajit lt.lua -f /path/to/main.lt
 ```
 
-The lua output file will not be generated if they already exist. To force overwriting, use -f instead of -c
+The Lua output files will be **overwritten** if they exist. To prevent overwriting, use -c instead of -f
 ```
-luajit lt.lua -f /path/to/main.lt
+luajit lt.lua -c /path/to/main.lt
 ```
 
 
