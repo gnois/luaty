@@ -13,7 +13,11 @@ local Circular = {}
 local report = function(color)
     local Severe_Color = {color.yellow, color.magenta, color.red}
     local warnings = {}
+    local severe = 0
     return {warn = function(line, col, severity, msg)
+        if severity > severe then
+            severe = severity
+        end
         local w = {line = line, col = col, severity = severity, msg = msg}
         for i, m in ipairs(warnings) do
             if line == m.line and severity < m.severity then
@@ -35,12 +39,7 @@ local report = function(color)
             return table.concat(warns, "\n")
         end
     end, continue = function()
-        for _, w in ipairs(warnings) do
-            if w.severity > 2 then
-                return false
-            end
-        end
-        return true
+        return severe < 3
     end}
 end
 return function(options, color)

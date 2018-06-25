@@ -15,9 +15,13 @@ var report = \color ->
 	-- array of warnings, ordered by line,col
 	-- must be local, so that repl warnings are cleared
 	var warnings = {}
-
+	var severe = 0
+	
 	return {
 		warn = \line, col, severity, msg ->
+			if severity > severe
+				severe = severity
+
 			var w = { line = line, col = col, severity = severity, msg = msg }
 			
 			for i, m in ipairs(warnings)
@@ -42,10 +46,7 @@ var report = \color ->
 
 		-- severity > 2 means its likely to crash the next stage
 		, continue = ->
-			for _, w in ipairs(warnings)
-				if w.severity > 2
-					return false
-			return true
+			return severe < 3
 
 	}
 

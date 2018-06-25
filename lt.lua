@@ -110,7 +110,7 @@ elseif paths[1] then
             print(" Fail to run " .. paths[1])
         end
     else
-        local skips, s = {}, 0
+        local skips = {}
         for key, file in pairs(imports) do
             print(file.path)
             local dest = string.gsub(file.path, "%.lt", ".lua")
@@ -124,7 +124,7 @@ elseif paths[1] then
                 if not force then
                     local f = io.open(dest, "r")
                     if f then
-                        skips[dest] = true
+                        skips[dest] = 1
                         f:close()
                     end
                 end
@@ -139,14 +139,19 @@ elseif paths[1] then
                     f:close()
                 end
             else
-                print("   Fail to generate " .. dest)
+                skips[dest] = -1
             end
         end
-        if not force then
-            for k in pairs(skips) do
-                print(color.red .. k .. " already existed so is not overwritten" .. color.reset)
+        local fails, f = {}, 1
+        for k, v in pairs(skips) do
+            if v == 1 then
+                fails[f] = k .. " already exists. Use -f to overwrite"
+            else
+                fails[f] = "Fail to generate " .. k
             end
+            f = f + 1
         end
+        print(color.red .. table.concat(fails, "\n") .. color.reset)
     end
 else
     usage("Error: no file given")

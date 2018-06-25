@@ -113,8 +113,7 @@ else if paths[1]
 			print(" Fail to run " .. paths[1])
 		
 	else
-		var skips, s = {}, 0
-		
+		var skips = {}
 		for key, file in pairs(imports)
 			print(file.path)
 			var dest = string.gsub(file.path, "%.lt", ".lua")
@@ -130,7 +129,7 @@ else if paths[1]
 				if not force
 					var f = io.open(dest, 'r')
 					if f
-						skips[dest] = true
+						skips[dest] = 1
 						f.close(@)
 
 				if not skips[dest]
@@ -144,12 +143,17 @@ else if paths[1]
 					f.write(@, file.code)
 					f.close(@)
 			else
-				print("   Fail to generate " .. dest)
-		
-		if not force
-			for k in pairs(skips)
-				print(color.red .. k .. " already existed so is not overwritten" .. color.reset)
+				skips[dest] = -1
 
-		
+		-- list files not generated
+		var fails, f = {}, 1
+		for k, v in pairs(skips)
+			if v == 1
+				fails[f] = k .. " already exists. Use -f to overwrite"
+			else
+				fails[f] = "Fail to generate " .. k
+			f = f + 1
+		print(color.red .. table.concat(fails, "\n") .. color.reset)
+
 else
 	usage("Error: no file given")
