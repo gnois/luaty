@@ -25,7 +25,7 @@ return {Stmt = {
     , Function = "Function"
     , Table = "Table"
     , Index = "Index"
-    , Property = "Property"
+    , Field = "Field"
     , Invoke = "Invoke"
     , Call = "Call"
     , Union = "Union"
@@ -41,6 +41,7 @@ return {Stmt = {
     , Tbl = "Tbl"
     , Or = "Or"
     , And = "And"
+    , Name = "Name"
     , Index = "Index"
     , Typeof = "Typeof"
 }, Constraint = {Eq = "Eq", Sub = "Sub", Opt = "Opt"}}

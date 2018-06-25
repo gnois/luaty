@@ -64,17 +64,17 @@ var Type = {
 				l = l + 1
 		return create(TType.Or, list)
 
-	--``
 	, and = \... ->
 		return create(TType.And, {...})
-	
-	, index = \obj, prop ->
-		return create(TType.Index, {obj = obj, prop = prop})
 
-	-- only identifier accepted, not expr
-	, typeof = \name ->
-		return create(TType.Typeof, {name = name})
-	--``
+	, name = \name ->
+		return create(TType.Name, {name = name})
+
+	, index = \obj, idx ->
+		return create(TType.Index, {obj = obj, idx = idx})
+
+	, typeof = \var ->
+		return create(TType.Typeof, {var = var})
 
 }
 
@@ -205,6 +205,7 @@ return {
 	, tbl = Type.tbl
 	, or = Type.or
 	, and = Type.and
+	, name = Type.name
 	, index = Type.index
 	, typeof = Type.typeof
 	

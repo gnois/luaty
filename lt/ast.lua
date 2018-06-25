@@ -80,14 +80,14 @@ local Expression = {
     , table = function(valkeys, ls)
         return make(TExpr.Table, {valkeys = valkeys}, ls)
     end
-    , index = function(obj, index, ls)
-        return make(TExpr.Index, {obj = obj, idx = index}, ls)
+    , index = function(obj, idx, ls)
+        return make(TExpr.Index, {obj = obj, idx = idx}, ls)
     end
-    , property = function(obj, prop, ls)
-        return make(TExpr.Property, {obj = obj, prop = prop}, ls)
+    , field = function(obj, field, ls)
+        return make(TExpr.Field, {obj = obj, field = field}, ls)
     end
-    , invoke = function(obj, prop, args, ls)
-        return make(TExpr.Invoke, {obj = obj, prop = prop, args = args}, ls)
+    , invoke = function(obj, field, args, ls)
+        return make(TExpr.Invoke, {obj = obj, field = field, args = args}, ls)
     end
     , call = function(func, args, ls)
         return make(TExpr.Call, {func = func, args = args}, ls)

@@ -23,7 +23,7 @@ local NewLine = {TK_newline = true}
 local Kind = {
     Expr = "Expr"
     , Var = "Var"
-    , Property = "Property"
+    , Field = "Field"
     , Index = "Index"
     , Call = "Call"
     , Union = "Union"
@@ -210,7 +210,7 @@ return function(ls, warn)
         local loc = ls.loc()
         local typ
         if ls.token == "TK_name" then
-            typ = ty.custom(ls.value)
+            typ = ty.name(ls.value)
             ls.step()
         elseif ls.token == "(" then
             ls.step()
@@ -258,7 +258,7 @@ return function(ls, warn)
     end
     type_unary = function()
         local tk = ls.token
-        if tk == "$" then
+        if tk == "~" then
             ls.step()
             local t = type_binary(operator.unary_priority)
             return ty.typeof(t)
@@ -528,7 +528,7 @@ return function(ls, warn)
                     ls.step()
                 else
                     key = lex_str()
-                    vk, v = Kind.Property, Expr.property(v, key, at)
+                    vk, v = Kind.Field, Expr.field(v, key, at)
                 end
             elseif ls.token == "[" then
                 key = expr_bracket()
@@ -619,7 +619,7 @@ return function(ls, warn)
     end
     local parse_assignment
     parse_assignment = function(lhs, v, vk)
-        if vk ~= Kind.Var and vk ~= Kind.Property and vk ~= Kind.Index then
+        if vk ~= Kind.Var and vk ~= Kind.Field and vk ~= Kind.Index then
             err_symbol()
         end
         local loc = ls.loc()

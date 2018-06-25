@@ -180,7 +180,7 @@ return \stmts ->
 		node.idx = visit_expr(node.idx)
 		return node
 
-	Expr[TExpr.Property] = \node ->
+	Expr[TExpr.Field] = \node ->
 		node.obj = visit_expr(node.obj)
 		return node
 
@@ -190,9 +190,9 @@ return \stmts ->
 		if arg1 and arg1.name == '@'
 			var func = node.func
 			if not func.bracketed
-				if func.tag == TExpr.Property
+				if func.tag == TExpr.Field
 					table.remove(node.args, 1)
-					return ast.Expr.invoke(func.obj, func.prop, node.args, node)
+					return ast.Expr.invoke(func.obj, func.field, node.args, node)
 
 				else if func.tag == TExpr.Index
 					-- simulate a wrapped self method call

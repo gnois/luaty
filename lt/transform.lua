@@ -124,7 +124,7 @@ return function(stmts)
         node.idx = visit_expr(node.idx)
         return node
     end
-    Expr[TExpr.Property] = function(node)
+    Expr[TExpr.Field] = function(node)
         node.obj = visit_expr(node.obj)
         return node
     end
@@ -134,9 +134,9 @@ return function(stmts)
         if arg1 and arg1.name == "@" then
             local func = node.func
             if not func.bracketed then
-                if func.tag == TExpr.Property then
+                if func.tag == TExpr.Field then
                     table.remove(node.args, 1)
-                    return ast.Expr.invoke(func.obj, func.prop, node.args, node)
+                    return ast.Expr.invoke(func.obj, func.field, node.args, node)
                 elseif func.tag == TExpr.Index then
                     local obj = id("_self_", node)
                     node.args[1] = obj

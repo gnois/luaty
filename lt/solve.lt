@@ -109,12 +109,12 @@ return ->
 	var extend = \tvar, texp ->
 		assert(tvar.tag == TType.New)
 		if occurs(tvar, texp)
-			return false, ty.tostr(texp) .. " contains recursive type " .. ty.tostr(tvar)
+			return nil, "contains recursive type " .. ty.tostr(tvar) .. " in " .. ty.tostr(texp)
 
 		for id, t in ipairs(subs)
 			subs[id] = subst(t, tvar, texp)
 		subs[tvar.id] = texp
-		return true
+		return tvar
 
 
 	------ unification --------------
@@ -124,34 +124,34 @@ return ->
 		var xs, ys = x.ins, y.ins
 		var i, n = 0, #xs
 		-- check if too few args
-		var ok, err
+		var t, err
 		while i < n
 			i = i + 1
 			if ys[i]
-				ok, err = unify(xs[i], ys[i])
-				if not ok
-					return false, "parameter " .. i .. " " .. err
+				t, err = unify(xs[i], ys[i])
+				if not t
+					return nil, "parameter " .. i .. " " .. err
 			else
 				if not xs[i].varargs
-					return false, "expects " .. n .. " arguments but only got " .. (i-1)
-				return true
+					return nil, "expects " .. n .. " arguments but only got " .. (i-1)
+				return x
 
 		-- check if too many args
 		n = #ys
 		if i < n
 			if i < 1 or not xs[i].varargs
 				return false, "expects only " .. i .. " arguments but got " .. n
+
 		-- check return types
 		xs, ys = x.outs, y.outs
 		i, n = 0, #xs
 		while i < n
 			i = i + 1
-			ok, err = unify(xs[i], ys[i] or ty.nil(), poke)
-			if not ok
-				return false, "return value " .. i .. " " .. err
-
+			t, err = unify(xs[i], ys[i] or ty.nil(), poke)
+			if not t
+				return nil, "return value " .. i .. " " .. err
 		-- ignore extra returns
-		return true
+		return x
 
 
 	-- return true if x is contained in y
@@ -171,11 +171,12 @@ return ->
 				if vy
 					var ok, err = unify(ttx[1], vy)
 					if not ok
-						return false, err .. " for key `" .. key_str(ttx[2]) .. "`"
+						return nil, err
 				else
-					return false, "expects key `" .. key_str(ttx[2]) .. "` in " .. ty.tostr(y)
+					return nil, "expects key `" .. key_str(ttx[2]) .. "` in " .. ty.tostr(y)
 
-		return true
+		return x
+
 
 	-- return false, msg if type mismatch
 	unify = \x, y, ignore ->
@@ -193,28 +194,30 @@ return ->
 
 		-- any match all except pure nil
 		if x.tag == TType.Any and y.tag ~= TType.Nil
-			return true
+			return x
 			
 		if y.tag == TType.Any and x.tag ~= TType.Nil
-			return true
+			return y
 
 		if x.tag == TType.Or
 			for _, t in ipairs(x)
-				if unify(t, y, true)
-					return true
+				var tt = unify(t, y, true)
+				if tt
+					return tt
 
 		if y.tag == TType.Or
 			for _, t in ipairs(y)
-				if unify(x, t, true)
-					return true
+				var tt = unify(x, t, true)
+				if tt
+					return tt
 
 		if x.tag == y.tag
 			if x.tag == TType.Nil
-				return true
+				return x
 
 			if x.tag == TType.Val
 				if x.type == y.type
-					return true
+					return x
 
 			if x.tag == TType.Func
 				return unify_func(x, y)
@@ -222,7 +225,7 @@ return ->
 			if x.tag == TType.Tbl
 				return unify_tbl(x, y)
 
-		return false, ignore and "" or ("expects " .. ty.tostr(x) .. " instead of " .. ty.tostr(y))
+		return nil, ignore and "" or ("expects " .. ty.tostr(x) .. " instead of " .. ty.tostr(y))
 
 
 	return {

@@ -26,7 +26,7 @@ return {
 		, Function = 'Function'
 		, Table = 'Table'
 		, Index = 'Index'
-		, Property = 'Property'
+		, Field = 'Field'
 		, Invoke = 'Invoke'
 		, Call = 'Call'
 		, Union = 'Union'
@@ -34,7 +34,6 @@ return {
 		, Binary = 'Binary'
 	}
 
-	-- nil is a bool property
 	, Type = {
 		New = 'New'
 		, Any = 'Any'
@@ -45,6 +44,7 @@ return {
 		, Tbl = 'Tbl'
 		, Or = 'Or'
 		, And = 'And'
+		, Name = 'Name'
 		, Index = 'Index'
 		, Typeof = 'Typeof'
 	}

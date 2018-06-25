@@ -48,6 +48,18 @@ local Type = {
         end
         return create(TType.Or, list)
     end
+    , ["and"] = function(...)
+        return create(TType.And, {...})
+    end
+    , name = function(name)
+        return create(TType.Name, {name = name})
+    end
+    , index = function(obj, idx)
+        return create(TType.Index, {obj = obj, idx = idx})
+    end
+    , typeof = function(var)
+        return create(TType.Typeof, {var = var})
+    end
 }
 local varargs = function(t)
     assert(TType[t.tag])
@@ -185,6 +197,7 @@ return {
     , tbl = Type.tbl
     , ["or"] = Type["or"]
     , ["and"] = Type["and"]
+    , name = Type.name
     , index = Type.index
     , typeof = Type.typeof
     , varargs = varargs

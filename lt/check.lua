@@ -238,12 +238,12 @@ return function(scope, stmts, warn, import)
         check(ty.tbl({}), ot, node, "indexer ")
         return ty.any()
     end
-    Expr[TExpr.Property] = function(node)
+    Expr[TExpr.Field] = function(node)
         local ot
         ot = infer_expr(node.obj)
         local vt = new()
-        local tytys = {{vt, node.prop}}
-        check(ty.tbl(tytys), ot, node, "property `." .. node.prop .. "` ")
+        local tytys = {{vt, node.field}}
+        check(ty.tbl(tytys), ot, node, "field `." .. node.field .. "` ")
         return solv.apply(vt)
     end
     Expr[TExpr.Invoke] = function(node)
@@ -251,8 +251,8 @@ return function(scope, stmts, warn, import)
         atypes = infer_exprs(node.args)
         ot = infer_expr(node.obj)
         local retype = new()
-        local tytys = {{ty.func(ty.tuple(atypes), ty.tuple({retype})), node.prop}}
-        check(ty.tbl(tytys), ot, node, "method `" .. node.prop .. "` ")
+        local tytys = {{ty.func(ty.tuple(atypes), ty.tuple({retype})), node.field}}
+        check(ty.tbl(tytys), ot, node, "method `" .. node.field .. "` ")
         return solv.apply(retype)
     end
     Expr[TExpr.Call] = function(node)

@@ -79,14 +79,14 @@ var Expression = {
 	, table = \valkeys, ls ->
 		return make(TExpr.Table, {valkeys = valkeys}, ls)
 
-	, index = \obj, index, ls ->
-		return make(TExpr.Index, {obj = obj, idx = index}, ls)
+	, index = \obj, idx, ls ->
+		return make(TExpr.Index, {obj = obj, idx = idx}, ls)
 
-	, property = \obj, prop, ls ->
-		return make(TExpr.Property, {obj = obj, prop = prop}, ls)
+	, field = \obj, field, ls ->
+		return make(TExpr.Field, {obj = obj, field = field}, ls)
 
-	, invoke = \obj, prop, args, ls ->
-		return make(TExpr.Invoke, {obj = obj, prop = prop, args = args}, ls)
+	, invoke = \obj, field, args, ls ->
+		return make(TExpr.Invoke, {obj = obj, field = field, args = args}, ls)
 
 	, call = \func, args, ls ->
 		return make(TExpr.Call, {func = func, args = args}, ls)

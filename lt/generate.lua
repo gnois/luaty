@@ -173,12 +173,12 @@ local generate = function(stmts)
         local exp = format("%s[%s]", receiver(node.obj), emit_expr(node.idx))
         return priority(exp)
     end
-    Expr[TExpr.Property] = function(node)
-        local exp = format("%s.%s", receiver(node.obj), node.prop)
+    Expr[TExpr.Field] = function(node)
+        local exp = format("%s.%s", receiver(node.obj), node.field)
         return priority(exp)
     end
     Expr[TExpr.Invoke] = function(node)
-        local exp = format("%s:%s(%s)", receiver(node.obj), node.prop, emit_exprs(node.args))
+        local exp = format("%s:%s(%s)", receiver(node.obj), node.field, emit_exprs(node.args))
         return priority(exp)
     end
     Expr[TExpr.Call] = function(node)

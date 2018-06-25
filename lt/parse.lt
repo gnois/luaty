@@ -13,7 +13,7 @@ var LJ_52 = false
 var EndOfBlock = { TK_dedent = true, TK_else = true, TK_until = true, TK_eof = true, ['}'] = true, [')'] = true, [';'] = true, [','] = true }
 var NewLine = { TK_newline = true }
 -- expr kind
-var Kind = { Expr = 'Expr', Var = 'Var', Property = 'Property', Index = 'Index', Call = 'Call', Union = 'Union' }
+var Kind = { Expr = 'Expr', Var = 'Var', Field = 'Field', Index = 'Index', Call = 'Call', Union = 'Union' }
 
 
 return \ls, warn ->
@@ -211,7 +211,7 @@ return \ls, warn ->
 		var loc = ls.loc()
 		var typ
 		if ls.token == 'TK_name'
-			typ = ty.custom(ls.value)
+			typ = ty.name(ls.value)
 			ls.step()
 		else if ls.token == '('
 			ls.step()
@@ -223,7 +223,7 @@ return \ls, warn ->
 			return
 
 		-- Parse multiple type suffix
-		while ls.token == '.'  -- type name cannot have `-`, so no need to consider `[`
+		while ls.token == '.'  -- typeof var cannot have index [], bcoz [] indexer type is always `any`
 			ls.step() 
 			if ls.token ~= 'TK_name'
 				break
@@ -260,7 +260,7 @@ return \ls, warn ->
 
 	type_unary = ->
 		var tk = ls.token
-		if tk == '$'
+		if tk == '~'
 			ls.step()
 			var t = type_binary(operator.unary_priority)
 			return ty.typeof(t)
@@ -530,7 +530,7 @@ return \ls, warn ->
 					ls.step()
 				else
 					key = lex_str()
-					vk, v = Kind.Property, Expr.property(v, key, at)
+					vk, v = Kind.Field, Expr.field(v, key, at)
 			else if ls.token == '['
 				key = expr_bracket()
 				vk, v = Kind.Index, Expr.index(v, key, at)
@@ -624,7 +624,7 @@ return \ls, warn ->
 
 	var parse_assignment
 	parse_assignment = \lhs, v, vk ->
-		if vk ~= Kind.Var and vk ~= Kind.Property and vk ~= Kind.Index
+		if vk ~= Kind.Var and vk ~= Kind.Field and vk ~= Kind.Index
 			err_symbol()
 
 		var loc = ls.loc()

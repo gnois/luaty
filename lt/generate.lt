@@ -153,12 +153,12 @@ var generate = \stmts ->
 		var exp = format("%s[%s]", receiver(node.obj), emit_expr(node.idx))
 		return priority(exp)
 
-	Expr[TExpr.Property] = \node ->
-		var exp = format("%s.%s", receiver(node.obj), node.prop)
+	Expr[TExpr.Field] = \node ->
+		var exp = format("%s.%s", receiver(node.obj), node.field)
 		return priority(exp)
 
 	Expr[TExpr.Invoke] = \node ->
-		var exp = format("%s:%s(%s)", receiver(node.obj), node.prop, emit_exprs(node.args))
+		var exp = format("%s:%s(%s)", receiver(node.obj), node.field, emit_exprs(node.args))
 		return priority(exp)
 
 	Expr[TExpr.Call] = \node ->
