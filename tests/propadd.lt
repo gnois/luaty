@@ -1,0 +1,23 @@
+var k
+k = 'p'
+k = 9
+k = {}
+k.l = 2
+k.l = {}
+k.l.b = true
+
+var g = \y ->
+	y.a = {}
+	y.a.c = 1
+	return y
+	
+var f = \x ->
+	x.a.b = true
+	x.a.c = x.a.c + 1
+	return x
+
+
+var z = {}
+var zz = z
+print(f(g(zz)).a.c)
+

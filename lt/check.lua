@@ -32,8 +32,8 @@ return function(scope, stmts, warn, import)
         end
     end
     local check = function(x, y, node, msg)
-        local ok, err = solv.unify(x, y)
-        if not ok then
+        local t, err = solv.unify(x, y)
+        if not t then
             warn(node.line, node.col, 1, msg .. err)
         end
     end
@@ -132,16 +132,16 @@ return function(scope, stmts, warn, import)
             end
         end
     end
-    Expr[TExpr.Nil] = function(node)
+    Expr[TExpr.Nil] = function()
         return ty["nil"]()
     end
-    Expr[TExpr.Bool] = function(node)
+    Expr[TExpr.Bool] = function()
         return ty.bool()
     end
-    Expr[TExpr.Number] = function(node)
+    Expr[TExpr.Number] = function()
         return ty.num()
     end
-    Expr[TExpr.String] = function(node)
+    Expr[TExpr.String] = function()
         return ty.str()
     end
     Expr[TExpr.Vararg] = function(node)
@@ -167,6 +167,7 @@ return function(scope, stmts, warn, import)
         scope.begin_func()
         check_types(node.types, node)
         check_types(node.retypes, node)
+        local ptypes = {}
         for i, p in ipairs(node.params) do
             local t = node.types and node.types[i] or new()
             if p.tag == TExpr.Vararg then
@@ -175,15 +176,16 @@ return function(scope, stmts, warn, import)
             else
                 declare(p, t)
             end
+            ptypes[i] = t
         end
         scope.set_returns(node.retypes)
         check_block(node.body)
-        local ptypes = {}
-        for i, p in ipairs(node.params) do
-            ptypes[i] = solv.apply(infer_expr(p))
-            if node.types and node.types[i] then
-                check(ptypes[i], node.types[i], p, "parameter " .. (node.params[i].tag == TExpr.Vararg and "..." or node.params[i].name) .. " ")
-                ptypes[i] = node.types[i]
+        local anno = node.types
+        if anno then
+            for i, p in ipairs(node.params) do
+                if anno[i] then
+                    check(infer_expr(p), anno[i], p, "parameter " .. (p.tag == TExpr.Vararg and "..." or p.name) .. " ")
+                end
             end
         end
         local retuples = scope.get_returns()
@@ -244,7 +246,7 @@ return function(scope, stmts, warn, import)
         local vt = new()
         local tytys = {{vt, node.field}}
         check(ty.tbl(tytys), ot, node, "field `." .. node.field .. "` ")
-        return solv.apply(vt)
+        return vt
     end
     Expr[TExpr.Invoke] = function(node)
         local atypes, ot
@@ -253,7 +255,7 @@ return function(scope, stmts, warn, import)
         local retype = new()
         local tytys = {{ty.func(ty.tuple(atypes), ty.tuple({retype})), node.field}}
         check(ty.tbl(tytys), ot, node, "method `" .. node.field .. "` ")
-        return solv.apply(retype)
+        return retype
     end
     Expr[TExpr.Call] = function(node)
         local atypes, ftype
@@ -264,7 +266,7 @@ return function(scope, stmts, warn, import)
         ftype = infer_expr(node.func)
         local retype = new()
         check(ftype, ty.func(ty.tuple(atypes), ty.tuple({retype})), node, "function ")
-        return solv.apply(retype)
+        return retype
     end
     Expr[TExpr.Unary] = function(node)
         local rtype
@@ -312,25 +314,48 @@ return function(scope, stmts, warn, import)
         rtypes = infer_exprs(node.exprs)
         for i, var in ipairs(node.vars) do
             local ltype = node.types and node.types[i]
-            if ltype then
+            if ltype and rtypes[i] then
                 check(ltype, rtypes[i], node, "type annotation ")
+            end
+            declare(var, solv.extend(new(), ltype or rtypes[i] or ty["nil"]()))
+        end
+    end
+    local assign = function(nodes, types)
+        for i, node in ipairs(nodes) do
+            local rtype = types[i] or ty["or"](ty.any(), ty["nil"]())
+            local ltype
+            if node.tag == TExpr.Id then
+                ltype = infer_expr(node)
+                if not solv.unify(ltype, rtype, true) then
+                    solv.extend(ltype, ty["or"](solv.apply(ltype), rtype))
+                end
             else
-                ltype = rtypes[i]
-                if not ltype then
-                    ltype = new()
+                local ot = infer_expr(node.obj)
+                check(ty.tbl({}), ot, node, " assignment ")
+                if node.tag == TExpr.Index then
+                    local it = infer_expr(node.idx)
+                else
+                    assert(node.tag == TExpr.Field)
+                    local vt = new()
+                    local tytys = {{vt, node.field}}
+                    local t = solv.unify(ty.tbl(tytys), ot, true)
+                    if t then
+                        solv.extend(vt, rtype)
+                    else
+                        if t == nil then
+                            scope.update_var(node.obj.name, solv.extend(new(), ty.tbl(tytys)))
+                        else
+                            solv.extend(vt, ty["or"](solv.apply(vt), rtype))
+                        end
+                    end
                 end
             end
-            declare(var, ltype)
         end
     end
     Stmt[TStmt.Assign] = function(node)
         balance_check(node.lefts, node.rights)
-        local rtypes, ltypes
-        rtypes = infer_exprs(node.rights)
-        ltypes = infer_exprs(node.lefts)
-        for i, ltype in ipairs(ltypes) do
-            check(ltype, rtypes[i] or ty["or"](ty.any(), ty["nil"]()), node, "assigment ")
-        end
+        local rtypes = infer_exprs(node.rights)
+        assign(node.lefts, rtypes)
     end
     Stmt[TStmt.Do] = function(node)
         check_block(node.body)

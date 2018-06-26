@@ -1,5 +1,53 @@
 var Tag = require('lt.tag')
+
+-- check if ast are the same
+var same
+same = \a, b ->
+	if a and b and a.tag == b.tag
+		-- http://stackoverflow.com/questions/27674367/lua-check-if-a-table-can-be-looped-through-via-ipairs-ipairs-starting-at-0
+		if #a ~= #b
+			return false
+
+		-- check array part
+		var last = 1
+		for i, v in ipairs(a)
+			last = i
+			if 'table' == type(v)
+				if not same(v, b[i])
+					return false
+			else if b[i] ~= v
+				return false
+
+		-- check hashmap part
+		for k, v in pairs(a)
+			if 'number' ~= type(k) or k < 1 or k > last or math.floor(k) ~= k
+				-- ignore line,col
+				if k ~= 'line' and k ~= 'col'
+					if 'table' == type(v)
+						if not same(v, b[k])
+							return false
+					else if b[k] ~= v
+						return false
+
+		-- b may have more keys than a
+		for k, v in pairs(b)
+			if 'number' ~= type(k) or k < 1 or k > last or math.floor(k) ~= k
+				-- ignore line,col
+				if k ~= 'line' and k ~= 'col'
+					if 'table' == type(v)
+						if not same(v, a[k])
+							return false
+					else if a[k] ~= v
+						return false
+
+		return true
+	return false
+
+
+
+
 var TType = Tag.Type
+
 
 --``
 1,2,3, .. typevar
@@ -55,13 +103,25 @@ var Type = {
 		-- flatten
 		var list, l = {}, 1
 		for _, t in ipairs({...})
-			if t.tag == "TType.Or"
+			if t.tag == TType.Or
 				for __, tt in ipairs(t)
 					list[l] = tt
 					l = l + 1
 			else
 				list[l] = t
 				l = l + 1
+		-- remove dups
+		var out, o = {}, 0
+		for _, t in ipairs(list)
+			var skip = false
+			for _, o in ipairs(out)
+				if same(t, o)
+					skip = true
+					break
+			if not skip
+				o = o + 1
+				out[o] = t
+		
 		return create(TType.Or, list)
 
 	, and = \... ->
@@ -103,10 +163,10 @@ tostr = \t ->
 Str[TType.New] = \t ->
 	return "T" .. t.id
 
-Str[TType.Any] = \t ->
+Str[TType.Any] = ->
 	return "<any>"
 
-Str[TType.Nil] = \t ->
+Str[TType.Nil] = ->
 	return "<nil>"
 
 Str[TType.Val] = \t ->
@@ -141,50 +201,6 @@ Str[TType.Or] = \t ->
 		list[i] = tostr(x)
 	return table.concat(list, '|')
 
-
-
--- check if ast are the same
-var same
-same = \a, b ->
-	if a and b and a.tag == b.tag
-		-- http://stackoverflow.com/questions/27674367/lua-check-if-a-table-can-be-looped-through-via-ipairs-ipairs-starting-at-0
-		if #a ~= #b
-			return false
-
-		-- check array part
-		var last = 1
-		for i, v in ipairs(a)
-			last = i
-			if 'table' == type(v)
-				if not same(v, b[i])
-					return false
-			else if b[i] ~= v
-				return false
-
-		-- check hashmap part
-		for k, v in pairs(a)
-			if 'number' ~= type(k) or k < 1 or k > last or math.floor(k) ~= k
-				-- ignore line,col
-				if k ~= 'line' and k ~= 'col'
-					if 'table' == type(v)
-						if not same(v, b[k])
-							return false
-					else if b[k] ~= v
-						return false
-
-		-- b may have more keys than a
-		for k, v in pairs(b)
-			if 'number' ~= type(k) or k < 1 or k > last or math.floor(k) ~= k
-				-- ignore line,col
-				if k ~= 'line' and k ~= 'col'
-					if 'table' == type(v)
-						if not same(v, a[k])
-							return false
-					else if a[k] ~= v
-						return false
-
-		return true
-	return false
 
 
 -- shortcut

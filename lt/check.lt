@@ -33,8 +33,8 @@ return \scope, stmts, warn, import ->
 			error(msg)
 
 	var check = \x, y, node, msg ->
-		var ok, err = solv.unify(x, y)
-		if not ok
+		var t, err = solv.unify(x, y)
+		if not t
 			warn(node.line, node.col, 1, msg .. err)
 
 	var check_op = \x, y, node, op ->
@@ -79,7 +79,6 @@ return \scope, stmts, warn, import ->
 		assert(var.tag == TExpr.Id)
 		scope.new_var(var.name, vtype, var.line, var.col)
 
-
 	var balance_check = \lefts, rights ->
 		var r = #rights
 		var l = #lefts
@@ -121,16 +120,16 @@ return \scope, stmts, warn, import ->
 			
 	
 	--------- Expressions --------------------
-	Expr[TExpr.Nil] = \node ->
+	Expr[TExpr.Nil] = ->
 		return ty.nil()
 
-	Expr[TExpr.Bool] = \node ->
+	Expr[TExpr.Bool] = ->
 		return ty.bool()
 
-	Expr[TExpr.Number] = \node ->
+	Expr[TExpr.Number] = ->
 		return ty.num()
 		
-	Expr[TExpr.String] = \node ->
+	Expr[TExpr.String] = ->
 		return ty.str()
 	
 	Expr[TExpr.Vararg] = \node ->
@@ -152,6 +151,8 @@ return \scope, stmts, warn, import ->
 		scope.begin_func()
 		check_types(node.types, node)
 		check_types(node.retypes, node)
+
+		var ptypes = {}
 		for i, p in ipairs(node.params)
 			var t = node.types and node.types[i] or new()
 			if p.tag == TExpr.Vararg
@@ -159,17 +160,19 @@ return \scope, stmts, warn, import ->
 				t = ty.varargs(t)
 			else
 				declare(p, t)
-		-- retypes can be null, means not set yet
+			ptypes[i] = t
+				
+		-- retypes can be null, means no annotation
 		scope.set_returns(node.retypes)
 		check_block(node.body)
-		-- check parameter usage
-		var ptypes = {}
-		for i, p in ipairs(node.params)
-			ptypes[i] = solv.apply(infer_expr(p))
-			if node.types and node.types[i]
-				check(ptypes[i], node.types[i], p, "parameter " .. (node.params[i].tag == TExpr.Vararg and "..." or node.params[i].name) .. " ")
-				ptypes[i] = node.types[i]
 		
+		-- check parameter usage
+		var anno = node.types
+		if anno
+			for i, p in ipairs(node.params)
+				if anno[i]
+					check(infer_expr(p), anno[i], p, "parameter " .. (p.tag == TExpr.Vararg and "..." or p.name) .. " ")
+
 		var retuples = scope.get_returns()
 		scope.end_func()
 		return ty.func(ty.tuple(ptypes), retuples or ty.tuple({}))
@@ -229,7 +232,7 @@ return \scope, stmts, warn, import ->
 			{ vt, node.field }
 		}
 		check(ty.tbl(tytys), ot, node, "field `." .. node.field .. "` ")
-		return solv.apply(vt)
+		return vt
 
 	Expr[TExpr.Invoke] = \node ->
 		var atypes, ot
@@ -240,7 +243,7 @@ return \scope, stmts, warn, import ->
 			{ ty.func(ty.tuple(atypes), ty.tuple({retype})), node.field }
 		}
 		check(ty.tbl(tytys), ot, node, "method `" .. node.field .. "` ")
-		return solv.apply(retype)
+		return retype
 
 	Expr[TExpr.Call] = \node ->
 		var atypes, ftype
@@ -252,7 +255,7 @@ return \scope, stmts, warn, import ->
 		ftype = infer_expr(node.func)
 		var retype = new()
 		check(ftype, ty.func(ty.tuple(atypes), ty.tuple({retype})), node, "function ")
-		return solv.apply(retype)
+		return retype
 
 	Expr[TExpr.Unary] = \node ->
 		var rtype
@@ -301,21 +304,46 @@ return \scope, stmts, warn, import ->
 		rtypes = infer_exprs(node.exprs)
 		for i, var in ipairs(node.vars)
 			var ltype = node.types and node.types[i]
-			if ltype
+			if ltype and rtypes[i]
 				check(ltype, rtypes[i], node, "type annotation ")
+			declare(var, solv.extend(new(), ltype or rtypes[i] or ty.nil()))
+
+	var assign = \nodes, types ->
+		for i, node in ipairs(nodes)
+			var rtype = types[i] or ty.or(ty.any(), ty.nil())
+			var ltype
+			if node.tag == TExpr.Id
+				ltype = infer_expr(node)
+				-- warn if reassignment of different type
+				-- check(ltype, rtype, node, "assigment ")
+				if not solv.unify(ltype, rtype, true)
+					solv.extend(ltype, ty.or(solv.apply(ltype), rtype))
 			else
-				ltype = rtypes[i]
-				if not ltype
-					ltype = new() --ty.or(new(), ty.nil())
-			declare(var, ltype)
+				var ot = infer_expr(node.obj)
+				-- ot must be table
+				check(ty.tbl({}), ot, node, " assignment ")
+				if node.tag == TExpr.Index
+					var it = infer_expr(node.idx)
+				else
+					assert(node.tag == TExpr.Field)
+					var vt = new()
+					var tytys = {
+						{ vt, node.field }
+					}
+					var t = solv.unify(ty.tbl(tytys), ot, true)
+					if t
+						solv.extend(vt, rtype)
+					else
+						if t == nil  -- adding new key
+							scope.update_var(node.obj.name, solv.extend(new(), ty.tbl(tytys)))
+						else -- reassignment of different type
+							solv.extend(vt, ty.or(solv.apply(vt), rtype))
+
 
 	Stmt[TStmt.Assign] = \node ->
 		balance_check(node.lefts, node.rights)
-		var rtypes, ltypes
-		rtypes = infer_exprs(node.rights)
-		ltypes = infer_exprs(node.lefts)
-		for i, ltype in ipairs(ltypes)
-			check(ltype, rtypes[i] or ty.or(ty.any(), ty.nil()), node, "assigment ")
+		var rtypes = infer_exprs(node.rights)
+		assign(node.lefts, rtypes)
 
 	Stmt[TStmt.Do] = \node ->
 		check_block(node.body)

@@ -120,10 +120,10 @@ return function()
         end
         return false
     end
-    local extend = function(tvar, texp)
+    local extend = function(tvar, texp, ignore)
         assert(tvar.tag == TType.New)
         if occurs(tvar, texp) then
-            return nil, "contains recursive type " .. ty.tostr(tvar) .. " in " .. ty.tostr(texp)
+            return false, ignore and "" or "contains recursive type " .. ty.tostr(tvar) .. " in " .. ty.tostr(texp)
         end
         for id, t in ipairs(subs) do
             subs[id] = subst(t, tvar, texp)
@@ -132,42 +132,42 @@ return function()
         return tvar
     end
     local unify
-    local unify_func = function(x, y)
+    local unify_func = function(x, y, ignore)
         local xs, ys = x.ins, y.ins
         local i, n = 0, #xs
         local t, err
         while i < n do
             i = i + 1
             if ys[i] then
-                t, err = unify(xs[i], ys[i])
+                t, err = unify(xs[i], ys[i], ignore)
                 if not t then
-                    return nil, "parameter " .. i .. " " .. err
+                    return false, ignore and "" or "parameter " .. i .. " " .. err
                 end
             else
                 if not xs[i].varargs then
-                    return nil, "expects " .. n .. " arguments but only got " .. i - 1
+                    return false, ignore and "" or "expects " .. n .. " arguments but only got " .. i - 1
                 end
-                return x
+                return true
             end
         end
         n = #ys
         if i < n then
             if i < 1 or not xs[i].varargs then
-                return false, "expects only " .. i .. " arguments but got " .. n
+                return false, ignore and "" or "expects only " .. i .. " arguments but got " .. n
             end
         end
         xs, ys = x.outs, y.outs
         i, n = 0, #xs
         while i < n do
             i = i + 1
-            t, err = unify(xs[i], ys[i] or ty["nil"](), poke)
+            t, err = unify(xs[i], ys[i] or ty["nil"](), ignore)
             if not t then
-                return nil, "return value " .. i .. " " .. err
+                return false, ignore and "" or "return value " .. i .. " " .. err
             end
         end
-        return x
+        return true
     end
-    local unify_tbl = function(x, y)
+    local unify_tbl = function(x, y, ignore)
         local key_str = function(k)
             return "string" == type(k) and k or ty.tostr(k)
         end
@@ -181,16 +181,16 @@ return function()
             if ttx[2] then
                 local vy = keys[ttx[2]]
                 if vy then
-                    local ok, err = unify(ttx[1], vy)
+                    local ok, err = unify(ttx[1], vy, ignore)
                     if not ok then
-                        return nil, err
+                        return false, err
                     end
                 else
-                    return nil, "expects key `" .. key_str(ttx[2]) .. "` in " .. ty.tostr(y)
+                    return nil, ignore and "" or "expects key `" .. key_str(ttx[2]) .. "` in " .. ty.tostr(y)
                 end
             end
         end
-        return x
+        return true
     end
     unify = function(x, y, ignore)
         if x == y then
@@ -205,44 +205,44 @@ return function()
             return extend(y, x)
         end
         if x.tag == TType.Any and y.tag ~= TType.Nil then
-            return x
+            return true
         end
         if y.tag == TType.Any and x.tag ~= TType.Nil then
-            return y
+            return true
         end
         if x.tag == TType.Or then
             for _, t in ipairs(x) do
-                local tt = unify(t, y, true)
-                if tt then
-                    return tt
+                local tt, err = unify(t, y, ignore)
+                if tt == nil or tt then
+                    return tt, err
                 end
             end
         end
         if y.tag == TType.Or then
             for _, t in ipairs(y) do
-                local tt = unify(x, t, true)
-                if tt then
-                    return tt
+                local tt, err = unify(x, t, ignore)
+                if tt == nil or tt then
+                    return tt, err
                 end
             end
         end
         if x.tag == y.tag then
             if x.tag == TType.Nil then
-                return x
+                return true
             end
             if x.tag == TType.Val then
                 if x.type == y.type then
-                    return x
+                    return true
                 end
             end
             if x.tag == TType.Func then
-                return unify_func(x, y)
+                return unify_func(x, y, ignore)
             end
             if x.tag == TType.Tbl then
-                return unify_tbl(x, y)
+                return unify_tbl(x, y, ignore)
             end
         end
-        return nil, ignore and "" or "expects " .. ty.tostr(x) .. " instead of " .. ty.tostr(y)
+        return false, ignore and "" or "expects " .. ty.tostr(x) .. " instead of " .. ty.tostr(y)
     end
-    return {apply = apply, unify = unify}
+    return {apply = apply, extend = extend, unify = unify}
 end

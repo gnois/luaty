@@ -76,7 +76,7 @@ if run and not paths[1] then
         elseif #s == 0 then
             local str = table.concat(list, "\n")
             list = {}
-            local typ, code, warns = compile.string(str)
+            local _, code, warns = compile.string(str)
             if warns then
                 print(warns)
             end
@@ -98,7 +98,7 @@ if run and not paths[1] then
         end
     until false
 elseif paths[1] then
-    local typ, code, warns, imports = compile.file(paths[1])
+    local _, code, warns, imports = compile.file(paths[1])
     if run then
         if warns then
             print(warns)
@@ -111,7 +111,7 @@ elseif paths[1] then
         end
     else
         local skips = {}
-        for key, file in pairs(imports) do
+        for __, file in pairs(imports) do
             print(file.path)
             local dest = string.gsub(file.path, "%.lt", ".lua")
             while dest == paths[1] do

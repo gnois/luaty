@@ -62,7 +62,7 @@ if slash == "\\" then
         local res = kernel32.GetConsoleMode(handle, lpMode)
         if res ~= 0 then
             local mode = bit.bor(lpMode[0], kernel32.ENABLE_VIRTUAL_TERMINAL_PROCESSING)
-            local res = kernel32.SetConsoleMode(handle, mode)
+            res = kernel32.SetConsoleMode(handle, mode)
             if res ~= 0 then
                 return true
             end

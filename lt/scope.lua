@@ -25,6 +25,16 @@ return function(decls, warn)
         end
         return 0
     end
+    local update_var = function(name, vtype)
+        for i = vtop, 1, -1 do
+            local v = vstack[i]
+            if v.name == name then
+                v.type = vtype
+                return true
+            end
+        end
+        return false
+    end
     local new_var = function(name, vtype, line, col)
         assert(type(name) == "string")
         assert(type(line) == "number")
@@ -239,6 +249,7 @@ return function(decls, warn)
         , set_returns = set_returns
         , get_returns = get_returns
         , declared = declared
+        , update_var = update_var
         , new_var = new_var
         , new_goto = new_goto
         , new_label = new_label
