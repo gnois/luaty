@@ -142,15 +142,6 @@ return ->
 			if i < 1 or not xs[i].varargs
 				return false, ignore and "" or ("expects only " .. i .. " arguments but got " .. n)
 
-		-- check return types
-		xs, ys = x.outs, y.outs
-		i, n = 0, #xs
-		while i < n
-			i = i + 1
-			t, err = unify(xs[i], ys[i] or ty.nil(), ignore)
-			if not t
-				return false, ignore and "" or ("return value " .. i .. " " .. err)
-		-- ignore extra returns
 		return true
 
 
@@ -173,7 +164,7 @@ return ->
 					if not ok
 						return false, err
 				else
-					return nil, ignore and "" or ("expects key `" .. key_str(ttx[2]) .. "` in " .. ty.tostr(y))
+					return false, ignore and "" or ("expects key `" .. key_str(ttx[2]) .. "` in " .. ty.tostr(y))
 
 		return true
 
@@ -201,15 +192,25 @@ return ->
 
 		if x.tag == TType.Or
 			for _, t in ipairs(x)
-				var tt, err = unify(t, y, ignore)
-				if tt == nil or tt
-					return tt, err
+				var tt = unify(t, y, ignore)
+				if tt
+					return tt
 
 		if y.tag == TType.Or
 			for _, t in ipairs(y)
-				var tt, err = unify(x, t, ignore)
-				if tt == nil or tt
-					return tt, err
+				var tt = unify(x, t, ignore)
+				if tt
+					return tt
+
+		--```
+		xs, ys = x.outs, y.outs
+		i, n = 0, #xs
+		while i < n
+			i = i + 1
+			t, err = unify(xs[i], ys[i] or ty.nil(), ignore)
+			if not t
+				return false, ignore and "" or ("return value " .. i .. " " .. err)
+		```
 
 		if x.tag == y.tag
 			if x.tag == TType.Nil
@@ -225,6 +226,7 @@ return ->
 			if x.tag == TType.Tbl
 				return unify_tbl(x, y, ignore)
 
+	
 		return false, ignore and "" or ("expects " .. ty.tostr(x) .. " instead of " .. ty.tostr(y))
 
 

@@ -44,11 +44,146 @@ same = \a, b ->
 	return false
 
 
+var clone
+clone = \t ->
+	if type(t) == "table"
+		var copy = {}
+		for i, v in ipairs(t)
+			copy[i] = clone(v)
+		for k, v in pairs(t)
+			copy[clone(k)] = clone(v)
+		--setmetatable(copy, clone(getmetatable(t)))
+		return copy
+
+	return t
 
 
 var TType = Tag.Type
 
+---------------- subtyping ---------------------
+var subtype
 
+var subtype_tuple = \a, s ->
+	var i, n = 0, #a
+	while i < n
+		i = i + 1
+		if s[i]
+			if not subtype(a[i], s[i])
+				return false
+		else
+			if not s[i].varargs
+				return false
+		
+	if i < #s
+		i = i + 1
+		if not as[i].varargs
+			return false
+
+
+var subtype_func = \a, s ->
+	var as, ss = a.ins, s.ins
+	var i, n = 0, #as
+
+	-- check if too few args
+	-- params are contravariant
+	while i < n
+		i = i + 1
+		if ss[i]
+			if not subtype(ss[i], as[i])
+				return false
+		else
+			if not as[i].varargs
+				return false
+			return true
+
+	-- check if too many args
+	n = #ss
+	if i < n
+		if i < 1 or not as[i].varargs
+			return false
+
+	-- return types are covariant
+	as, ss = a.outs, s.outs
+	i, n = 0, #as
+	while i < n
+		i = i + 1
+		if not subtype(as[i], ss[i])
+			return false
+	-- ignore extra returns for now
+	return true
+
+
+var subtype_tbl = \a, s ->
+	-- convert to lookup table first
+	var keys = {}
+	var arrty
+	for __, tty in ipairs(s)
+		if tty[2]
+			keys[tty[2]] = tty[1]
+		else
+			assert(not arrty)
+			arrty = tty[1]
+
+	for _, ttx in ipairs(a)
+		if ttx[2]
+			var vs = keys[ttx[2]]
+			if vs
+				if not subtype(ttx[1], vs)
+					return false
+			else
+				return false
+		else
+			if not subtype(ttx[1], arrty)
+				return false
+	return true
+
+
+subtype = \a, s ->
+	if a == s
+		return true
+
+	if a.tag == TType.Or
+		for _, v in ipairs(a)
+			if not subtype(v, s)
+				return false
+		return true
+	
+	if s.tag == TType.Or
+		for _, v in ipairs(s)
+			if subtype(a, v)
+				return true
+		return false
+
+	if a.tag == s.tag
+		if a.tag == TType.Nil
+			return true
+
+		if a.tag == TType.Val
+			if a.type == s.type
+				return true
+	
+		if a.tag == TType.Func
+			return subtype_func(a, s)
+
+		if a.tag == TType.Tbl
+			return subtype_tbl(a, s)
+	
+	return false
+
+
+
+-- t is either a tbl or union of tbl, ...
+var get_tbl = \t ->
+	var tbl = t
+	if t.tag == TType.Or
+		for _, v in ipairs(t)
+			if v.tag == TType.Tbl
+				tbl = v
+				break
+	return tbl
+
+
+------------------ types ------------------------
 --``
 1,2,3, .. typevar
 # number
@@ -101,27 +236,28 @@ var Type = {
 
 	, or = \... ->
 		-- flatten
-		var list, l = {}, 1
+		var list, l = {}, 0
 		for _, t in ipairs({...})
 			if t.tag == TType.Or
 				for __, tt in ipairs(t)
-					list[l] = tt
 					l = l + 1
+					list[l] = tt
 			else
-				list[l] = t
 				l = l + 1
-		-- remove dups
-		var out, o = {}, 0
-		for _, t in ipairs(list)
-			var skip = false
-			for _, o in ipairs(out)
-				if same(t, o)
-					skip = true
-					break
-			if not skip
-				o = o + 1
-				out[o] = t
-		
+				list[l] = t
+		-- remove subtypes
+		if l > 1
+			var out, o = {}, 0
+			for _, t in ipairs(list)
+				var skip = false
+				for __, v in ipairs(out)
+					if subtype(t, v)
+						skip = true
+						break
+				if not skip
+					o = o + 1
+					out[o] = t
+
 		return create(TType.Or, list)
 
 	, and = \... ->
@@ -138,14 +274,12 @@ var Type = {
 
 }
 
-
 var varargs = \t ->
 	assert(TType[t.tag])  -- must be type node
 	t.varargs = true
 	return t
 
-
-
+----------------- type to string ------------------
 var tostr
 var tolst = \ls ->
 	var out = {}
@@ -170,7 +304,13 @@ Str[TType.Nil] = ->
 	return "<nil>"
 
 Str[TType.Val] = \t ->
-	return "<" .. t.type .. ">"
+	return '<' .. t.type .. '>'
+
+Str[TType.Tuple] = \t ->
+	var out = {}
+	for i, v in ipairs(t)
+		out[i] = tostr(v)
+	return '(' .. table.concat(out, ', ') .. ')'
 
 Str[TType.Func] = \t ->
 	return table.concat({'[', tolst(t.ins), ':', tolst(t.outs), ']'})
@@ -227,5 +367,7 @@ return {
 	
 	, varargs = varargs
 	, same = same
+	, clone = clone
+	, get_tbl = get_tbl
 	, tostr = tostr
 }

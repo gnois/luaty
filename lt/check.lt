@@ -36,9 +36,10 @@ return \scope, stmts, warn, import ->
 		var t, err = solv.unify(x, y)
 		if not t
 			warn(node.line, node.col, 1, msg .. err)
+		return t
 
 	var check_op = \x, y, node, op ->
-		check(x, y, node, "operator `" .. op .. "` ")
+		return check(x, y, node, "operator `" .. op .. "` ")
 
 
 	-- check type annotation
@@ -70,9 +71,21 @@ return \scope, stmts, warn, import ->
 		return rule(node)
 
 	var infer_exprs = \nodes ->
-		var types = {}
+		var types, t = {}, 0
+		var last = #nodes
 		for i, node in ipairs(nodes)
-			types[i] = infer_expr(node)
+			var nt = infer_expr(node)
+			if nt.tag == TType.Tuple
+				if i == last
+					for __, v in ipairs(nt)
+						t = t + 1
+						types[t] = v
+				else
+					t = t + 1
+					types[t] = nt[1] or ty.nil()
+			else
+				t = t + 1
+				types[t] = nt
 		return types
 
 	var declare = \var, vtype ->
@@ -173,9 +186,9 @@ return \scope, stmts, warn, import ->
 				if anno[i]
 					check(infer_expr(p), anno[i], p, "parameter " .. (p.tag == TExpr.Vararg and "..." or p.name) .. " ")
 
-		var retuples = scope.get_returns()
+		var rtuple = scope.get_returns() or ty.tuple({})
 		scope.end_func()
-		return ty.func(ty.tuple(ptypes), retuples or ty.tuple({}))
+		return ty.func(ty.tuple(ptypes), rtuple)
 
 	Expr[TExpr.Table] = \node ->
 		-- check for duplicate key
@@ -214,52 +227,66 @@ return \scope, stmts, warn, import ->
 		return tbl
 
 	Expr[TExpr.Index] = \node ->
-		var it, ot
-		it = infer_expr(node.idx)
+		var it = infer_expr(node.idx)
 		-- if index type is string, check
 		-- else key index can be any type
 			-- if index is number, it can be float, so we cannot know
 			-- else index is its runtime value, so we cannot know
-		ot = infer_expr(node.obj)
+		var ot = infer_expr(node.obj)
 		check(ty.tbl({}), ot, node, "indexer ")
 		return ty.any()
 
 	Expr[TExpr.Field] = \node ->
-		var ot
-		ot = infer_expr(node.obj)
-		var vt = new()
-		var tytys = {
-			{ vt, node.field }
-		}
-		check(ty.tbl(tytys), ot, node, "field `." .. node.field .. "` ")
-		return vt
+		var ot = infer_expr(node.obj)
+		if check(ty.tbl({}), ot, node, "field `." .. node.field .. "` ")
+			var t = solv.apply(ot)
+			var tbl = ty.get_tbl(t)
+			for _, tk in ipairs(tbl)
+				if tk[2] == node.field
+					return tk[1]
+			-- key doesnt exist
+			var vt = new()
+			tbl[#tbl + 1] = { vt, node.field }
+			return vt
+		return ty.nil()
 
 	Expr[TExpr.Invoke] = \node ->
-		var atypes, ot
-		atypes = infer_exprs(node.args)
-		ot = infer_expr(node.obj)
-		var retype = new()
-		var tytys = {
-			{ ty.func(ty.tuple(atypes), ty.tuple({retype})), node.field }
-		}
-		check(ty.tbl(tytys), ot, node, "method `" .. node.field .. "` ")
-		return retype
+		var atypes = infer_exprs(node.args)
+		var ot = infer_expr(node.obj)
+		if check(ty.tbl({}), ot, node, "method `" .. node.field .. "` ")
+			var t = solv.apply(ot)
+			var tbl = ty.get_tbl(t)
+			for _, tk in ipairs(tbl)
+				if tk[2] == node.field
+					var tytys = {
+						{ ty.func(ty.tuple(atypes), ty.tuple({})), node.field }
+					}
+					check(ty.tbl(tytys), tk[1], node, "method `" .. node.field .. "` ")
+					if tk[1].tag == TType.Func
+						return tk[1].outs
+					return ty.nil()
+			-- key doesnt exist
+			var rt = ty.tuple({new()})
+			tbl[#tbl + 1] = { ty.func(ty.tuple(atypes), rt), node.field }
+			return rt
+		return ty.tuple({})
 
 	Expr[TExpr.Call] = \node ->
-		var atypes, ftype
-		atypes = infer_exprs(node.args)
+		var atypes = infer_exprs(node.args)
 		-- check imports
 		if node.func.tag == TExpr.Id and node.func.name == 'require'
 			return import(node.args[1].value) or ty.nil()
 
-		ftype = infer_expr(node.func)
-		var retype = new()
-		check(ftype, ty.func(ty.tuple(atypes), ty.tuple({retype})), node, "function ")
-		return retype
+		var ftype = infer_expr(node.func)
+		-- check params to args
+		check(ftype, ty.func(ty.tuple(atypes), ty.tuple({})), node, "function ")
+		var fn = solv.apply(ftype)
+		if fn.tag == TType.Func
+			return fn.outs
+		return ty.tuple({})
 
 	Expr[TExpr.Unary] = \node ->
-		var rtype
-		rtype = infer_expr(node.right)
+		var rtype = infer_expr(node.right)
 		var op = node.op
 		if op == '#'
 			check_op(ty.or(ty.tbl({}), ty.str()), rtype, node, op)
@@ -271,9 +298,8 @@ return \scope, stmts, warn, import ->
 		return ty.bool()
 
 	Expr[TExpr.Binary] = \node ->
-		var ltype, rtype
-		ltype = infer_expr(node.left)
-		rtype = infer_expr(node.right)
+		var ltype = infer_expr(node.left)
+		var rtype = infer_expr(node.right)
 		
 		var op = node.op
 		if op == 'and'
@@ -321,23 +347,32 @@ return \scope, stmts, warn, import ->
 			else
 				var ot = infer_expr(node.obj)
 				-- ot must be table
-				check(ty.tbl({}), ot, node, " assignment ")
-				if node.tag == TExpr.Index
-					var it = infer_expr(node.idx)
-				else
-					assert(node.tag == TExpr.Field)
-					var vt = new()
-					var tytys = {
-						{ vt, node.field }
-					}
-					var t = solv.unify(ty.tbl(tytys), ot, true)
-					if t
-						solv.extend(vt, rtype)
+				if check(ty.tbl({}), ot, node, " assignment ")
+					if node.tag == TExpr.Index
+						var it = infer_expr(node.idx)
 					else
-						if t == nil  -- adding new key
-							scope.update_var(node.obj.name, solv.extend(new(), ty.tbl(tytys)))
-						else -- reassignment of different type
-							solv.extend(vt, ty.or(solv.apply(vt), rtype))
+						assert(node.tag == TExpr.Field)
+						var tytys = {
+							{ rtype, node.field }
+						}
+						var ok = solv.unify(ty.tbl(tytys), ot, true)
+						if not ok
+							var t = solv.apply(ot)
+							var tbl = ty.get_tbl(t)
+							for _, tk in ipairs(tbl)
+								if tk[2] == node.field
+									-- reassignment of different type to same field
+									tk[1] = ty.or(tk[1], rtype)
+									solv.extend(ot, t)
+									return
+							
+							-- add a new field
+							-- need a new tvar, so that for f: t1 -> t2,  t2 is different from t1
+							t = ty.clone(t)
+							tbl = ty.get_tbl(t)
+							tbl[#tbl + 1] = tytys[1]
+							scope.update_var(node.obj.name, solv.extend(new(), t))
+
 
 
 	Stmt[TStmt.Assign] = \node ->
@@ -358,8 +393,7 @@ return \scope, stmts, warn, import ->
 	Stmt[TStmt.Forin] = \node ->
 		scope.enter_forin()
 		check_types(node.types, node)
-		var types
-		types = infer_exprs(node.exprs)
+		var types = infer_exprs(node.exprs)
 		-- declare var into scope after rhs
 		for i, var in ipairs(node.vars)
 			declare(var, node.types and node.types[i])
@@ -393,16 +427,11 @@ return \scope, stmts, warn, import ->
 		scope.leave()
 
 	Stmt[TStmt.Return] = \node ->
-		var types
-		types = infer_exprs(node.exprs)
-		var rtuple = scope.get_returns()
-		if rtuple
-			for i, r in ipairs(rtuple)
-				if types[i]
-					check(r, types[i], node.exprs[i] or node, "return type ")
-		else
-			-- not set before
-			scope.set_returns(ty.tuple(types))
+		var now = ty.tuple(infer_exprs(node.exprs))
+		var prev = scope.get_returns()
+		if prev
+			now = ty.or(prev, now)
+		scope.set_returns(now)
 
 	Stmt[TStmt.Break] = \node ->
 		scope.new_break(node.line, node.col)
@@ -421,7 +450,8 @@ return \scope, stmts, warn, import ->
 	var rtuple = scope.get_returns()
 	scope.end_func()
 	-- lua require() can only return single value
-	if rtuple
+	if rtuple and rtuple[1]
 		return solv.apply(rtuple[1])
-	
+	return ty.nil()
+
 

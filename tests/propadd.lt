@@ -1,10 +1,7 @@
-var k
-k = 'p'
-k = 9
-k = {}
-k.l = 2
-k.l = {}
-k.l.b = true
+var h = \z ->
+	return z.p == z.q
+
+print(h({p = 7, q = 8}))
 
 var g = \y ->
 	y.a = {}
@@ -21,3 +18,11 @@ var z = {}
 var zz = z
 print(f(g(zz)).a.c)
 
+var k
+k = 'p'
+k = 9
+k = {}
+k.l = 2
+k.l = {}
+k.m = 'km'
+k.l.b = true

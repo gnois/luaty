@@ -156,15 +156,6 @@ return function()
                 return false, ignore and "" or "expects only " .. i .. " arguments but got " .. n
             end
         end
-        xs, ys = x.outs, y.outs
-        i, n = 0, #xs
-        while i < n do
-            i = i + 1
-            t, err = unify(xs[i], ys[i] or ty["nil"](), ignore)
-            if not t then
-                return false, ignore and "" or "return value " .. i .. " " .. err
-            end
-        end
         return true
     end
     local unify_tbl = function(x, y, ignore)
@@ -186,7 +177,7 @@ return function()
                         return false, err
                     end
                 else
-                    return nil, ignore and "" or "expects key `" .. key_str(ttx[2]) .. "` in " .. ty.tostr(y)
+                    return false, ignore and "" or "expects key `" .. key_str(ttx[2]) .. "` in " .. ty.tostr(y)
                 end
             end
         end
@@ -212,17 +203,17 @@ return function()
         end
         if x.tag == TType.Or then
             for _, t in ipairs(x) do
-                local tt, err = unify(t, y, ignore)
-                if tt == nil or tt then
-                    return tt, err
+                local tt = unify(t, y, ignore)
+                if tt then
+                    return tt
                 end
             end
         end
         if y.tag == TType.Or then
             for _, t in ipairs(y) do
-                local tt, err = unify(x, t, ignore)
-                if tt == nil or tt then
-                    return tt, err
+                local tt = unify(x, t, ignore)
+                if tt then
+                    return tt
                 end
             end
         end

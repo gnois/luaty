@@ -36,9 +36,10 @@ return function(scope, stmts, warn, import)
         if not t then
             warn(node.line, node.col, 1, msg .. err)
         end
+        return t
     end
     local check_op = function(x, y, node, op)
-        check(x, y, node, "operator `" .. op .. "` ")
+        return check(x, y, node, "operator `" .. op .. "` ")
     end
     local check_type = function(tnode, loc)
         local rule = Type[tnode.tag]
@@ -73,9 +74,24 @@ return function(scope, stmts, warn, import)
         return rule(node)
     end
     local infer_exprs = function(nodes)
-        local types = {}
+        local types, t = {}, 0
+        local last = #nodes
         for i, node in ipairs(nodes) do
-            types[i] = infer_expr(node)
+            local nt = infer_expr(node)
+            if nt.tag == TType.Tuple then
+                if i == last then
+                    for __, v in ipairs(nt) do
+                        t = t + 1
+                        types[t] = v
+                    end
+                else
+                    t = t + 1
+                    types[t] = nt[1] or ty["nil"]()
+                end
+            else
+                t = t + 1
+                types[t] = nt
+            end
         end
         return types
     end
@@ -188,9 +204,9 @@ return function(scope, stmts, warn, import)
                 end
             end
         end
-        local retuples = scope.get_returns()
+        local rtuple = scope.get_returns() or ty.tuple({})
         scope.end_func()
-        return ty.func(ty.tuple(ptypes), retuples or ty.tuple({}))
+        return ty.func(ty.tuple(ptypes), rtuple)
     end
     Expr[TExpr.Table] = function(node)
         local keys = {}
@@ -234,43 +250,64 @@ return function(scope, stmts, warn, import)
         return tbl
     end
     Expr[TExpr.Index] = function(node)
-        local it, ot
-        it = infer_expr(node.idx)
-        ot = infer_expr(node.obj)
+        local it = infer_expr(node.idx)
+        local ot = infer_expr(node.obj)
         check(ty.tbl({}), ot, node, "indexer ")
         return ty.any()
     end
     Expr[TExpr.Field] = function(node)
-        local ot
-        ot = infer_expr(node.obj)
-        local vt = new()
-        local tytys = {{vt, node.field}}
-        check(ty.tbl(tytys), ot, node, "field `." .. node.field .. "` ")
-        return vt
+        local ot = infer_expr(node.obj)
+        if check(ty.tbl({}), ot, node, "field `." .. node.field .. "` ") then
+            local t = solv.apply(ot)
+            local tbl = ty.get_tbl(t)
+            for _, tk in ipairs(tbl) do
+                if tk[2] == node.field then
+                    return tk[1]
+                end
+            end
+            local vt = new()
+            tbl[#tbl + 1] = {vt, node.field}
+            return vt
+        end
+        return ty["nil"]()
     end
     Expr[TExpr.Invoke] = function(node)
-        local atypes, ot
-        atypes = infer_exprs(node.args)
-        ot = infer_expr(node.obj)
-        local retype = new()
-        local tytys = {{ty.func(ty.tuple(atypes), ty.tuple({retype})), node.field}}
-        check(ty.tbl(tytys), ot, node, "method `" .. node.field .. "` ")
-        return retype
+        local atypes = infer_exprs(node.args)
+        local ot = infer_expr(node.obj)
+        if check(ty.tbl({}), ot, node, "method `" .. node.field .. "` ") then
+            local t = solv.apply(ot)
+            local tbl = ty.get_tbl(t)
+            for _, tk in ipairs(tbl) do
+                if tk[2] == node.field then
+                    local tytys = {{ty.func(ty.tuple(atypes), ty.tuple({})), node.field}}
+                    check(ty.tbl(tytys), tk[1], node, "method `" .. node.field .. "` ")
+                    if tk[1].tag == TType.Func then
+                        return tk[1].outs
+                    end
+                    return ty["nil"]()
+                end
+            end
+            local rt = ty.tuple({new()})
+            tbl[#tbl + 1] = {ty.func(ty.tuple(atypes), rt), node.field}
+            return rt
+        end
+        return ty.tuple({})
     end
     Expr[TExpr.Call] = function(node)
-        local atypes, ftype
-        atypes = infer_exprs(node.args)
+        local atypes = infer_exprs(node.args)
         if node.func.tag == TExpr.Id and node.func.name == "require" then
             return import(node.args[1].value) or ty["nil"]()
         end
-        ftype = infer_expr(node.func)
-        local retype = new()
-        check(ftype, ty.func(ty.tuple(atypes), ty.tuple({retype})), node, "function ")
-        return retype
+        local ftype = infer_expr(node.func)
+        check(ftype, ty.func(ty.tuple(atypes), ty.tuple({})), node, "function ")
+        local fn = solv.apply(ftype)
+        if fn.tag == TType.Func then
+            return fn.outs
+        end
+        return ty.tuple({})
     end
     Expr[TExpr.Unary] = function(node)
-        local rtype
-        rtype = infer_expr(node.right)
+        local rtype = infer_expr(node.right)
         local op = node.op
         if op == "#" then
             check_op(ty["or"](ty.tbl({}), ty.str()), rtype, node, op)
@@ -283,9 +320,8 @@ return function(scope, stmts, warn, import)
         return ty.bool()
     end
     Expr[TExpr.Binary] = function(node)
-        local ltype, rtype
-        ltype = infer_expr(node.left)
-        rtype = infer_expr(node.right)
+        local ltype = infer_expr(node.left)
+        local rtype = infer_expr(node.right)
         local op = node.op
         if op == "and" then
             return rtype
@@ -331,21 +367,27 @@ return function(scope, stmts, warn, import)
                 end
             else
                 local ot = infer_expr(node.obj)
-                check(ty.tbl({}), ot, node, " assignment ")
-                if node.tag == TExpr.Index then
-                    local it = infer_expr(node.idx)
-                else
-                    assert(node.tag == TExpr.Field)
-                    local vt = new()
-                    local tytys = {{vt, node.field}}
-                    local t = solv.unify(ty.tbl(tytys), ot, true)
-                    if t then
-                        solv.extend(vt, rtype)
+                if check(ty.tbl({}), ot, node, " assignment ") then
+                    if node.tag == TExpr.Index then
+                        local it = infer_expr(node.idx)
                     else
-                        if t == nil then
-                            scope.update_var(node.obj.name, solv.extend(new(), ty.tbl(tytys)))
-                        else
-                            solv.extend(vt, ty["or"](solv.apply(vt), rtype))
+                        assert(node.tag == TExpr.Field)
+                        local tytys = {{rtype, node.field}}
+                        local ok = solv.unify(ty.tbl(tytys), ot, true)
+                        if not ok then
+                            local t = solv.apply(ot)
+                            local tbl = ty.get_tbl(t)
+                            for _, tk in ipairs(tbl) do
+                                if tk[2] == node.field then
+                                    tk[1] = ty["or"](tk[1], rtype)
+                                    solv.extend(ot, t)
+                                    return 
+                                end
+                            end
+                            t = ty.clone(t)
+                            tbl = ty.get_tbl(t)
+                            tbl[#tbl + 1] = tytys[1]
+                            scope.update_var(node.obj.name, solv.extend(new(), t))
                         end
                     end
                 end
@@ -372,8 +414,7 @@ return function(scope, stmts, warn, import)
     Stmt[TStmt.Forin] = function(node)
         scope.enter_forin()
         check_types(node.types, node)
-        local types
-        types = infer_exprs(node.exprs)
+        local types = infer_exprs(node.exprs)
         for i, var in ipairs(node.vars) do
             declare(var, node.types and node.types[i])
         end
@@ -406,18 +447,12 @@ return function(scope, stmts, warn, import)
         scope.leave()
     end
     Stmt[TStmt.Return] = function(node)
-        local types
-        types = infer_exprs(node.exprs)
-        local rtuple = scope.get_returns()
-        if rtuple then
-            for i, r in ipairs(rtuple) do
-                if types[i] then
-                    check(r, types[i], node.exprs[i] or node, "return type ")
-                end
-            end
-        else
-            scope.set_returns(ty.tuple(types))
+        local now = ty.tuple(infer_exprs(node.exprs))
+        local prev = scope.get_returns()
+        if prev then
+            now = ty["or"](prev, now)
         end
+        scope.set_returns(now)
     end
     Stmt[TStmt.Break] = function(node)
         scope.new_break(node.line, node.col)
@@ -433,7 +468,8 @@ return function(scope, stmts, warn, import)
     check_block(stmts)
     local rtuple = scope.get_returns()
     scope.end_func()
-    if rtuple then
+    if rtuple and rtuple[1] then
         return solv.apply(rtuple[1])
     end
+    return ty["nil"]()
 end

@@ -49,7 +49,154 @@ same = function(a, b)
     end
     return false
 end
+local clone
+clone = function(t)
+    if type(t) == "table" then
+        local copy = {}
+        for i, v in ipairs(t) do
+            copy[i] = clone(v)
+        end
+        for k, v in pairs(t) do
+            copy[clone(k)] = clone(v)
+        end
+        return copy
+    end
+    return t
+end
 local TType = Tag.Type
+local subtype
+local subtype_tuple = function(a, s)
+    local i, n = 0, #a
+    while i < n do
+        i = i + 1
+        if s[i] then
+            if not subtype(a[i], s[i]) then
+                return false
+            end
+        else
+            if not s[i].varargs then
+                return false
+            end
+        end
+    end
+    if i < #s then
+        i = i + 1
+        if not as[i].varargs then
+            return false
+        end
+    end
+end
+local subtype_func = function(a, s)
+    local as, ss = a.ins, s.ins
+    local i, n = 0, #as
+    while i < n do
+        i = i + 1
+        if ss[i] then
+            if not subtype(ss[i], as[i]) then
+                return false
+            end
+        else
+            if not as[i].varargs then
+                return false
+            end
+            return true
+        end
+    end
+    n = #ss
+    if i < n then
+        if i < 1 or not as[i].varargs then
+            return false
+        end
+    end
+    as, ss = a.outs, s.outs
+    i, n = 0, #as
+    while i < n do
+        i = i + 1
+        if not subtype(as[i], ss[i]) then
+            return false
+        end
+    end
+    return true
+end
+local subtype_tbl = function(a, s)
+    local keys = {}
+    local arrty
+    for __, tty in ipairs(s) do
+        if tty[2] then
+            keys[tty[2]] = tty[1]
+        else
+            assert(not arrty)
+            arrty = tty[1]
+        end
+    end
+    for _, ttx in ipairs(a) do
+        if ttx[2] then
+            local vs = keys[ttx[2]]
+            if vs then
+                if not subtype(ttx[1], vs) then
+                    return false
+                end
+            else
+                return false
+            end
+        else
+            if not subtype(ttx[1], arrty) then
+                return false
+            end
+        end
+    end
+    return true
+end
+subtype = function(a, s)
+    if a == s then
+        return true
+    end
+    if a.tag == TType.Or then
+        for _, v in ipairs(a) do
+            if not subtype(v, s) then
+                return false
+            end
+        end
+        return true
+    end
+    if s.tag == TType.Or then
+        for _, v in ipairs(s) do
+            if subtype(a, v) then
+                return true
+            end
+        end
+        return false
+    end
+    if a.tag == s.tag then
+        if a.tag == TType.Nil then
+            return true
+        end
+        if a.tag == TType.Val then
+            if a.type == s.type then
+                return true
+            end
+        end
+        if a.tag == TType.Func then
+            return subtype_func(a, s)
+        end
+        if a.tag == TType.Tbl then
+            return subtype_tbl(a, s)
+        end
+    end
+    return false
+end
+local get_tbl = function(t)
+    local tbl = t
+    if t.tag == TType.Or then
+        for _, v in ipairs(t) do
+            if v.tag == TType.Tbl then
+                tbl = v
+                break
+            end
+        end
+    end
+    return tbl
+end
 local create = function(tag, node)
     assert("table" == type(node))
     node.tag = tag
@@ -81,30 +228,32 @@ local Type = {
         return create(TType.Tbl, typetypes)
     end
     , ["or"] = function(...)
-        local list, l = {}, 1
+        local list, l = {}, 0
         for _, t in ipairs({...}) do
             if t.tag == TType.Or then
                 for __, tt in ipairs(t) do
-                    list[l] = tt
                     l = l + 1
+                    list[l] = tt
                 end
             else
-                list[l] = t
                 l = l + 1
+                list[l] = t
             end
         end
-        local out, o = {}, 0
-        for _, t in ipairs(list) do
-            local skip = false
-            for _, o in ipairs(out) do
-                if same(t, o) then
-                    skip = true
-                    break
+        if l > 1 then
+            local out, o = {}, 0
+            for _, t in ipairs(list) do
+                local skip = false
+                for __, v in ipairs(out) do
+                    if subtype(t, v) then
+                        skip = true
+                        break
+                    end
                 end
-            end
-            if not skip then
-                o = o + 1
-                out[o] = t
+                if not skip then
+                    o = o + 1
+                    out[o] = t
+                end
             end
         end
         return create(TType.Or, list)
@@ -152,6 +301,13 @@ Str[TType.Nil] = function()
 end
 Str[TType.Val] = function(t)
     return "<" .. t.type .. ">"
+end
+Str[TType.Tuple] = function(t)
+    local out = {}
+    for i, v in ipairs(t) do
+        out[i] = tostr(v)
+    end
+    return "(" .. table.concat(out, ", ") .. ")"
 end
 Str[TType.Func] = function(t)
     return table.concat({"[", tolst(t.ins), ":", tolst(t.outs), "]"})
@@ -216,5 +372,7 @@ return {
     , typeof = Type.typeof
     , varargs = varargs
     , same = same
+    , clone = clone
+    , get_tbl = get_tbl
     , tostr = tostr
 }
