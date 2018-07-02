@@ -148,7 +148,7 @@ return \scope, stmts, warn, import ->
 	Expr[TExpr.Vararg] = \node ->
 		if not scope.is_varargs()
 			warn(node.line, node.col, 2, "cannot use `...` in a function without variable arguments")
-		return ty.varargs(ty.any())
+		return ty.any_vars()
 
 	Expr[TExpr.Id] = \node ->
 		var line, t
@@ -186,7 +186,7 @@ return \scope, stmts, warn, import ->
 				if anno[i]
 					check(infer_expr(p), anno[i], p, "parameter " .. (p.tag == TExpr.Vararg and "..." or p.name) .. " ")
 
-		var rtuple = scope.get_returns() or ty.tuple({})
+		var rtuple = scope.get_returns() or ty.tuple_none()
 		scope.end_func()
 		return ty.func(ty.tuple(ptypes), rtuple)
 
@@ -241,25 +241,28 @@ return \scope, stmts, warn, import ->
 		if check(ty.tbl({}), ot, node, "field `." .. node.field .. "` ")
 			var t = solv.apply(ot)
 			var tbl = ty.get_tbl(t)
-			for _, tk in ipairs(tbl)
-				if tk[2] == node.field
-					return tk[1]
-			-- key doesnt exist
-			var vt = new()
-			tbl[#tbl + 1] = { vt, node.field }
-			return vt
+			if tbl
+				for _, tk in ipairs(tbl)
+					if tk[2] == node.field
+						return tk[1]
+				-- key doesnt exist
+				var vt = new()
+				tbl[#tbl + 1] = { vt, node.field }
+				return vt
+			return ty.any()
 		return ty.nil()
 
 	Expr[TExpr.Invoke] = \node ->
 		var atypes = infer_exprs(node.args)
 		var ot = infer_expr(node.obj)
-		if check(ty.tbl({}), ot, node, "method `" .. node.field .. "` ")
-			var t = solv.apply(ot)
-			var tbl = ty.get_tbl(t)
+		check(ty.tbl({}), ot, node, "method `" .. node.field .. "` ")
+		var t = solv.apply(ot)
+		var tbl = ty.get_tbl(t)
+		if tbl
 			for _, tk in ipairs(tbl)
 				if tk[2] == node.field
 					var tytys = {
-						{ ty.func(ty.tuple(atypes), ty.tuple({})), node.field }
+						{ ty.func(ty.tuple(atypes), ty.tuple_any()), node.field }
 					}
 					check(ty.tbl(tytys), tk[1], node, "method `" .. node.field .. "` ")
 					if tk[1].tag == TType.Func
@@ -269,21 +272,26 @@ return \scope, stmts, warn, import ->
 			var rt = ty.tuple({new()})
 			tbl[#tbl + 1] = { ty.func(ty.tuple(atypes), rt), node.field }
 			return rt
-		return ty.tuple({})
+		return ty.tuple_any()
 
 	Expr[TExpr.Call] = \node ->
 		var atypes = infer_exprs(node.args)
 		-- check imports
-		if node.func.tag == TExpr.Id and node.func.name == 'require'
-			return import(node.args[1].value) or ty.nil()
+		if node.func.tag == TExpr.Id and node.func.name == 'require' and node.args[1] and node.args[1].tag == TExpr.String
+			return import(node.args[1].value) or ty.any()
 
 		var ftype = infer_expr(node.func)
-		-- check params to args
-		check(ftype, ty.func(ty.tuple(atypes), ty.tuple({})), node, "function ")
 		var fn = solv.apply(ftype)
-		if fn.tag == TType.Func
-			return fn.outs
-		return ty.tuple({})
+		if fn.tag == TType.Nil or fn.tag == TType.Val
+			warn(node.line, node.col, 1, "trying to call " .. ty.tostr(fn))
+		else if fn.tag == TType.New
+			solv.extend(fn, ty.func(ty.tuple(atypes), ty.tuple_any()))
+		else
+			-- check params to args
+			check(fn, ty.func(ty.tuple(atypes), ty.tuple_any()), node, "function ")
+			if fn.outs
+				return fn.outs
+		return ty.tuple_any()
 
 	Expr[TExpr.Unary] = \node ->
 		var rtype = infer_expr(node.right)
@@ -306,7 +314,9 @@ return \scope, stmts, warn, import ->
 			return rtype
 
 		if arithmetic(op) or relational(op)
-			check_op(ltype, rtype, node, op)
+			-- skip equal and not equal, coz they can compare anything
+			if op ~= '==' and op ~= '~='
+				check_op(ltype, rtype, node, op)
 			if relational(op)
 				return ty.bool()
 		else if op == '..'
@@ -346,7 +356,6 @@ return \scope, stmts, warn, import ->
 					solv.extend(ltype, ty.or(solv.apply(ltype), rtype))
 			else
 				var ot = infer_expr(node.obj)
-				-- ot must be table
 				if check(ty.tbl({}), ot, node, " assignment ")
 					if node.tag == TExpr.Index
 						var it = infer_expr(node.idx)
@@ -359,20 +368,23 @@ return \scope, stmts, warn, import ->
 						if not ok
 							var t = solv.apply(ot)
 							var tbl = ty.get_tbl(t)
-							for _, tk in ipairs(tbl)
-								if tk[2] == node.field
-									-- reassignment of different type to same field
-									tk[1] = ty.or(tk[1], rtype)
-									solv.extend(ot, t)
-									return
-							
-							-- add a new field
-							-- need a new tvar, so that for f: t1 -> t2,  t2 is different from t1
-							t = ty.clone(t)
-							tbl = ty.get_tbl(t)
-							tbl[#tbl + 1] = tytys[1]
-							scope.update_var(node.obj.name, solv.extend(new(), t))
-
+							if tbl
+								for _, tk in ipairs(tbl)
+									if tk[2] == node.field
+										-- reassignment of different type to same field
+										tk[1] = ty.or(tk[1], rtype)
+										solv.extend(ot, t)
+										return
+								
+								-- add a new field if it is posibly a parameter name
+								-- so that for f: t1 -> t2,  t2 is different from t1
+								var param = node.obj.name
+								if param
+									t = ty.clone(t)
+									tbl = ty.get_tbl(t)
+									tbl[#tbl + 1] = tytys[1]
+									assert(scope.update_var(param, solv.extend(new(), t)))
+								-- else need to find the tvar to extend, which we cant
 
 
 	Stmt[TStmt.Assign] = \node ->

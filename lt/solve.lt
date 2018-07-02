@@ -6,7 +6,7 @@ return ->
 	-- list of type var to type expr
 	var subs = {}
 
-	------ subst --------------
+	------ subst in place --------------
 	var Subst = {}
 	var subst = \node, tvar, texp ->
 		assert(tvar.tag == TType.New)
@@ -20,28 +20,30 @@ return ->
 			return texp
 		return node
 
+	Subst[TType.Tuple] = \node, tvar, texp ->
+		for i = 1, #node
+			node[i] = subst(node[i], tvar, texp)
+		return node
+
 	Subst[TType.Func] = \node, tvar, texp ->
-		var ins, outs = {}, {}
-		for i, p in ipairs(node.ins)
-			ins[i] = subst(p, tvar, texp)
-		for i, r in ipairs(node.outs)
-			outs[i] = subst(r, tvar, texp)
-		return ty.func(ty.tuple(ins), ty.tuple(outs))
+		node.ins = subst(node.ins, tvar, texp)
+		node.outs = subst(node.outs, tvar, texp)
+		return node
 
 	Subst[TType.Tbl] = \node, tvar, texp ->
-		var tytys = {}
-		for i, tk in ipairs(node)
-			tytys[i] = { subst(tk[1], tvar, texp), tk[2] and subst(tk[2], tvar, texp) }
-		return ty.tbl(tytys)
+		for i = 1, #node
+			var n = node[i]
+			n[1] = subst(n[1], tvar, texp)
+			n[2] = n[2] and subst(n[2], tvar, texp)
+		return node
 
 	Subst[TType.Or] = \node, tvar, texp ->
-		var list = {}
-		for i, t in ipairs(node)
-			list[i] = subst(t, tvar, texp)
-		return ty.or(unpack(list))
+		for i = 1, #node
+			node[i] = subst(node[i], tvar, texp)
+		return node
 
 
-	------ apply --------------
+	------ apply in place --------------
 	var Apply = {}
 	var apply = \node ->
 		var rule = Apply[node.tag]
@@ -52,25 +54,27 @@ return ->
 	Apply[TType.New] = \node ->
 		return subs[node.id] or node
 
+	Apply[TType.Tuple] = \node ->
+		for i = 1, #node
+			node[i] = apply(node[i])
+		return node
+
 	Apply[TType.Func] = \node ->
-		var ins, outs = {}, {}
-		for i, p in ipairs(node.ins)
-			ins[i] = apply(p)
-		for i, r in ipairs(node.outs)
-			outs[i] = apply(r)
-		return ty.func(ty.tuple(ins), ty.tuple(outs))
+		node.ins = apply(node.ins)
+		node.outs = apply(node.outs)
+		return node
 
 	Apply[TType.Tbl] = \node ->
-		var tytys = {}
-		for i, tk in ipairs(node)
-			tytys[i] = { apply(tk[1]), tk[2] and apply(tk[2]) }
-		return ty.tbl(tytys)
+		for i = 1, #node
+			var n = node[i]
+			n[i] = apply(n[1])
+			n[2] = n[2] and apply(n[2])
+		return node
 
 	Apply[TType.Or] = \node ->
-		var list = {}
-		for i, t in ipairs(node)
-			list[i] = apply(t)
-		return ty.or(unpack(list))
+		for i = 1, #node
+			node[i] = apply(node[i])
+		return node
 
 
 	------ occur --------------
@@ -84,14 +88,14 @@ return ->
 	Occur[TType.New] = \x, node ->
 		return x.id == node.id
 
-	Occur[TType.Func] = \x, node ->
-		for _, p in ipairs(node.ins)
+	Occur[TType.Tuple] = \x, node ->
+		for _, p in ipairs(node)
 			if occurs(x, p)
 				return true
-		for _, r in ipairs(node.outs)
-			if occurs(x, r)
-				return true
 		return false
+				
+	Occur[TType.Func] = \x, node ->
+		return occurs(x, node.ins) or occurs(x, node.outs)
 
 	Occur[TType.Tbl] = \x, node ->
 		for _, tk in ipairs(node)
@@ -120,26 +124,25 @@ return ->
 	------ unification --------------
 	var unify
 
-	var unify_func = \x, y, ignore ->
-		var xs, ys = x.ins, y.ins
-		var i, n = 0, #xs
-		-- check if too few args
+	var unify_tuple = \x, y, ignore ->
+		var i, n = 0, #x
+		-- check if y too few
 		var t, err
 		while i < n
 			i = i + 1
-			if ys[i]
-				t, err = unify(xs[i], ys[i], ignore)
+			if y[i]
+				t, err = unify(x[i], y[i], ignore)
 				if not t
 					return false, ignore and "" or ("parameter " .. i .. " " .. err)
 			else
-				if not xs[i].varargs
+				if not x[i].varargs
 					return false, ignore and "" or ("expects " .. n .. " arguments but only got " .. (i-1))
 				return true
 
-		-- check if too many args
-		n = #ys
+		-- check if y too many
+		n = #y
 		if i < n
-			if i < 1 or not xs[i].varargs
+			if i < 1 or not x[i].varargs
 				return false, ignore and "" or ("expects only " .. i .. " arguments but got " .. n)
 
 		return true
@@ -202,16 +205,6 @@ return ->
 				if tt
 					return tt
 
-		--```
-		xs, ys = x.outs, y.outs
-		i, n = 0, #xs
-		while i < n
-			i = i + 1
-			t, err = unify(xs[i], ys[i] or ty.nil(), ignore)
-			if not t
-				return false, ignore and "" or ("return value " .. i .. " " .. err)
-		```
-
 		if x.tag == y.tag
 			if x.tag == TType.Nil
 				return true
@@ -220,13 +213,22 @@ return ->
 				if x.type == y.type
 					return true
 
+			if x.tag == TType.Tuple
+				return unify_tuple(x, y, ignore)
+				
 			if x.tag == TType.Func
-				return unify_func(x, y, ignore)
+				return unify(x.ins, y.ins, ignore)
 
 			if x.tag == TType.Tbl
 				return unify_tbl(x, y, ignore)
 
-	
+
+		if x.tag == TType.Tuple
+			return unify(x[1] or ty.nil(), y)
+			
+		if y.tag == TType.Tuple
+			return unify(x, y[1] or ty.nil())
+
 		return false, ignore and "" or ("expects " .. ty.tostr(x) .. " instead of " .. ty.tostr(y))
 
 

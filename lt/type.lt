@@ -76,7 +76,7 @@ var subtype_tuple = \a, s ->
 		
 	if i < #s
 		i = i + 1
-		if not as[i].varargs
+		if not a[i].varargs
 			return false
 
 
@@ -172,7 +172,8 @@ subtype = \a, s ->
 
 
 
--- t is either a tbl or union of tbl, ...
+-- return the tbl or union of tbl, ...
+-- else nil
 var get_tbl = \t ->
 	var tbl = t
 	if t.tag == TType.Or
@@ -180,7 +181,8 @@ var get_tbl = \t ->
 			if v.tag == TType.Tbl
 				tbl = v
 				break
-	return tbl
+	if tbl.tag == TType.Tbl
+		return tbl
 
 
 ------------------ types ------------------------
@@ -291,7 +293,10 @@ var Str = {}
 tostr = \t ->
 	assert(TType[t.tag])
 	var rule = Str[t.tag]
-	return rule(t)
+	var s = rule(t)
+	if t.varargs
+		return s .. "*"
+	return s
 
 -- build switch table only once
 Str[TType.New] = \t ->
@@ -349,6 +354,10 @@ var nil_t = Type.nil()
 var num_t = Type.num()
 var str_t = Type.str()
 var bool_t = Type.bool()
+var any_vars_t = varargs(any_t)
+
+var tuple_none_t = Type.tuple({})
+var tuple_any_t = Type.tuple({any_vars_t})
 
 return {
 	any = -> return any_t
@@ -356,6 +365,10 @@ return {
 	, num = -> return num_t
 	, str = -> return str_t
 	, bool = -> return bool_t
+	, any_vars = -> return any_vars_t
+	, tuple_none = -> return tuple_none_t
+	, tuple_any = -> return tuple_any_t
+
 	, tuple = Type.tuple
 	, func = Type.func
 	, tbl = Type.tbl
@@ -364,7 +377,7 @@ return {
 	, name = Type.name
 	, index = Type.index
 	, typeof = Type.typeof
-	
+
 	, varargs = varargs
 	, same = same
 	, clone = clone

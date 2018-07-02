@@ -1,45 +1,6 @@
 
 Luaty is yet another indent sensitive language that compiles to Lua.
-It has a static analyzer, and some opinionated syntax.
-
-
-Builtin static analyzer
----
-
-During transpiling, Luaty warns about:
-  * simple function parameter type mismatch
-  * function parameter and argument count difference
-  * unused variables
-  * unused labels
-  * assignment to undeclared (a.k.a global) variable
-  * assignment having more expressions on the right side than the left
-  * shadowed variables in the parent or the same scope
-  * duplicate keys in table constructor
-
-Lua code will be generated regardless.
-
-```
-var j = \a -> return a
-j(4, 5)                   -- function expects only 1 arguments but got 2
-
-var k = \a -> return a + 0
-k('s')                    -- function parameter 1 expects <num> instead of <str>
-
-a = 1                     -- undeclared identifier a
-
-var c, d = 1, 2, 4        -- assigning 3 values to 2 variables
-
-var p = print
-var p = 'p'               -- shadowing previous var p
-
-var f = \z->
-   var z = 10             -- shadowing previous var z
-
-var tbl = {
-   x = 1
-   , x = 3                -- duplicate key 'x' in table
-}
-```
+It has a static analyzer with limited type checking, and some opinionated syntax.
 
 
 Differences from Lua
@@ -56,7 +17,8 @@ There are also some syntax changes:
   * `local` becomes `var`
   * `[[` and `]]` become backquote(s) \` that can be repeated multiple times
   * table keys can be string or keyword
-  
+
+
 ```
 var x = false               -- `var` compiles to `local`
 if not x
@@ -112,6 +74,57 @@ var get = -> return obj
 print(get()['long-name'](@, 10))    -- `@` *just works*, get() is only called once
 ```
 
+The differences end here, so that a Lua file can easily be [hand converted](https://github.com/gnois/luaty/tree/master/convert.md) to a Luaty file.
+
+
+
+Builtin static analyzer
+---
+
+During transpiling, Luaty warns about:
+  * unused variables
+  * unused labels
+  * assignment to undeclared (a.k.a global) variable
+  * assignment having more expressions on the right side than the left
+  * shadowed variables in the parent or the same scope
+  * duplicate keys in table constructor
+  * simple function parameter type mismatch
+  * function parameter and argument count difference
+  * inconsistence use of variables
+
+Luaty uses a type checker which could only infer a limited subset of Lua.
+The type checker assumes the type of a variable as the union of all the types assigned to it.
+This means warning will not be given for reassignment of different types to the same variable. 
+
+Lua code will be generated regardless of warning by the static analyzer.
+
+```
+a = 1                     -- undeclared identifier a
+
+var c, d = 1, 2, 4        -- assigning 3 values to 2 variables
+
+var p = print
+var p = 'p'               -- shadowing previous var p
+
+var f = \z->
+   var z = 10             -- shadowing previous var z
+
+var tbl = {
+   x = 1
+   , x = 3                -- duplicate key 'x' in table
+}
+
+
+var j = \a -> return a
+j(4, 5)                   -- function expects only 1 arguments but got 2
+
+var k = \a -> return a + 0
+k('s')                    -- function parameter 1 expects <num> instead of <str>
+
+var p = {q = 5}           
+p.q.r = 7                 -- assignment expects {} instead of <num>
+
+```
 
 
 

@@ -81,7 +81,7 @@ local subtype_tuple = function(a, s)
     end
     if i < #s then
         i = i + 1
-        if not as[i].varargs then
+        if not a[i].varargs then
             return false
         end
     end
@@ -195,7 +195,9 @@ local get_tbl = function(t)
             end
         end
     end
-    return tbl
+    if tbl.tag == TType.Tbl then
+        return tbl
+    end
 end
 local create = function(tag, node)
     assert("table" == type(node))
@@ -288,7 +290,11 @@ local Str = {}
 tostr = function(t)
     assert(TType[t.tag])
     local rule = Str[t.tag]
-    return rule(t)
+    local s = rule(t)
+    if t.varargs then
+        return s .. "*"
+    end
+    return s
 end
 Str[TType.New] = function(t)
     return "T" .. t.id
@@ -346,6 +352,9 @@ local nil_t = Type["nil"]()
 local num_t = Type.num()
 local str_t = Type.str()
 local bool_t = Type.bool()
+local any_vars_t = varargs(any_t)
+local tuple_none_t = Type.tuple({})
+local tuple_any_t = Type.tuple({any_vars_t})
 return {
     any = function()
         return any_t
@@ -361,6 +370,15 @@ return {
     end
     , bool = function()
         return bool_t
+    end
+    , any_vars = function()
+        return any_vars_t
+    end
+    , tuple_none = function()
+        return tuple_none_t
+    end
+    , tuple_any = function()
+        return tuple_any_t
     end
     , tuple = Type.tuple
     , func = Type.func

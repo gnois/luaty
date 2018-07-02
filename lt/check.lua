@@ -164,7 +164,7 @@ return function(scope, stmts, warn, import)
         if not scope.is_varargs() then
             warn(node.line, node.col, 2, "cannot use `...` in a function without variable arguments")
         end
-        return ty.varargs(ty.any())
+        return ty.any_vars()
     end
     Expr[TExpr.Id] = function(node)
         local line, t
@@ -204,7 +204,7 @@ return function(scope, stmts, warn, import)
                 end
             end
         end
-        local rtuple = scope.get_returns() or ty.tuple({})
+        local rtuple = scope.get_returns() or ty.tuple_none()
         scope.end_func()
         return ty.func(ty.tuple(ptypes), rtuple)
     end
@@ -260,26 +260,30 @@ return function(scope, stmts, warn, import)
         if check(ty.tbl({}), ot, node, "field `." .. node.field .. "` ") then
             local t = solv.apply(ot)
             local tbl = ty.get_tbl(t)
-            for _, tk in ipairs(tbl) do
-                if tk[2] == node.field then
-                    return tk[1]
+            if tbl then
+                for _, tk in ipairs(tbl) do
+                    if tk[2] == node.field then
+                        return tk[1]
+                    end
                 end
+                local vt = new()
+                tbl[#tbl + 1] = {vt, node.field}
+                return vt
             end
-            local vt = new()
-            tbl[#tbl + 1] = {vt, node.field}
-            return vt
+            return ty.any()
         end
         return ty["nil"]()
     end
     Expr[TExpr.Invoke] = function(node)
         local atypes = infer_exprs(node.args)
         local ot = infer_expr(node.obj)
-        if check(ty.tbl({}), ot, node, "method `" .. node.field .. "` ") then
-            local t = solv.apply(ot)
-            local tbl = ty.get_tbl(t)
+        check(ty.tbl({}), ot, node, "method `" .. node.field .. "` ")
+        local t = solv.apply(ot)
+        local tbl = ty.get_tbl(t)
+        if tbl then
             for _, tk in ipairs(tbl) do
                 if tk[2] == node.field then
-                    local tytys = {{ty.func(ty.tuple(atypes), ty.tuple({})), node.field}}
+                    local tytys = {{ty.func(ty.tuple(atypes), ty.tuple_any()), node.field}}
                     check(ty.tbl(tytys), tk[1], node, "method `" .. node.field .. "` ")
                     if tk[1].tag == TType.Func then
                         return tk[1].outs
@@ -291,20 +295,26 @@ return function(scope, stmts, warn, import)
             tbl[#tbl + 1] = {ty.func(ty.tuple(atypes), rt), node.field}
             return rt
         end
-        return ty.tuple({})
+        return ty.tuple_any()
     end
     Expr[TExpr.Call] = function(node)
         local atypes = infer_exprs(node.args)
-        if node.func.tag == TExpr.Id and node.func.name == "require" then
-            return import(node.args[1].value) or ty["nil"]()
+        if node.func.tag == TExpr.Id and node.func.name == "require" and node.args[1] and node.args[1].tag == TExpr.String then
+            return import(node.args[1].value) or ty.any()
         end
         local ftype = infer_expr(node.func)
-        check(ftype, ty.func(ty.tuple(atypes), ty.tuple({})), node, "function ")
         local fn = solv.apply(ftype)
-        if fn.tag == TType.Func then
-            return fn.outs
+        if fn.tag == TType.Nil or fn.tag == TType.Val then
+            warn(node.line, node.col, 1, "trying to call " .. ty.tostr(fn))
+        elseif fn.tag == TType.New then
+            solv.extend(fn, ty.func(ty.tuple(atypes), ty.tuple_any()))
+        else
+            check(fn, ty.func(ty.tuple(atypes), ty.tuple_any()), node, "function ")
+            if fn.outs then
+                return fn.outs
+            end
         end
-        return ty.tuple({})
+        return ty.tuple_any()
     end
     Expr[TExpr.Unary] = function(node)
         local rtype = infer_expr(node.right)
@@ -327,7 +337,9 @@ return function(scope, stmts, warn, import)
             return rtype
         end
         if arithmetic(op) or relational(op) then
-            check_op(ltype, rtype, node, op)
+            if op ~= "==" and op ~= "~=" then
+                check_op(ltype, rtype, node, op)
+            end
             if relational(op) then
                 return ty.bool()
             end
@@ -377,17 +389,22 @@ return function(scope, stmts, warn, import)
                         if not ok then
                             local t = solv.apply(ot)
                             local tbl = ty.get_tbl(t)
-                            for _, tk in ipairs(tbl) do
-                                if tk[2] == node.field then
-                                    tk[1] = ty["or"](tk[1], rtype)
-                                    solv.extend(ot, t)
-                                    return 
+                            if tbl then
+                                for _, tk in ipairs(tbl) do
+                                    if tk[2] == node.field then
+                                        tk[1] = ty["or"](tk[1], rtype)
+                                        solv.extend(ot, t)
+                                        return 
+                                    end
+                                end
+                                local param = node.obj.name
+                                if param then
+                                    t = ty.clone(t)
+                                    tbl = ty.get_tbl(t)
+                                    tbl[#tbl + 1] = tytys[1]
+                                    assert(scope.update_var(param, solv.extend(new(), t)))
                                 end
                             end
-                            t = ty.clone(t)
-                            tbl = ty.get_tbl(t)
-                            tbl[#tbl + 1] = tytys[1]
-                            scope.update_var(node.obj.name, solv.extend(new(), t))
                         end
                     end
                 end

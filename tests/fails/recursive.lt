@@ -1,8 +1,0 @@
--- recursive type detected by typechecker
--- anyway this will be infinite loop
-
-var f
-f = -> return f(f)
-f()
-
---f(\z-> return z)

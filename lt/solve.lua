@@ -21,29 +21,30 @@ return function()
         end
         return node
     end
+    Subst[TType.Tuple] = function(node, tvar, texp)
+        for i = 1, #node do
+            node[i] = subst(node[i], tvar, texp)
+        end
+        return node
+    end
     Subst[TType.Func] = function(node, tvar, texp)
-        local ins, outs = {}, {}
-        for i, p in ipairs(node.ins) do
-            ins[i] = subst(p, tvar, texp)
-        end
-        for i, r in ipairs(node.outs) do
-            outs[i] = subst(r, tvar, texp)
-        end
-        return ty.func(ty.tuple(ins), ty.tuple(outs))
+        node.ins = subst(node.ins, tvar, texp)
+        node.outs = subst(node.outs, tvar, texp)
+        return node
     end
     Subst[TType.Tbl] = function(node, tvar, texp)
-        local tytys = {}
-        for i, tk in ipairs(node) do
-            tytys[i] = {subst(tk[1], tvar, texp), tk[2] and subst(tk[2], tvar, texp)}
+        for i = 1, #node do
+            local n = node[i]
+            n[1] = subst(n[1], tvar, texp)
+            n[2] = n[2] and subst(n[2], tvar, texp)
         end
-        return ty.tbl(tytys)
+        return node
     end
     Subst[TType.Or] = function(node, tvar, texp)
-        local list = {}
-        for i, t in ipairs(node) do
-            list[i] = subst(t, tvar, texp)
+        for i = 1, #node do
+            node[i] = subst(node[i], tvar, texp)
         end
-        return ty["or"](unpack(list))
+        return node
     end
     local Apply = {}
     local apply = function(node)
@@ -56,29 +57,30 @@ return function()
     Apply[TType.New] = function(node)
         return subs[node.id] or node
     end
+    Apply[TType.Tuple] = function(node)
+        for i = 1, #node do
+            node[i] = apply(node[i])
+        end
+        return node
+    end
     Apply[TType.Func] = function(node)
-        local ins, outs = {}, {}
-        for i, p in ipairs(node.ins) do
-            ins[i] = apply(p)
-        end
-        for i, r in ipairs(node.outs) do
-            outs[i] = apply(r)
-        end
-        return ty.func(ty.tuple(ins), ty.tuple(outs))
+        node.ins = apply(node.ins)
+        node.outs = apply(node.outs)
+        return node
     end
     Apply[TType.Tbl] = function(node)
-        local tytys = {}
-        for i, tk in ipairs(node) do
-            tytys[i] = {apply(tk[1]), tk[2] and apply(tk[2])}
+        for i = 1, #node do
+            local n = node[i]
+            n[i] = apply(n[1])
+            n[2] = n[2] and apply(n[2])
         end
-        return ty.tbl(tytys)
+        return node
     end
     Apply[TType.Or] = function(node)
-        local list = {}
-        for i, t in ipairs(node) do
-            list[i] = apply(t)
+        for i = 1, #node do
+            node[i] = apply(node[i])
         end
-        return ty["or"](unpack(list))
+        return node
     end
     local Occur = {}
     local occurs = function(x, y)
@@ -91,18 +93,16 @@ return function()
     Occur[TType.New] = function(x, node)
         return x.id == node.id
     end
-    Occur[TType.Func] = function(x, node)
-        for _, p in ipairs(node.ins) do
+    Occur[TType.Tuple] = function(x, node)
+        for _, p in ipairs(node) do
             if occurs(x, p) then
                 return true
             end
         end
-        for _, r in ipairs(node.outs) do
-            if occurs(x, r) then
-                return true
-            end
-        end
         return false
+    end
+    Occur[TType.Func] = function(x, node)
+        return occurs(x, node.ins) or occurs(x, node.outs)
     end
     Occur[TType.Tbl] = function(x, node)
         for _, tk in ipairs(node) do
@@ -132,27 +132,26 @@ return function()
         return tvar
     end
     local unify
-    local unify_func = function(x, y, ignore)
-        local xs, ys = x.ins, y.ins
-        local i, n = 0, #xs
+    local unify_tuple = function(x, y, ignore)
+        local i, n = 0, #x
         local t, err
         while i < n do
             i = i + 1
-            if ys[i] then
-                t, err = unify(xs[i], ys[i], ignore)
+            if y[i] then
+                t, err = unify(x[i], y[i], ignore)
                 if not t then
                     return false, ignore and "" or "parameter " .. i .. " " .. err
                 end
             else
-                if not xs[i].varargs then
+                if not x[i].varargs then
                     return false, ignore and "" or "expects " .. n .. " arguments but only got " .. i - 1
                 end
                 return true
             end
         end
-        n = #ys
+        n = #y
         if i < n then
-            if i < 1 or not xs[i].varargs then
+            if i < 1 or not x[i].varargs then
                 return false, ignore and "" or "expects only " .. i .. " arguments but got " .. n
             end
         end
@@ -226,12 +225,21 @@ return function()
                     return true
                 end
             end
+            if x.tag == TType.Tuple then
+                return unify_tuple(x, y, ignore)
+            end
             if x.tag == TType.Func then
-                return unify_func(x, y, ignore)
+                return unify(x.ins, y.ins, ignore)
             end
             if x.tag == TType.Tbl then
                 return unify_tbl(x, y, ignore)
             end
+        end
+        if x.tag == TType.Tuple then
+            return unify(x[1] or ty["nil"](), y)
+        end
+        if y.tag == TType.Tuple then
+            return unify(x, y[1] or ty["nil"]())
         end
         return false, ignore and "" or "expects " .. ty.tostr(x) .. " instead of " .. ty.tostr(y)
     end
