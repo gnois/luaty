@@ -282,15 +282,8 @@ var varargs = \t ->
 	return t
 
 ----------------- type to string ------------------
-var tostr
-var tolst = \ls ->
-	var out = {}
-	for i, p in ipairs(ls)
-		out[i] = tostr(p)
-	return table.concat(out, ',')
-
 var Str = {}
-tostr = \t ->
+var tostr = \t ->
 	assert(TType[t.tag])
 	var rule = Str[t.tag]
 	var s = rule(t)

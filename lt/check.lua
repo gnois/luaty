@@ -13,7 +13,7 @@ end
 local arithmetic = function(op)
     return op == "+" or op == "-" or op == "*" or op == "/" or op == "^"
 end
-return function(scope, stmts, warn, import)
+return function(scope, stmts, warn, import, typecheck)
     local Stmt = {}
     local Expr = {}
     local Type = {}
@@ -32,14 +32,51 @@ return function(scope, stmts, warn, import)
         end
     end
     local check = function(x, y, node, msg)
-        local t, err = solv.unify(x, y)
-        if not t then
-            warn(node.line, node.col, 1, msg .. err)
+        if typecheck then
+            local t, err = solv.unify(x, y)
+            if not t then
+                warn(node.line, node.col, 1, msg .. err)
+            end
+            return t
         end
-        return t
+        return x
     end
     local check_op = function(x, y, node, op)
         return check(x, y, node, "operator `" .. op .. "` ")
+    end
+    local check_field = function(otype, field, node)
+        local t
+        if check(ty.tbl({}), otype, node, "field `" .. field .. "` ") then
+            t = solv.apply(otype)
+            local tbl = ty.get_tbl(t)
+            if tbl then
+                for _, tk in ipairs(tbl) do
+                    if tk[2] == field then
+                        return tk[1], t
+                    end
+                end
+                local vt = new()
+                tbl[#tbl + 1] = {vt, field}
+                return vt, t
+            end
+        end
+        return ty.any(), t
+    end
+    local check_fn = function(ftype, atypes, node)
+        if typecheck then
+            local fn = solv.apply(ftype)
+            if fn.tag == TType.New then
+                solv.extend(fn, ty.func(ty.tuple(atypes), ty.tuple_any()))
+            elseif fn.tag == TType.Nil or fn.tag == TType.Val then
+                warn(node.line, node.col, 1, "trying to call " .. ty.tostr(fn))
+            else
+                check(fn, ty.func(ty.tuple(atypes), ty.tuple_any()), node, "function ")
+                if fn.outs then
+                    return fn.outs
+                end
+            end
+        end
+        return ty.tuple_any()
     end
     local check_type = function(tnode, loc)
         local rule = Type[tnode.tag]
@@ -258,29 +295,17 @@ return function(scope, stmts, warn, import)
         return tbl
     end
     Expr[TExpr.Index] = function(node)
-        local it = infer_expr(node.idx)
         local ot = infer_expr(node.obj)
+        local it = infer_expr(node.idx)
+        if it.tag == TExpr.String then
+            return check_field(ot, it.value, node)
+        end
         check(ty.tbl({}), ot, node, "indexer ")
         return ty.any(), ot
     end
     Expr[TExpr.Field] = function(node)
         local ot = infer_expr(node.obj)
-        if check(ty.tbl({}), ot, node, "field `." .. node.field .. "` ") then
-            local t = solv.apply(ot)
-            local tbl = ty.get_tbl(t)
-            if tbl then
-                for _, tk in ipairs(tbl) do
-                    if tk[2] == node.field then
-                        return tk[1], t
-                    end
-                end
-                local vt = new()
-                tbl[#tbl + 1] = {vt, node.field}
-                return vt, t
-            end
-            return ty.any(), t
-        end
-        return ty["nil"]()
+        return check_field(ot, node.field, node)
     end
     Expr[TExpr.Call] = function(node)
         local arg1 = node.args[1]
@@ -301,18 +326,7 @@ return function(scope, stmts, warn, import)
         if not atypes then
             atypes = infer_exprs(node.args)
         end
-        local fn = solv.apply(ftype)
-        if fn.tag == TType.Nil or fn.tag == TType.Val then
-            warn(node.line, node.col, 1, "trying to call " .. ty.tostr(fn))
-        elseif fn.tag == TType.New then
-            solv.extend(fn, ty.func(ty.tuple(atypes), ty.tuple_any()))
-        else
-            check(fn, ty.func(ty.tuple(atypes), ty.tuple_any()), node, "function ")
-            if fn.outs then
-                return fn.outs
-            end
-        end
-        return ty.tuple_any()
+        return check_fn(ftype, atypes, node)
     end
     Expr[TExpr.Unary] = function(node)
         local rtype = infer_expr(node.right)
@@ -349,7 +363,7 @@ return function(scope, stmts, warn, import)
         end
         return ltype
     end
-    Expr[TExpr.Union] = function(node)
+    Expr[TExpr.Union] = function()
         return ty.any()
     end
     Stmt[TStmt.Expr] = function(node)
@@ -369,48 +383,29 @@ return function(scope, stmts, warn, import)
             declare(var, solv.extend(new(), ltype or rtypes[i] or ty["nil"]()))
         end
     end
-    local assign = function(nodes, types)
-        for i, node in ipairs(nodes) do
-            local rtype = types[i] or ty["or"](ty.any(), ty["nil"]())
-            local ltype
-            if node.tag == TExpr.Id then
-                ltype = infer_expr(node)
-                if not solv.unify(ltype, rtype, true) then
-                    solv.extend(ltype, ty["or"](solv.apply(ltype), rtype))
-                end
-            else
-                local ot = infer_expr(node.obj)
-                if check(ty.tbl({}), ot, node, "assignment ") then
-                    if node.tag == TExpr.Index then
-                        local it = infer_expr(node.idx)
-                    else
-                        assert(node.tag == TExpr.Field)
-                        local tytys = {{rtype, node.field}}
-                        local ok = solv.unify(ty.tbl(tytys), ot, true)
-                        if not ok then
-                            local t = solv.apply(ot)
-                            local tbl = ty.get_tbl(t)
-                            if tbl then
-                                for _, tk in ipairs(tbl) do
-                                    if tk[2] == node.field then
-                                        tk[1] = ty["or"](tk[1], rtype)
-                                        solv.extend(ot, t)
-                                        return 
-                                    end
-                                end
-                                local param = node.obj.name
-                                if param then
-                                    if param == "@" then
-                                        param = "self"
-                                    end
-                                    t = ty.clone(t)
-                                    tbl = ty.get_tbl(t)
-                                    tbl[#tbl + 1] = tytys[1]
-                                    assert(scope.update_var(param, solv.extend(new(), t)))
-                                end
-                            end
-                        end
+    local assign_field = function(node, otype, field, rtype)
+        local tytys = {{rtype, field}}
+        local ok = solv.unify(ty.tbl(tytys), otype, true)
+        if not ok then
+            local t = solv.apply(otype)
+            local tbl = ty.get_tbl(t)
+            if tbl then
+                for _, tk in ipairs(tbl) do
+                    if tk[2] == field then
+                        tk[1] = ty["or"](tk[1], rtype)
+                        solv.extend(otype, t)
+                        return 
                     end
+                end
+                local param = node.obj.name
+                if param then
+                    if param == "@" then
+                        param = "self"
+                    end
+                    t = ty.clone(t)
+                    tbl = ty.get_tbl(t)
+                    tbl[#tbl + 1] = tytys[1]
+                    assert(scope.update_var(param, solv.extend(new(), t)))
                 end
             end
         end
@@ -418,7 +413,28 @@ return function(scope, stmts, warn, import)
     Stmt[TStmt.Assign] = function(node)
         balance_check(node.lefts, node.rights)
         local rtypes = infer_exprs(node.rights)
-        assign(node.lefts, rtypes)
+        for i, n in ipairs(node.lefts) do
+            local rtype = rtypes[i] or ty["or"](ty.any(), ty["nil"]())
+            local ltype
+            if n.tag == TExpr.Id then
+                ltype = infer_expr(n)
+                if not solv.unify(ltype, rtype, true) then
+                    solv.extend(ltype, ty["or"](solv.apply(ltype), rtype))
+                end
+            else
+                local ot = infer_expr(n.obj)
+                if check(ty.tbl({}), ot, n, "assignment ") then
+                    if n.tag == TExpr.Index then
+                        local it = infer_expr(n.idx)
+                        if it.tag == TExpr.String then
+                            assign_field(n, ot, it.value, rtype)
+                        end
+                    else
+                        assign_field(n, ot, node.field, rtype)
+                    end
+                end
+            end
+        end
     end
     Stmt[TStmt.Do] = function(node)
         check_block(node.body)

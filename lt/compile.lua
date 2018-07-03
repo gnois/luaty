@@ -54,7 +54,7 @@ return function(options, color)
             if ast[1] then
                 if r.continue() then
                     local sc = scope(options.declares, r.warn)
-                    typ = check(sc, ast, r.warn, import)
+                    typ = check(sc, ast, r.warn, import, options.typecheck)
                     ast = transform(ast)
                     if r.continue() then
                         luacode = generate(ast)

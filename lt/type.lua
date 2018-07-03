@@ -278,16 +278,8 @@ local varargs = function(t)
     t.varargs = true
     return t
 end
-local tostr
-local tolst = function(ls)
-    local out = {}
-    for i, p in ipairs(ls) do
-        out[i] = tostr(p)
-    end
-    return table.concat(out, ",")
-end
 local Str = {}
-tostr = function(t)
+local tostr = function(t)
     assert(TType[t.tag])
     local rule = Str[t.tag]
     local s = rule(t)

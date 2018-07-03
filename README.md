@@ -1,6 +1,6 @@
 
 Luaty is yet another indent sensitive language that compiles to Lua.
-It has a static analyzer with limited type checking, and some opinionated syntax.
+It has a static analyzer with optional type checking, and some opinionated syntax.
 
 
 Differences from Lua
@@ -88,11 +88,9 @@ During transpiling, Luaty warns about:
   * assignment having more expressions on the right side than the left
   * shadowed variables in the parent or the same scope
   * duplicate keys in table constructor
-  * simple function parameter type mismatch
-  * function parameter and argument count difference
-  * inconsistence use of variables
 
-The type checker could only infer a very limited subset of Lua, and is probably wrong in non trivial cases.
+An optional type checker can be enabled to check consistent usage of variables.
+It could only infer a limited subset of Lua, and is probably wrong in non trivial cases.
 Lua code will be generated regardless of warning by the static analyzer.
 
 ```
@@ -112,6 +110,7 @@ var tbl = {
 }
 
 
+-- when type checker enabled --
 var j = \a -> return a
 j(4, 5)                   -- function expects only 1 arguments but got 2
 
@@ -135,12 +134,13 @@ With LuaJIT in your path, clone this repo, and cd into it.
 
 To transpile a Luaty *main.lt* file and its dependencies to *main.lua* and *dep1.lua*, *dep2.lua, ...* , use
 ```
-luajit lt.lua -f /path/to/main.lt
+luajit lt.lua -f [-t] /path/to/main.lt
 ```
+Type checker is enabled when using -t.
 
 The Lua output files will be **overwritten** if they exist. To prevent overwriting, use -c instead of -f
 ```
-luajit lt.lua -c /path/to/main.lt
+luajit lt.lua -c [-t] /path/to/main.lt
 ```
 
 
@@ -148,6 +148,7 @@ To execute a Luaty source file, use
 ```
 luajit lt.lua /path/to/source.lt
 ```
+
 
 
 

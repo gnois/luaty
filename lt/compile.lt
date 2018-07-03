@@ -54,7 +54,7 @@ var report = \color ->
 --`
  options = {
 	declares = {ngx = true, xvars = true, ...}
-	, check = true
+	, typecheck = false
 	, silent = {...}
  }
 --`
@@ -72,7 +72,7 @@ return \options, color ->
 			if ast[1]
 				if r.continue()
 					var sc = scope(options.declares, r.warn)
-					typ = check(sc, ast, r.warn, import)
+					typ = check(sc, ast, r.warn, import, options.typecheck)
 					ast = transform(ast)
 					if r.continue()
 						luacode = generate(ast)

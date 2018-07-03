@@ -7,10 +7,11 @@ local color = term.color
 local usage = function(err)
     local spec = [=[
 Usage: 
-  luajit lt.lua [-f] [-c] src.lt [-d xvar]
+  luajit lt.lua [-f] [-c] [-t] src.lt [-d xvar]
   where:
     -c        Transpile src.lt and its dependecies into src.lua, *.lua ... without running
     -f        Transpile src.lt and its dependecies into src.lua, *.lua ... without running, overwriting them if they exist
+    -t        Enable type checking
     -d xvar   Declares `xvar` to silent undeclared identifier warning
     
   Running without parameters enters Read-Generate-Eval-Print loop
@@ -22,6 +23,7 @@ end
 local run = true
 local force = false
 local already = false
+local typecheck = false
 local paths = {}
 local decls = {}
 for s, p in term.scan({...}) do
@@ -43,18 +45,24 @@ for s, p in term.scan({...}) do
         else
             usage("Error: -d requires identifier")
         end
-    else
+    elseif s == "t" then
+        typecheck = true
         if p then
             table.insert(paths, p)
-        elseif s ~= "" then
+        end
+    else
+        if s ~= "" then
             usage("Error: unknown switch -" .. s)
+        end
+        if p then
+            table.insert(paths, p)
         end
     end
 end
 if #paths > 1 then
     usage("Error: only one file accepted")
 end
-local compile = compiler({declares = decls}, color)
+local compile = compiler({declares = decls, typecheck = typecheck}, color)
 if run and not paths[1] then
     local print_results = function(...)
         if select("#", ...) > 1 then

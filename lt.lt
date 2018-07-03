@@ -5,10 +5,11 @@ var color = term.color
 var usage = \err ->
 	var spec = ``
 Usage: 
-  luajit lt.lua [-f] [-c] src.lt [-d xvar]
+  luajit lt.lua [-f] [-c] [-t] src.lt [-d xvar]
   where:
     -c        Transpile src.lt and its dependecies into src.lua, *.lua ... without running
     -f        Transpile src.lt and its dependecies into src.lua, *.lua ... without running, overwriting them if they exist
+    -t        Enable type checking
     -d xvar   Declares `xvar` to silent undeclared identifier warning
     
   Running without parameters enters Read-Generate-Eval-Print loop
@@ -22,6 +23,7 @@ Usage:
 var run = true
 var force = false
 var already = false
+var typecheck = false
 var paths = {}
 var decls = {}
 
@@ -40,17 +42,21 @@ for s, p in term.scan({...})
 			decls[p] = true
 		else
 			usage("Error: -d requires identifier")
-	else
+	else if s == 't'
+		typecheck = true
 		if p
 			table.insert(paths, p)
-		else if s ~= ""
+	else
+		if s ~= ""
 			usage("Error: unknown switch -" .. s)
+		if p
+			table.insert(paths, p)
 
 
 if #paths > 1
 	usage("Error: only one file accepted")
 
-var compile = compiler({declares = decls}, color)
+var compile = compiler({declares = decls, typecheck = typecheck}, color)
 
 if run and not paths[1]
 	-- REPL

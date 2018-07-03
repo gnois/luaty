@@ -12,7 +12,7 @@ var relational = \op ->
 var arithmetic = \op ->
 	return op == '+' or op == '-' or op == '*' or op == '/' or op == '^'
 
-return \scope, stmts, warn, import ->
+return \scope, stmts, warn, import, typecheck ->
 
 	var Stmt = {}
 	var Expr = {}
@@ -33,13 +33,44 @@ return \scope, stmts, warn, import ->
 			error(msg)
 
 	var check = \x, y, node, msg ->
-		var t, err = solv.unify(x, y)
-		if not t
-			warn(node.line, node.col, 1, msg .. err)
-		return t
+		if typecheck
+			var t, err = solv.unify(x, y)
+			if not t
+				warn(node.line, node.col, 1, msg .. err)
+			return t
+		return x
 
 	var check_op = \x, y, node, op ->
 		return check(x, y, node, "operator `" .. op .. "` ")
+
+	var check_field = \otype, field, node ->
+		var t
+		if check(ty.tbl({}), otype, node, "field `" .. field .. "` ")
+			t = solv.apply(otype)
+			var tbl = ty.get_tbl(t)
+			if tbl
+				for _, tk in ipairs(tbl)
+					if tk[2] == field
+						return tk[1], t
+				-- key doesnt exist
+				var vt = new()
+				tbl[#tbl + 1] = { vt, field }
+				return vt, t
+		return ty.any(), t
+
+	var check_fn = \ftype, atypes, node ->
+		if typecheck
+			var fn = solv.apply(ftype)
+			if fn.tag == TType.New
+				solv.extend(fn, ty.func(ty.tuple(atypes), ty.tuple_any()))
+			else if fn.tag == TType.Nil or fn.tag == TType.Val
+				warn(node.line, node.col, 1, "trying to call " .. ty.tostr(fn))
+			else
+				-- check params to args
+				check(fn, ty.func(ty.tuple(atypes), ty.tuple_any()), node, "function ")
+				if fn.outs
+					return fn.outs
+		return ty.tuple_any()
 
 
 	-- check type annotation
@@ -233,30 +264,20 @@ return \scope, stmts, warn, import ->
 		return tbl
 
 	Expr[TExpr.Index] = \node ->
-		var it = infer_expr(node.idx)
-		-- if index type is string, check
-		-- else key index can be any type
-			-- if index is number, it can be float, so we cannot know
-			-- else index is its runtime value, so we cannot know
 		var ot = infer_expr(node.obj)
+		var it = infer_expr(node.idx)
+		if it.tag == TExpr.String
+			return check_field(ot, it.value, node)
+		
+		-- else key index can be any type
+		-- if index is number, it can be float, so we cannot know
+		-- else index is its runtime value, so we cannot know
 		check(ty.tbl({}), ot, node, "indexer ")
 		return ty.any(), ot
 
 	Expr[TExpr.Field] = \node ->
 		var ot = infer_expr(node.obj)
-		if check(ty.tbl({}), ot, node, "field `." .. node.field .. "` ")
-			var t = solv.apply(ot)
-			var tbl = ty.get_tbl(t)
-			if tbl
-				for _, tk in ipairs(tbl)
-					if tk[2] == node.field
-						return tk[1], t
-				-- key doesnt exist
-				var vt = new()
-				tbl[#tbl + 1] = { vt, node.field }
-				return vt, t
-			return ty.any(), t
-		return ty.nil()
+		return check_field(ot, node.field, node)
 
 	Expr[TExpr.Call] = \node ->
 		var arg1 = node.args[1]
@@ -275,17 +296,7 @@ return \scope, stmts, warn, import ->
 		
 		if not atypes
 			atypes = infer_exprs(node.args)
-		var fn = solv.apply(ftype)
-		if fn.tag == TType.Nil or fn.tag == TType.Val
-			warn(node.line, node.col, 1, "trying to call " .. ty.tostr(fn))
-		else if fn.tag == TType.New
-			solv.extend(fn, ty.func(ty.tuple(atypes), ty.tuple_any()))
-		else
-			-- check params to args
-			check(fn, ty.func(ty.tuple(atypes), ty.tuple_any()), node, "function ")
-			if fn.outs
-				return fn.outs
-		return ty.tuple_any()
+		return check_fn(ftype, atypes, node)
 
 	Expr[TExpr.Unary] = \node ->
 		var rtype = infer_expr(node.right)
@@ -321,8 +332,7 @@ return \scope, stmts, warn, import ->
 		-- op == 'or'
 		return ltype
 
-
-	Expr[TExpr.Union] = \node ->
+	Expr[TExpr.Union] = ->
 		return ty.any()
 		
 	--------- Statements --------------------
@@ -341,55 +351,58 @@ return \scope, stmts, warn, import ->
 				check(ltype, rtypes[i], node, "type annotation ")
 			declare(var, solv.extend(new(), ltype or rtypes[i] or ty.nil()))
 
-	var assign = \nodes, types ->
-		for i, node in ipairs(nodes)
-			var rtype = types[i] or ty.or(ty.any(), ty.nil())
-			var ltype
-			if node.tag == TExpr.Id
-				ltype = infer_expr(node)
-				-- warn if reassignment of different type
-				-- check(ltype, rtype, node, "assigment ")
-				if not solv.unify(ltype, rtype, true)
-					solv.extend(ltype, ty.or(solv.apply(ltype), rtype))
-			else
-				var ot = infer_expr(node.obj)
-				if check(ty.tbl({}), ot, node, "assignment ")
-					if node.tag == TExpr.Index
-						var it = infer_expr(node.idx)
-					else
-						assert(node.tag == TExpr.Field)
-						var tytys = {
-							{ rtype, node.field }
-						}
-						var ok = solv.unify(ty.tbl(tytys), ot, true)
-						if not ok
-							var t = solv.apply(ot)
-							var tbl = ty.get_tbl(t)
-							if tbl
-								for _, tk in ipairs(tbl)
-									if tk[2] == node.field
-										-- reassignment of different type to same field
-										tk[1] = ty.or(tk[1], rtype)
-										solv.extend(ot, t)
-										return
-								
-								-- add a new field if it is posibly a parameter name
-								-- so that for f: t1 -> t2,  t2 is different from t1
-								var param = node.obj.name
-								if param
-									if param == '@'
-										param = 'self'
-									t = ty.clone(t)
-									tbl = ty.get_tbl(t)
-									tbl[#tbl + 1] = tytys[1]
-									assert(scope.update_var(param, solv.extend(new(), t)))
-								-- else need to find the tvar to extend, which we cant bcoz we are next next level down
 
+	var assign_field = \node, otype, field, rtype ->
+		var tytys = {
+			{ rtype, field }
+		}
+		var ok = solv.unify(ty.tbl(tytys), otype, true)
+		if not ok
+			var t = solv.apply(otype)
+			var tbl = ty.get_tbl(t)
+			if tbl
+				for _, tk in ipairs(tbl)
+					if tk[2] == field
+						-- reassignment of different type to same field
+						tk[1] = ty.or(tk[1], rtype)
+						solv.extend(otype, t)
+						return
+				
+				-- try to add a new field
+				-- clone in case it is a parameter so that for f: t1 -> t2,  t2 is different from t1
+				var param = node.obj.name
+				if param
+					if param == '@'
+						param = 'self'
+					t = ty.clone(t)
+					tbl = ty.get_tbl(t)
+					tbl[#tbl + 1] = tytys[1]
+					assert(scope.update_var(param, solv.extend(new(), t)))
+				-- else need to find the tvar to extend, which we cant bcoz we are next next level down
 
+			
 	Stmt[TStmt.Assign] = \node ->
 		balance_check(node.lefts, node.rights)
 		var rtypes = infer_exprs(node.rights)
-		assign(node.lefts, rtypes)
+		for i, n in ipairs(node.lefts)
+			var rtype = rtypes[i] or ty.or(ty.any(), ty.nil())
+			var ltype
+			if n.tag == TExpr.Id
+				ltype = infer_expr(n)
+				-- warn if reassignment of different type
+				-- check(ltype, rtype, n, "assigment ")
+				if not solv.unify(ltype, rtype, true)
+					solv.extend(ltype, ty.or(solv.apply(ltype), rtype))
+			else
+				var ot = infer_expr(n.obj)
+				if check(ty.tbl({}), ot, n, "assignment ")
+					if n.tag == TExpr.Index
+						var it = infer_expr(n.idx)
+						if it.tag == TExpr.String
+							assign_field(n, ot, it.value, rtype)
+					else
+						assign_field(n, ot, node.field, rtype)
+
 
 	Stmt[TStmt.Do] = \node ->
 		check_block(node.body)
