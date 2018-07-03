@@ -316,7 +316,7 @@ Str[TType.Tuple] = function(t)
     return "(" .. table.concat(out, ", ") .. ")"
 end
 Str[TType.Func] = function(t)
-    return table.concat({"[", tolst(t.ins), ":", tolst(t.outs), "]"})
+    return table.concat({tostr(t.ins), "->", tostr(t.outs)})
 end
 Str[TType.Tbl] = function(t)
     local out, o = {}, 1

@@ -353,7 +353,7 @@ return \scope, stmts, warn, import ->
 					solv.extend(ltype, ty.or(solv.apply(ltype), rtype))
 			else
 				var ot = infer_expr(node.obj)
-				if check(ty.tbl({}), ot, node, " assignment ")
+				if check(ty.tbl({}), ot, node, "assignment ")
 					if node.tag == TExpr.Index
 						var it = infer_expr(node.idx)
 					else
@@ -404,7 +404,7 @@ return \scope, stmts, warn, import ->
 	Stmt[TStmt.Forin] = \node ->
 		scope.enter_forin()
 		check_types(node.types, node)
-		var types = infer_exprs(node.exprs)
+		infer_exprs(node.exprs)
 		-- declare var into scope after rhs
 		for i, var in ipairs(node.vars)
 			declare(var, node.types and node.types[i])
@@ -413,10 +413,11 @@ return \scope, stmts, warn, import ->
 
 	Stmt[TStmt.Fornum] = \node ->
 		scope.enter_fornum()
-		infer_expr(node.first)
-		infer_expr(node.last)
+		var msg = " expression in numeric for "
+		check(ty.num(), infer_expr(node.first), node, "first " .. msg)
+		check(ty.num(), infer_expr(node.last), node, "second " .. msg)
 		if node.step
-			infer_expr(node.step)
+			check(ty.num(), infer_expr(node.step), node, "third " .. msg)
 		-- declare var into scope after rhs
 		declare(node.var, ty.num())
 		check_block(node.body)

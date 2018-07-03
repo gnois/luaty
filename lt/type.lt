@@ -318,7 +318,7 @@ Str[TType.Tuple] = \t ->
 	return '(' .. table.concat(out, ', ') .. ')'
 
 Str[TType.Func] = \t ->
-	return table.concat({'[', tolst(t.ins), ':', tolst(t.outs), ']'})
+	return table.concat({tostr(t.ins), '->', tostr(t.outs)})
 
 Str[TType.Tbl] = \t ->
 	var out, o = {}, 1

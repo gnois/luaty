@@ -380,7 +380,7 @@ return function(scope, stmts, warn, import)
                 end
             else
                 local ot = infer_expr(node.obj)
-                if check(ty.tbl({}), ot, node, " assignment ") then
+                if check(ty.tbl({}), ot, node, "assignment ") then
                     if node.tag == TExpr.Index then
                         local it = infer_expr(node.idx)
                     else
@@ -435,7 +435,7 @@ return function(scope, stmts, warn, import)
     Stmt[TStmt.Forin] = function(node)
         scope.enter_forin()
         check_types(node.types, node)
-        local types = infer_exprs(node.exprs)
+        infer_exprs(node.exprs)
         for i, var in ipairs(node.vars) do
             declare(var, node.types and node.types[i])
         end
@@ -444,10 +444,11 @@ return function(scope, stmts, warn, import)
     end
     Stmt[TStmt.Fornum] = function(node)
         scope.enter_fornum()
-        infer_expr(node.first)
-        infer_expr(node.last)
+        local msg = " expression in numeric for "
+        check(ty.num(), infer_expr(node.first), node, "first " .. msg)
+        check(ty.num(), infer_expr(node.last), node, "second " .. msg)
         if node.step then
-            infer_expr(node.step)
+            check(ty.num(), infer_expr(node.step), node, "third " .. msg)
         end
         declare(node.var, ty.num())
         check_block(node.body)

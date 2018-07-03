@@ -83,7 +83,7 @@ Builtin static analyzer
 
 During transpiling, Luaty warns about:
   * unused variables
-  * unused labels
+  * unused labels or illegal gotos
   * assignment to undeclared (a.k.a global) variable
   * assignment having more expressions on the right side than the left
   * shadowed variables in the parent or the same scope
@@ -92,10 +92,7 @@ During transpiling, Luaty warns about:
   * function parameter and argument count difference
   * inconsistence use of variables
 
-Luaty uses a type checker which could only infer a limited subset of Lua.
-The type checker assumes the type of a variable as the union of all the types assigned to it.
-This means warning will not be given for reassignment of different types to the same variable. 
-
+The type checker could only infer a very limited subset of Lua, and is probably wrong in non trivial cases.
 Lua code will be generated regardless of warning by the static analyzer.
 
 ```
