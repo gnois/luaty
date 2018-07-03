@@ -194,7 +194,7 @@ return \stmts ->
 					table.remove(node.args, 1)
 					return ast.Expr.invoke(func.obj, func.field, node.args, node)
 
-				else if func.tag == TExpr.Index
+				if func.tag == TExpr.Index
 					-- simulate a wrapped self method call
 					var obj = id('_self_', node)  -- lets hope we dont shadow parent scope variable
 					node.args[1] = obj

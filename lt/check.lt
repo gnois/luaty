@@ -90,7 +90,10 @@ return \scope, stmts, warn, import ->
 
 	var declare = \var, vtype ->
 		assert(var.tag == TExpr.Id)
-		scope.new_var(var.name, vtype, var.line, var.col)
+		var name = var.name
+		if name == '@'
+			name = 'self'
+		scope.new_var(name, vtype, var.line, var.col)
 
 	var balance_check = \lefts, rights ->
 		var r = #rights
@@ -153,7 +156,10 @@ return \scope, stmts, warn, import ->
 	Expr[TExpr.Id] = \node ->
 		var line, t
 		if node.name  -- node.name can be nil, bcoz the parser continues despite error
-			line, t = scope.declared(node.name)
+			var name = node.name
+			if name == '@'
+				name = 'self'
+			line, t = scope.declared(name)
 			if line == 0
 				warn(node.line, node.col, 1, "undeclared identifier `" .. node.name .. "`")
 			if not t
@@ -234,7 +240,7 @@ return \scope, stmts, warn, import ->
 			-- else index is its runtime value, so we cannot know
 		var ot = infer_expr(node.obj)
 		check(ty.tbl({}), ot, node, "indexer ")
-		return ty.any()
+		return ty.any(), ot
 
 	Expr[TExpr.Field] = \node ->
 		var ot = infer_expr(node.obj)
@@ -244,43 +250,31 @@ return \scope, stmts, warn, import ->
 			if tbl
 				for _, tk in ipairs(tbl)
 					if tk[2] == node.field
-						return tk[1]
+						return tk[1], t
 				-- key doesnt exist
 				var vt = new()
 				tbl[#tbl + 1] = { vt, node.field }
-				return vt
-			return ty.any()
+				return vt, t
+			return ty.any(), t
 		return ty.nil()
 
-	Expr[TExpr.Invoke] = \node ->
-		var atypes = infer_exprs(node.args)
-		var ot = infer_expr(node.obj)
-		check(ty.tbl({}), ot, node, "method `" .. node.field .. "` ")
-		var t = solv.apply(ot)
-		var tbl = ty.get_tbl(t)
-		if tbl
-			for _, tk in ipairs(tbl)
-				if tk[2] == node.field
-					var tytys = {
-						{ ty.func(ty.tuple(atypes), ty.tuple_any()), node.field }
-					}
-					check(ty.tbl(tytys), tk[1], node, "method `" .. node.field .. "` ")
-					if tk[1].tag == TType.Func
-						return tk[1].outs
-					return ty.nil()
-			-- key doesnt exist
-			var rt = ty.tuple({new()})
-			tbl[#tbl + 1] = { ty.func(ty.tuple(atypes), rt), node.field }
-			return rt
-		return ty.tuple_any()
-
 	Expr[TExpr.Call] = \node ->
-		var atypes = infer_exprs(node.args)
+		var arg1 = node.args[1]
 		-- check imports
-		if node.func.tag == TExpr.Id and node.func.name == 'require' and node.args[1] and node.args[1].tag == TExpr.String
-			return import(node.args[1].value) or ty.any()
+		if arg1 and arg1.tag == TExpr.String and node.func.tag == TExpr.Id and node.func.name == 'require'
+				return import(arg1.value) or ty.any()
 
-		var ftype = infer_expr(node.func)
+		var atypes
+		var func = node.func
+		var ftype, fobj = infer_expr(func)
+		if arg1 and arg1.name == '@' and not func.bracketed
+				if func.tag == TExpr.Field or func.tag == TExpr.Index
+					atypes = { fobj }
+					for i = 2, #node.args
+						atypes[i] = infer_expr(node.args[i])
+		
+		if not atypes
+			atypes = infer_exprs(node.args)
 		var fn = solv.apply(ftype)
 		if fn.tag == TType.Nil or fn.tag == TType.Val
 			warn(node.line, node.col, 1, "trying to call " .. ty.tostr(fn))
@@ -328,6 +322,9 @@ return \scope, stmts, warn, import ->
 		return ltype
 
 
+	Expr[TExpr.Union] = \node ->
+		return ty.any()
+		
 	--------- Statements --------------------
 	Stmt[TStmt.Expr] = \node ->
 		var etype
@@ -380,11 +377,13 @@ return \scope, stmts, warn, import ->
 								-- so that for f: t1 -> t2,  t2 is different from t1
 								var param = node.obj.name
 								if param
+									if param == '@'
+										param = 'self'
 									t = ty.clone(t)
 									tbl = ty.get_tbl(t)
 									tbl[#tbl + 1] = tytys[1]
 									assert(scope.update_var(param, solv.extend(new(), t)))
-								-- else need to find the tvar to extend, which we cant
+								-- else need to find the tvar to extend, which we cant bcoz we are next next level down
 
 
 	Stmt[TStmt.Assign] = \node ->

@@ -97,7 +97,11 @@ return function(scope, stmts, warn, import)
     end
     local declare = function(var, vtype)
         assert(var.tag == TExpr.Id)
-        scope.new_var(var.name, vtype, var.line, var.col)
+        local name = var.name
+        if name == "@" then
+            name = "self"
+        end
+        scope.new_var(name, vtype, var.line, var.col)
     end
     local balance_check = function(lefts, rights)
         local r = #rights
@@ -169,7 +173,11 @@ return function(scope, stmts, warn, import)
     Expr[TExpr.Id] = function(node)
         local line, t
         if node.name then
-            line, t = scope.declared(node.name)
+            local name = node.name
+            if name == "@" then
+                name = "self"
+            end
+            line, t = scope.declared(name)
             if line == 0 then
                 warn(node.line, node.col, 1, "undeclared identifier `" .. node.name .. "`")
             end
@@ -253,7 +261,7 @@ return function(scope, stmts, warn, import)
         local it = infer_expr(node.idx)
         local ot = infer_expr(node.obj)
         check(ty.tbl({}), ot, node, "indexer ")
-        return ty.any()
+        return ty.any(), ot
     end
     Expr[TExpr.Field] = function(node)
         local ot = infer_expr(node.obj)
@@ -263,46 +271,36 @@ return function(scope, stmts, warn, import)
             if tbl then
                 for _, tk in ipairs(tbl) do
                     if tk[2] == node.field then
-                        return tk[1]
+                        return tk[1], t
                     end
                 end
                 local vt = new()
                 tbl[#tbl + 1] = {vt, node.field}
-                return vt
+                return vt, t
             end
-            return ty.any()
+            return ty.any(), t
         end
         return ty["nil"]()
     end
-    Expr[TExpr.Invoke] = function(node)
-        local atypes = infer_exprs(node.args)
-        local ot = infer_expr(node.obj)
-        check(ty.tbl({}), ot, node, "method `" .. node.field .. "` ")
-        local t = solv.apply(ot)
-        local tbl = ty.get_tbl(t)
-        if tbl then
-            for _, tk in ipairs(tbl) do
-                if tk[2] == node.field then
-                    local tytys = {{ty.func(ty.tuple(atypes), ty.tuple_any()), node.field}}
-                    check(ty.tbl(tytys), tk[1], node, "method `" .. node.field .. "` ")
-                    if tk[1].tag == TType.Func then
-                        return tk[1].outs
-                    end
-                    return ty["nil"]()
+    Expr[TExpr.Call] = function(node)
+        local arg1 = node.args[1]
+        if arg1 and arg1.tag == TExpr.String and node.func.tag == TExpr.Id and node.func.name == "require" then
+            return import(arg1.value) or ty.any()
+        end
+        local atypes
+        local func = node.func
+        local ftype, fobj = infer_expr(func)
+        if arg1 and arg1.name == "@" and not func.bracketed then
+            if func.tag == TExpr.Field or func.tag == TExpr.Index then
+                atypes = {fobj}
+                for i = 2, #node.args do
+                    atypes[i] = infer_expr(node.args[i])
                 end
             end
-            local rt = ty.tuple({new()})
-            tbl[#tbl + 1] = {ty.func(ty.tuple(atypes), rt), node.field}
-            return rt
         end
-        return ty.tuple_any()
-    end
-    Expr[TExpr.Call] = function(node)
-        local atypes = infer_exprs(node.args)
-        if node.func.tag == TExpr.Id and node.func.name == "require" and node.args[1] and node.args[1].tag == TExpr.String then
-            return import(node.args[1].value) or ty.any()
+        if not atypes then
+            atypes = infer_exprs(node.args)
         end
-        local ftype = infer_expr(node.func)
         local fn = solv.apply(ftype)
         if fn.tag == TType.Nil or fn.tag == TType.Val then
             warn(node.line, node.col, 1, "trying to call " .. ty.tostr(fn))
@@ -350,6 +348,9 @@ return function(scope, stmts, warn, import)
             return ty.str()
         end
         return ltype
+    end
+    Expr[TExpr.Union] = function(node)
+        return ty.any()
     end
     Stmt[TStmt.Expr] = function(node)
         local etype
@@ -399,6 +400,9 @@ return function(scope, stmts, warn, import)
                                 end
                                 local param = node.obj.name
                                 if param then
+                                    if param == "@" then
+                                        param = "self"
+                                    end
                                     t = ty.clone(t)
                                     tbl = ty.get_tbl(t)
                                     tbl[#tbl + 1] = tytys[1]

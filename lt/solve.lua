@@ -34,9 +34,7 @@ return function()
     end
     Subst[TType.Tbl] = function(node, tvar, texp)
         for i = 1, #node do
-            local n = node[i]
-            n[1] = subst(n[1], tvar, texp)
-            n[2] = n[2] and subst(n[2], tvar, texp)
+            node[i] = {subst(node[i][1], tvar, texp), node[i][2] and subst(node[i][2], tvar, texp)}
         end
         return node
     end
@@ -70,9 +68,7 @@ return function()
     end
     Apply[TType.Tbl] = function(node)
         for i = 1, #node do
-            local n = node[i]
-            n[i] = apply(n[1])
-            n[2] = n[2] and apply(n[2])
+            node[i] = {apply(node[i][1]), node[i][2] and apply(node[i][2])}
         end
         return node
     end
@@ -146,7 +142,7 @@ return function()
                 if not x[i].varargs then
                     return false, ignore and "" or "expects " .. n .. " arguments but only got " .. i - 1
                 end
-                return true
+                return x
             end
         end
         n = #y
@@ -155,7 +151,7 @@ return function()
                 return false, ignore and "" or "expects only " .. i .. " arguments but got " .. n
             end
         end
-        return true
+        return x
     end
     local unify_tbl = function(x, y, ignore)
         local key_str = function(k)
@@ -180,11 +176,11 @@ return function()
                 end
             end
         end
-        return true
+        return x
     end
     unify = function(x, y, ignore)
         if x == y then
-            return true
+            return x
         end
         x = apply(x)
         y = apply(y)
@@ -195,10 +191,10 @@ return function()
             return extend(y, x)
         end
         if x.tag == TType.Any and y.tag ~= TType.Nil then
-            return true
+            return x
         end
         if y.tag == TType.Any and x.tag ~= TType.Nil then
-            return true
+            return x
         end
         if x.tag == TType.Or then
             for _, t in ipairs(x) do
@@ -218,11 +214,11 @@ return function()
         end
         if x.tag == y.tag then
             if x.tag == TType.Nil then
-                return true
+                return x
             end
             if x.tag == TType.Val then
                 if x.type == y.type then
-                    return true
+                    return x
                 end
             end
             if x.tag == TType.Tuple then

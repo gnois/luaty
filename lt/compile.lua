@@ -53,13 +53,11 @@ return function(options, color)
             ast = parse(lexer, r.warn)
             if ast[1] then
                 if r.continue() then
+                    local sc = scope(options.declares, r.warn)
+                    typ = check(sc, ast, r.warn, import)
                     ast = transform(ast)
                     if r.continue() then
-                        local sc = scope(options.declares, r.warn)
-                        typ = check(sc, ast, r.warn, import)
-                        if r.continue() then
-                            luacode = generate(ast)
-                        end
+                        luacode = generate(ast)
                     end
                 end
             else

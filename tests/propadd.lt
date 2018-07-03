@@ -1,13 +1,14 @@
 var h = \z ->
 	return z.p == z.q
 
-print(h({p = 7, q = 8}))
+h({p = 7, q = 8})
 
+-- type checker cannot update y.a with c, which is 2 levels child from y. It only know y.a = {}
 var g = \y ->
 	y.a = {}
 	y.a.c = 1
 	return y
-	
+
 var f = \x ->
 	x.a.b = true
 	x.a.c = x.a.c + 1

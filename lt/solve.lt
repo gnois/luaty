@@ -32,9 +32,7 @@ return ->
 
 	Subst[TType.Tbl] = \node, tvar, texp ->
 		for i = 1, #node
-			var n = node[i]
-			n[1] = subst(n[1], tvar, texp)
-			n[2] = n[2] and subst(n[2], tvar, texp)
+			node[i] = { subst(node[i][1], tvar, texp), node[i][2] and subst(node[i][2], tvar, texp) }
 		return node
 
 	Subst[TType.Or] = \node, tvar, texp ->
@@ -66,9 +64,7 @@ return ->
 
 	Apply[TType.Tbl] = \node ->
 		for i = 1, #node
-			var n = node[i]
-			n[i] = apply(n[1])
-			n[2] = n[2] and apply(n[2])
+			node[i] = { apply(node[i][1]), node[i][2] and apply(node[i][2]) }
 		return node
 
 	Apply[TType.Or] = \node ->
@@ -137,7 +133,7 @@ return ->
 			else
 				if not x[i].varargs
 					return false, ignore and "" or ("expects " .. n .. " arguments but only got " .. (i-1))
-				return true
+				return x
 
 		-- check if y too many
 		n = #y
@@ -145,10 +141,10 @@ return ->
 			if i < 1 or not x[i].varargs
 				return false, ignore and "" or ("expects only " .. i .. " arguments but got " .. n)
 
-		return true
+		return x
 
 
-	-- return true if x is contained in y
+	-- return x if x is contained in y
 	var unify_tbl = \x, y, ignore ->
 		var key_str = \k ->
 			return "string" == type(k) and k or ty.tostr(k)
@@ -169,14 +165,14 @@ return ->
 				else
 					return false, ignore and "" or ("expects key `" .. key_str(ttx[2]) .. "` in " .. ty.tostr(y))
 
-		return true
+		return x
 
 
 	-- return false, msg if type mismatch
 	unify = \x, y, ignore ->
 		-- shortcut
 		if x == y
-			return true
+			return x
 		x = apply(x)
 		y = apply(y)
 
@@ -188,10 +184,10 @@ return ->
 
 		-- any match all except pure nil
 		if x.tag == TType.Any and y.tag ~= TType.Nil
-			return true
+			return x
 			
 		if y.tag == TType.Any and x.tag ~= TType.Nil
-			return true
+			return x
 
 		if x.tag == TType.Or
 			for _, t in ipairs(x)
@@ -207,11 +203,11 @@ return ->
 
 		if x.tag == y.tag
 			if x.tag == TType.Nil
-				return true
+				return x
 
 			if x.tag == TType.Val
 				if x.type == y.type
-					return true
+					return x
 
 			if x.tag == TType.Tuple
 				return unify_tuple(x, y, ignore)

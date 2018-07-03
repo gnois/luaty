@@ -137,7 +137,8 @@ return function(stmts)
                 if func.tag == TExpr.Field then
                     table.remove(node.args, 1)
                     return ast.Expr.invoke(func.obj, func.field, node.args, node)
-                elseif func.tag == TExpr.Index then
+                end
+                if func.tag == TExpr.Index then
                     local obj = id("_self_", node)
                     node.args[1] = obj
                     local body = {ast.Stmt["local"]({obj}, {}, {func.obj}, node), ast.Stmt["return"]({ast.Expr.call(ast.Expr.index(obj, func.idx, node), node.args, node)}, node)}

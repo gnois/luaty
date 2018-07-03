@@ -71,12 +71,11 @@ return \options, color ->
 			ast = parse(lexer, r.warn)
 			if ast[1]
 				if r.continue()
+					var sc = scope(options.declares, r.warn)
+					typ = check(sc, ast, r.warn, import)
 					ast = transform(ast)
 					if r.continue()
-						var sc = scope(options.declares, r.warn)
-						typ = check(sc, ast, r.warn, import)
-						if r.continue()
-							luacode = generate(ast)
+						luacode = generate(ast)
 			else
 				r.warn(0, 0, 1, "No such file or file is empty")
 		return typ, luacode, r.as_text()
