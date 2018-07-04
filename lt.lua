@@ -7,13 +7,16 @@ local color = term.color
 local usage = function(err)
     local spec = [=[
 Usage: 
-  luajit lt.lua [-f] [-c] [-t] src.lt [-d xvar]
+  luajit lt.lua [-f] [-c] [-t] [-d xvar] src.lt [dst]
   where:
-    -c        Transpile src.lt and its dependecies into src.lua, *.lua ... without running
-    -f        Transpile src.lt and its dependecies into src.lua, *.lua ... without running, overwriting them if they exist
+    -c        Transpile src.lt and its dependecies into ./dst/src.lua, ./dst/*.lua ... without running
+    -f        Transpile src.lt and its dependecies into ./dst/src.lua, ./dst/*.lua ... without running, overwriting them if they exist
     -t        Enable type checking
     -d xvar   Declares `xvar` to silent undeclared identifier warning
-    
+  
+  dst specifies an output directory and must not end with .lt
+  If it is empty, output files will reside in the same directory as source file.
+
   Running without parameters enters Read-Generate-Eval-Print loop
 ]=]
     err = err or ""
@@ -29,7 +32,7 @@ local decls = {}
 for s, p in term.scan({...}) do
     if s == "c" or s == "f" then
         if already then
-            usage("Error: use -c or -f only")
+            usage("Error: use either -c or -f only")
         end
         already = true
         run = false
@@ -59,11 +62,96 @@ for s, p in term.scan({...}) do
         end
     end
 end
-if #paths > 1 then
-    usage("Error: only one file accepted")
+local src, dst
+if #paths > 2 then
+    usage("Error: only one file with an optional output directory accepted")
+else
+    src = paths[1]
+    dst = paths[2]
+    if dst then
+        dst = string.gsub(dst, term.slash .. "*$", "")
+        if string.sub(dst, -string.len(".lt")) == ".lt" then
+            usage("Error: " .. dst .. " as output directory cannot end with .lt")
+        end
+    end
 end
 local compile = compiler({declares = decls, typecheck = typecheck}, color)
-if run and not paths[1] then
+if src then
+    local _, code, warns, imports = compile.file(src)
+    if run then
+        if warns then
+            print(warns)
+        end
+        if code then
+            local fn = assert(loadstring(code))
+            fn()
+        else
+            print(" Fail to run " .. src)
+        end
+    else
+        local created = {}
+        local existed = {}
+        local skips = {}
+        for __, file in pairs(imports) do
+            print(file.path)
+            if file.warns then
+                print(file.warns)
+            end
+            local dest = string.gsub(file.path, "%.lt", ".lua")
+            if dst then
+                dest = dst .. term.slash .. dest
+            end
+            if file.code then
+                local name = dest
+                local dir
+                string.gsub(dest, "(.*[/\\])(.*)", function(d, n)
+                    dir = d
+                    name = n
+                end)
+                if not force and not created[dir or ""] then
+                    local f = io.open(dest, "r")
+                    if f then
+                        skips[dest] = 1
+                        f:close()
+                    end
+                end
+                if not skips[dest] then
+                    if dir and not created[dir] and not existed[dir] then
+                        if term.exist_dir(dir) then
+                            existed[dir] = true
+                        else
+                            local x, err = term.mkdir(dir)
+                            if not x then
+                                error(err)
+                            end
+                            created[dir] = true
+                        end
+                    end
+                    local f, err = io.open(dest, "wb")
+                    if not f then
+                        error(err)
+                    end
+                    local srcname = string.gsub(file.path, "(.*[/\\])(.*)", "%2")
+                    f:write("--\n-- Generated from " .. srcname .. "\n--")
+                    f:write(file.code)
+                    f:close()
+                end
+            else
+                skips[dest] = -1
+            end
+        end
+        local fails, f = {}, 1
+        for k, v in pairs(skips) do
+            if v == 1 then
+                fails[f] = k .. " already exists. Use -f to overwrite"
+            else
+                fails[f] = "Fail to generate " .. k
+            end
+            f = f + 1
+        end
+        print(color.red .. table.concat(fails, "\n") .. color.reset)
+    end
+else
     local print_results = function(...)
         if select("#", ...) > 1 then
             print(select(2, ...))
@@ -105,62 +193,4 @@ if run and not paths[1] then
             list[#list + 1] = s
         end
     until false
-elseif paths[1] then
-    local _, code, warns, imports = compile.file(paths[1])
-    if run then
-        if warns then
-            print(warns)
-        end
-        if code then
-            local fn = assert(loadstring(code))
-            fn()
-        else
-            print(" Fail to run " .. paths[1])
-        end
-    else
-        local skips = {}
-        for __, file in pairs(imports) do
-            print(file.path)
-            local dest = string.gsub(file.path, "%.lt", ".lua")
-            while dest == paths[1] do
-                dest = dest .. ".lua"
-            end
-            if file.warns then
-                print(file.warns)
-            end
-            if file.code then
-                if not force then
-                    local f = io.open(dest, "r")
-                    if f then
-                        skips[dest] = 1
-                        f:close()
-                    end
-                end
-                if not skips[dest] then
-                    local f, err = io.open(dest, "wb")
-                    if not f then
-                        error(err)
-                    end
-                    local basename = string.gsub(file.path, "(.*[/\\])(.*)", "%2")
-                    f:write("--\n-- Generated from " .. basename .. "\n--")
-                    f:write(file.code)
-                    f:close()
-                end
-            else
-                skips[dest] = -1
-            end
-        end
-        local fails, f = {}, 1
-        for k, v in pairs(skips) do
-            if v == 1 then
-                fails[f] = k .. " already exists. Use -f to overwrite"
-            else
-                fails[f] = "Fail to generate " .. k
-            end
-            f = f + 1
-        end
-        print(color.red .. table.concat(fails, "\n") .. color.reset)
-    end
-else
-    usage("Error: no file given")
 end

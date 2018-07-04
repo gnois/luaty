@@ -1,3 +1,4 @@
+var term = require('term')
 var read = require('lt.read')
 var lex = require('lt.lex')
 var scope = require('lt.scope')
@@ -6,7 +7,6 @@ var check = require('lt.check')
 var transform = require('lt.transform')
 var generate = require('lt.generate')
 
-var Slash = package.config.sub(@, 1, 1)
 var Circular = {}
 
 var report = \color ->
@@ -90,7 +90,7 @@ return \options, color ->
 			return mod.type, mod.code, mod.warns
 
 		imports[name] = Circular
-		var path = string.gsub(name, "[.]", Slash) .. ".lt"
+		var path = string.gsub(name, "[.]", term.slash) .. ".lt"
 		var typ, code, warns = compile(read.file(path))
 		
 		imports[name] = { path = path, type = typ, code = code, warns = warns }

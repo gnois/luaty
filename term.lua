@@ -40,6 +40,35 @@ local scan = function(args)
         end
     end)
 end
+local exec = function(cmd)
+    print(cmd)
+    local ok, exit_or_signal, code = os.execute(cmd)
+    if code then
+        return code
+    end
+    return ok
+end
+local mkdir = function(path)
+    local cmd
+    if slash == "\\" then
+        cmd = "md " .. path
+    else
+        cmd = "mkdir -p " .. path
+    end
+    local code = exec(cmd)
+    if code == 0 then
+        return true
+    end
+    return false, cmd .. " failed, exit code: " .. tostring(code)
+end
+local exist_dir = function(path)
+    local p = string.gsub(path, "/*$", "")
+    local code = exec("pushd " .. p)
+    if code == 0 then
+        exec("popd")
+    end
+    return code == 0
+end
 if slash == "\\" then
     local bit = require("bit")
     local ffi = require("ffi")
@@ -75,4 +104,11 @@ if slash == "\\" then
         end})
     end
 end
-return {slash = slash, color = color, usage = usage, scan = scan}
+return {
+    slash = slash
+    , color = color
+    , usage = usage
+    , scan = scan
+    , mkdir = mkdir
+    , exist_dir = exist_dir
+}

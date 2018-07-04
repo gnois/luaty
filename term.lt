@@ -46,6 +46,40 @@ var scan = \args ->
 
 	)
 
+--``
+https://github.com/keplerproject/lua-compat-5.3/wiki/os.execute
+
+os.execute in Lua 5.2 and 5.3 returns three values: a boolean indicating sucessful/unsuccessful execution, a string ("exit" or "signal"), and the actual exit status or signal number. 
+But in 5.1 only 1 one value returned
+--``
+var exec = \cmd ->
+	print(cmd)
+	var ok, exit_or_signal, code = os.execute(cmd)
+	if code
+		return code
+	-- Lua 5.1, ok is code
+	return ok
+
+
+var mkdir = \path ->
+	var cmd
+	if slash == '\\'
+		cmd = "md " .. path
+	else
+		cmd = "mkdir -p " .. path
+	var code = exec(cmd)
+	-- success is always 0, see man page for command
+	if code == 0
+		return true
+	return false, cmd .. " failed, exit code: " .. tostring(code)
+
+
+var exist_dir = \path ->
+	var p = string.gsub(path, "/*$", "")
+	var code = exec("pushd " .. p)
+	if code == 0
+		exec("popd")
+	return code == 0
 
 
 -- Window to support ANSI color, may not work on all Windows version
@@ -90,4 +124,6 @@ return {
 	, color = color
 	, usage = usage
 	, scan = scan
+	, mkdir = mkdir
+	, exist_dir = exist_dir
 }

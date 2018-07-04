@@ -5,19 +5,21 @@ var color = term.color
 var usage = \err ->
 	var spec = ``
 Usage: 
-  luajit lt.lua [-f] [-c] [-t] src.lt [-d xvar]
+  luajit lt.lua [-f] [-c] [-t] [-d xvar] src.lt [dst]
   where:
-    -c        Transpile src.lt and its dependecies into src.lua, *.lua ... without running
-    -f        Transpile src.lt and its dependecies into src.lua, *.lua ... without running, overwriting them if they exist
+    -c        Transpile src.lt and its dependecies into ./dst/src.lua, ./dst/*.lua ... without running
+    -f        Transpile src.lt and its dependecies into ./dst/src.lua, ./dst/*.lua ... without running, overwriting them if they exist
     -t        Enable type checking
     -d xvar   Declares `xvar` to silent undeclared identifier warning
-    
+  
+  dst specifies an output directory and must not end with .lt
+  If it is empty, output files will reside in the same directory as source file.
+
   Running without parameters enters Read-Generate-Eval-Print loop
 ``
 	err = err or ''
 	err = err .. '\n' .. spec
 	term.usage(err)
-
 
 
 var run = true
@@ -30,7 +32,7 @@ var decls = {}
 for s, p in term.scan({...})
 	if s == 'c' or s == 'f'
 		if already
-			usage("Error: use -c or -f only")
+			usage("Error: use either -c or -f only")
 		already = true
 		run = false
 		if s == 'f'
@@ -53,13 +55,93 @@ for s, p in term.scan({...})
 			table.insert(paths, p)
 
 
-if #paths > 1
-	usage("Error: only one file accepted")
+var src, dst
+if #paths > 2
+	usage("Error: only one file with an optional output directory accepted")
+else
+	src = paths[1]
+	dst = paths[2]
+	if dst
+		-- remove slashes at the end
+		dst = string.gsub(dst, term.slash .. "*$", "")
+		if string.sub(dst, -string.len(".lt")) == ".lt"
+			usage("Error: " .. dst .. " as output directory cannot end with .lt")
+
 
 var compile = compiler({declares = decls, typecheck = typecheck}, color)
 
-if run and not paths[1]
-	-- REPL
+if src
+	var _, code, warns, imports = compile.file(src)
+	if run
+		if warns
+			print(warns)
+		if code
+			var fn = assert(loadstring(code))
+			fn()
+		else
+			print(" Fail to run " .. src)
+	else
+		var created = {}  -- folders created
+		var existed = {}  -- folders already exist
+		var skips = {}  -- files not overwritten or failed to compile
+		for __, file in pairs(imports)
+			print(file.path)
+			if file.warns
+				print(file.warns)
+
+			-- construct output file path
+			var dest = string.gsub(file.path, "%.lt", ".lua")
+			if dst
+				dest = dst .. term.slash .. dest
+			-- dest is now dir/sub/file.lua
+			if file.code
+				-- split into dir/sub and file.lua
+				var name = dest
+				var dir
+				string.gsub(dest, "(.*[/\\])(.*)", \d, n -> 
+					dir = d
+					name = n
+				)
+				-- no need to test against overwrite if dir was just created
+				if not force and not created[dir or ""]
+					var f = io.open(dest, 'r')
+					if f
+						skips[dest] = 1
+						f.close(@)
+
+				if not skips[dest]
+					-- create directory if needed
+					if dir and not created[dir] and not existed[dir]
+						if term.exist_dir(dir)
+							existed[dir] = true
+						else
+							var x, err = term.mkdir(dir)
+							if not x
+								error(err)
+							created[dir] = true
+
+					var f, err = io.open(dest, 'wb')
+					if not f
+						error(err)
+
+					var srcname = string.gsub(file.path, "(.*[/\\])(.*)", "%2")
+					f.write(@, "--\n-- Generated from " .. srcname .. "\n--")
+					f.write(@, file.code)
+					f.close(@)
+			else
+				skips[dest] = -1
+
+		-- list files not generated
+		var fails, f = {}, 1
+		for k, v in pairs(skips)
+			if v == 1
+				fails[f] = k .. " already exists. Use -f to overwrite"
+			else
+				fails[f] = "Fail to generate " .. k
+			f = f + 1
+		print(color.red .. table.concat(fails, "\n") .. color.reset)
+
+else
 	-- https://stackoverflow.com/questions/20410082/why-does-the-lua-repl-require-you-to-prep-an-equal-sign-in-order-to-get-a-val
 	var print_results = \... ->
 		-- This function takes care of nils at the  of results and such
@@ -104,62 +186,3 @@ if run and not paths[1]
 			list[#list + 1] = s
 		
 	until false
-
-else if paths[1]
-	var _, code, warns, imports = compile.file(paths[1])
-
-	if run
-		if warns
-			print(warns)
-		
-		if code
-			var fn = assert(loadstring(code))
-			fn()
-		else
-			print(" Fail to run " .. paths[1])
-		
-	else
-		var skips = {}
-		for __, file in pairs(imports)
-			print(file.path)
-			var dest = string.gsub(file.path, "%.lt", ".lua")
-			-- never overwrite source file
-			while dest == paths[1]
-				dest = dest .. ".lua"
-			
-
-			if file.warns
-				print(file.warns)
-			
-			if file.code
-				if not force
-					var f = io.open(dest, 'r')
-					if f
-						skips[dest] = 1
-						f.close(@)
-
-				if not skips[dest]
-					var f, err = io.open(dest, 'wb')
-					if not f
-						error(err)
-
-					-- get the filename without path
-					var basename = string.gsub(file.path, "(.*[/\\])(.*)", "%2")
-					f.write(@, "--\n-- Generated from " .. basename .. "\n--")
-					f.write(@, file.code)
-					f.close(@)
-			else
-				skips[dest] = -1
-
-		-- list files not generated
-		var fails, f = {}, 1
-		for k, v in pairs(skips)
-			if v == 1
-				fails[f] = k .. " already exists. Use -f to overwrite"
-			else
-				fails[f] = "Fail to generate " .. k
-			f = f + 1
-		print(color.red .. table.concat(fails, "\n") .. color.reset)
-
-else
-	usage("Error: no file given")
