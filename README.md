@@ -136,13 +136,18 @@ To transpile a Luaty *main.lt* file and its dependencies to *main.lua* and *dep1
 ```
 luajit lt.lua -f [-t] /path/to/main.lt
 ```
-Type checker is enabled when using -t.
+Type checker is enabled when using ```-t```.
+
 
 The Lua output files will be **overwritten** if they exist. To prevent overwriting, use -c instead of -f
 ```
 luajit lt.lua -c [-t] /path/to/main.lt
 ```
 
+Alternatively, specify a new output directory
+```
+luajit lt.lua -c [-t] /path/to/main.lt outdir
+```
 
 To execute a Luaty source file, use
 ```

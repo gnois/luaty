@@ -74,17 +74,18 @@ local subtype_tuple = function(a, s)
                 return false
             end
         else
-            if not s[i].varargs then
+            if not a[i].varargs then
                 return false
             end
         end
     end
     if i < #s then
         i = i + 1
-        if not a[i].varargs then
+        if not s[i].varargs then
             return false
         end
     end
+    return true
 end
 local subtype_func = function(a, s)
     local as, ss = a.ins, s.ins
@@ -140,7 +141,7 @@ local subtype_tbl = function(a, s)
                 return false
             end
         else
-            if not subtype(ttx[1], arrty) then
+            if arrty and not subtype(ttx[1], arrty) then
                 return false
             end
         end
@@ -176,6 +177,9 @@ subtype = function(a, s)
                 return true
             end
         end
+        if a.tag == TType.Tuple then
+            return subtype_tuple(a, s)
+        end
         if a.tag == TType.Func then
             return subtype_func(a, s)
         end
@@ -199,6 +203,38 @@ local get_tbl = function(t)
         return tbl
     end
 end
+local flatten = function(ty, types)
+    local list, l = {}, 0
+    for _, t in ipairs(types) do
+        if t.tag == ty then
+            for __, tt in ipairs(t) do
+                l = l + 1
+                list[l] = tt
+            end
+        else
+            l = l + 1
+            list[l] = t
+        end
+    end
+    if l > 1 then
+        local out, o = {}, 0
+        for _, t in ipairs(list) do
+            local skip = false
+            for __, v in ipairs(out) do
+                if subtype(t, v) then
+                    skip = true
+                    break
+                end
+            end
+            if not skip then
+                o = o + 1
+                out[o] = t
+            end
+        end
+        return out
+    end
+    return list
+end
 local create = function(tag, node)
     assert("table" == type(node))
     node.tag = tag
@@ -221,7 +257,8 @@ local Type = {
         return create(TType.Val, {type = "bool"})
     end
     , tuple = function(types)
-        return create(TType.Tuple, types)
+        local list = flatten(TType.Tuple, types)
+        return create(TType.Tuple, list)
     end
     , func = function(ins, outs)
         return create(TType.Func, {ins = ins, outs = outs})
@@ -230,34 +267,7 @@ local Type = {
         return create(TType.Tbl, typetypes)
     end
     , ["or"] = function(...)
-        local list, l = {}, 0
-        for _, t in ipairs({...}) do
-            if t.tag == TType.Or then
-                for __, tt in ipairs(t) do
-                    l = l + 1
-                    list[l] = tt
-                end
-            else
-                l = l + 1
-                list[l] = t
-            end
-        end
-        if l > 1 then
-            local out, o = {}, 0
-            for _, t in ipairs(list) do
-                local skip = false
-                for __, v in ipairs(out) do
-                    if subtype(t, v) then
-                        skip = true
-                        break
-                    end
-                end
-                if not skip then
-                    o = o + 1
-                    out[o] = t
-                end
-            end
-        end
+        local list = flatten(TType.Or, {...})
         return create(TType.Or, list)
     end
     , ["and"] = function(...)

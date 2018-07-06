@@ -71,13 +71,14 @@ var subtype_tuple = \a, s ->
 			if not subtype(a[i], s[i])
 				return false
 		else
-			if not s[i].varargs
+			if not a[i].varargs
 				return false
 		
 	if i < #s
 		i = i + 1
-		if not a[i].varargs
+		if not s[i].varargs
 			return false
+	return true
 
 
 var subtype_func = \a, s ->
@@ -133,7 +134,7 @@ var subtype_tbl = \a, s ->
 			else
 				return false
 		else
-			if not subtype(ttx[1], arrty)
+			if arrty and not subtype(ttx[1], arrty)
 				return false
 	return true
 
@@ -161,7 +162,10 @@ subtype = \a, s ->
 		if a.tag == TType.Val
 			if a.type == s.type
 				return true
-	
+
+		if a.tag == TType.Tuple
+			return subtype_tuple(a, s)
+
 		if a.tag == TType.Func
 			return subtype_func(a, s)
 
@@ -183,6 +187,36 @@ var get_tbl = \t ->
 				break
 	if tbl.tag == TType.Tbl
 		return tbl
+
+
+-- prevent multiple level of Or/Tuple
+var flatten = \ty, types ->
+	-- flatten
+	var list, l = {}, 0
+	for _, t in ipairs(types)
+		if t.tag == ty
+			for __, tt in ipairs(t)
+				l = l + 1
+				list[l] = tt
+		else
+			l = l + 1
+			list[l] = t
+	-- remove subtypes
+	-- this is WRONG for now
+	-- PARAMS ARE CONTRAVARIANT, RETURN ARE COVARIANT
+	if l > 1
+		var out, o = {}, 0
+		for _, t in ipairs(list)
+			var skip = false
+			for __, v in ipairs(out)
+				if subtype(t, v)
+					skip = true
+					break
+			if not skip
+				o = o + 1
+				out[o] = t
+		return out
+	return list
 
 
 ------------------ types ------------------------
@@ -224,7 +258,8 @@ var Type = {
 
 	-- array of types
 	, tuple = \types ->
-		return create(TType.Tuple, types)
+		var list = flatten(TType.Tuple, types)
+		return create(TType.Tuple, list)
 
 	-- ins and outs are tuples
 	, func = \ins, outs ->
@@ -237,29 +272,7 @@ var Type = {
 		return create(TType.Tbl, typetypes)
 
 	, or = \... ->
-		-- flatten
-		var list, l = {}, 0
-		for _, t in ipairs({...})
-			if t.tag == TType.Or
-				for __, tt in ipairs(t)
-					l = l + 1
-					list[l] = tt
-			else
-				l = l + 1
-				list[l] = t
-		-- remove subtypes
-		if l > 1
-			var out, o = {}, 0
-			for _, t in ipairs(list)
-				var skip = false
-				for __, v in ipairs(out)
-					if subtype(t, v)
-						skip = true
-						break
-				if not skip
-					o = o + 1
-					out[o] = t
-
+		var list = flatten(TType.Or, {...})
 		return create(TType.Or, list)
 
 	, and = \... ->
