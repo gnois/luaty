@@ -110,11 +110,12 @@ return function(scope, stmts, warn, import, typecheck)
         local rule = Expr[node.tag]
         return rule(node)
     end
-    local infer_exprs = function(nodes)
+    local infer_exprs = function(nodes, start)
         local types, t = {}, 0
         local last = #nodes
-        for i, node in ipairs(nodes) do
-            local nt = infer_expr(node)
+        local first = start or 1
+        for i = first, last, 1 do
+            local nt = infer_expr(nodes[i])
             if nt.tag == TType.Tuple then
                 if i == last then
                     for __, v in ipairs(nt) do
@@ -317,10 +318,8 @@ return function(scope, stmts, warn, import, typecheck)
         local ftype, fobj = infer_expr(func)
         if arg1 and arg1.name == "@" and not func.bracketed then
             if func.tag == TExpr.Field or func.tag == TExpr.Index then
-                atypes = {fobj}
-                for i = 2, #node.args do
-                    atypes[i] = infer_expr(node.args[i])
-                end
+                atypes = infer_exprs(node.args, 2)
+                table.insert(atypes, 1, fobj)
             end
         end
         if not atypes then
@@ -373,8 +372,7 @@ return function(scope, stmts, warn, import, typecheck)
     Stmt[TStmt.Local] = function(node)
         check_types(node.types, node)
         balance_check(node.vars, node.exprs)
-        local rtypes
-        rtypes = infer_exprs(node.exprs)
+        local rtypes = infer_exprs(node.exprs)
         for i, var in ipairs(node.vars) do
             local ltype = node.types and node.types[i]
             if ltype and rtypes[i] then
@@ -405,7 +403,9 @@ return function(scope, stmts, warn, import, typecheck)
                     t = ty.clone(t)
                     tbl = ty.get_tbl(t)
                     tbl[#tbl + 1] = tytys[1]
-                    assert(scope.update_var(param, solv.extend(new(), t)))
+                    if not scope.update_var(param, solv.extend(new(), t)) then
+                        warn(node.line, node.col, 3, "Fail to add field `" .. field .. "` to table `" .. param .. "`")
+                    end
                 end
             end
         end
@@ -414,7 +414,7 @@ return function(scope, stmts, warn, import, typecheck)
         balance_check(node.lefts, node.rights)
         local rtypes = infer_exprs(node.rights)
         for i, n in ipairs(node.lefts) do
-            local rtype = rtypes[i] or ty["or"](ty.any(), ty["nil"]())
+            local rtype = rtypes[i] or ty["nil"]()
             local ltype
             if n.tag == TExpr.Id then
                 ltype = infer_expr(n)
@@ -430,7 +430,7 @@ return function(scope, stmts, warn, import, typecheck)
                             assign_field(n, ot, it.value, rtype)
                         end
                     else
-                        assign_field(n, ot, node.field, rtype)
+                        assign_field(n, ot, n.field, rtype)
                     end
                 end
             end
