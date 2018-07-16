@@ -13,6 +13,11 @@ var color = {
 	, white   = "\27[97;1m"
 }
 
+
+-- we dont want ending newline in print
+print = \... ->
+	io.stdout.write(@, ...)
+
 -- print usage and exit
 var usage = \text ->
 	print(text)
@@ -53,7 +58,7 @@ os.execute in Lua 5.2 and 5.3 returns three values: a boolean indicating sucessf
 But in 5.1 only 1 one value returned
 --``
 var exec = \cmd ->
-	print(cmd)
+	--print(cmd)
 	var ok, exit_or_signal, code = os.execute(cmd)
 	if code
 		return code

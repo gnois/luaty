@@ -7,15 +7,17 @@ local color = term.color
 local usage = function(err)
     local spec = [=[
 Usage: 
-  luajit lt.lua [-f] [-c] [-t] [-d xvar] src.lt [dst]
+  luajit lt.lua [-c1|-f1|c|f] [-t] [-d xvar] src.lt [dst]
   where:
-    -c        Transpile src.lt and its dependecies into ./dst/src.lua, ./dst/*.lua ... without running
-    -f        Transpile src.lt and its dependecies into ./dst/src.lua, ./dst/*.lua ... without running, overwriting them if they exist
+    -c1       Transpile src.lt into dst/src.lua without running
+    -f1       Same as -c1 but overwrites destination file
+    -c        Transpile src.lt and its dependencies into dst/src.lua, dst/*.lua ... without running
+    -f        Same as -c but overwrites destination files
     -t        Enable type checking
     -d xvar   Declares `xvar` to silent undeclared identifier warning
   
-  dst specifies an output directory and must not end with .lt
-  If it is empty, output files will reside in the same directory as source file.
+  dst specifies an output directory and defaults to ./
+  If specified, it must not end with .lt
 
   Running without parameters enters Read-Generate-Eval-Print loop
 ]=]
@@ -27,17 +29,21 @@ local run = true
 local force = false
 local already = false
 local typecheck = false
+local single = false
 local paths = {}
 local decls = {}
 for s, p in term.scan({...}) do
-    if s == "c" or s == "f" then
+    if s == "c" or s == "c1" or s == "f" or s == "f1" then
         if already then
             usage("Error: use either -c or -f only")
         end
         already = true
         run = false
-        if s == "f" then
+        if s == "f" or s == "f1" then
             force = true
+        end
+        if s == "c1" or s == "f1" then
+            single = true
         end
         if p then
             table.insert(paths, p)
@@ -48,13 +54,10 @@ for s, p in term.scan({...}) do
         else
             usage("Error: -d requires identifier")
         end
-    elseif s == "t" then
-        typecheck = true
-        if p then
-            table.insert(paths, p)
-        end
     else
-        if s ~= "" then
+        if s == "t" then
+            typecheck = true
+        elseif s ~= "" then
             usage("Error: unknown switch -" .. s)
         end
         if p then
@@ -68,14 +71,19 @@ if #paths > 2 then
 else
     src = paths[1]
     dst = paths[2]
+    if src then
+        if string.sub(src, 2, 2) == ":" then
+            src = string.sub(src, 3)
+        end
+    end
     if dst then
         dst = string.gsub(dst, term.slash .. "*$", "")
         if string.sub(dst, -string.len(".lt")) == ".lt" then
-            usage("Error: " .. dst .. " as output directory cannot end with .lt")
+            usage("Error: output directory `" .. dst .. "` cannot end with .lt")
         end
     end
 end
-local compile = compiler({declares = decls, typecheck = typecheck}, color)
+local compile = compiler({declares = decls, typecheck = typecheck, single = single}, color)
 if src then
     local _, code, warns, imports = compile.file(src)
     if run then
@@ -93,9 +101,10 @@ if src then
         local existed = {}
         local skips = {}
         for __, file in pairs(imports) do
-            print(file.path)
+            print(file.path .. "\n")
             if file.warns then
                 print(file.warns)
+                print("\n")
             end
             local dest = string.gsub(file.path, "%.lt", ".lua")
             if dst then
@@ -152,6 +161,12 @@ if src then
         print(color.red .. table.concat(fails, "\n") .. color.reset)
     end
 else
+    local flush = function()
+        io.stdout:flush()
+    end
+    local read = function()
+        io.stdin:read()
+    end
     local print_results = function(...)
         if select("#", ...) > 1 then
             print(select(2, ...))
@@ -161,12 +176,12 @@ else
     local list = {}
     repeat
         if #list > 0 then
-            io.stdout:write(">>")
+            print(">>")
         else
-            io.stdout:write("> ")
+            print("> ")
         end
-        io.stdout:flush()
-        local s = io.stdin:read()
+        flush()
+        local s = read()
         if s == "exit" or s == "quit" then
             break
         elseif #s == 0 then
@@ -183,7 +198,7 @@ else
                     fn = load("return (" .. fn .. ")", "stdin")
                 end
                 if fn then
-                    io.stdout:write("=>")
+                    print("=>")
                     print_results(pcall(fn))
                 else
                     print(err)

@@ -55,6 +55,7 @@ var report = \color ->
  options = {
 	declares = {ngx = true, xvars = true, ...}
 	, typecheck = false
+	, single = false
 	, silent = {...}
  }
 --`
@@ -72,12 +73,14 @@ return \options, color ->
 			if ast[1]
 				if r.continue()
 					var sc = scope(options.declares, r.warn)
+					if options.single
+						import = ->
 					typ = check(sc, ast, r.warn, import, options.typecheck)
 					ast = transform(ast)
 					if r.continue()
 						luacode = generate(ast)
 			else
-				r.warn(0, 0, 1, "No such file or file is empty")
+				r.warn(0, 0, 1, "file not found or empty")
 		return typ, luacode, r.as_text()
 		
 
@@ -86,7 +89,7 @@ return \options, color ->
 		var mod = imports[name]
 		if mod
 			if mod == Circular
-				return false, "Circular import of '" .. name .. "'"
+				return false, "circular import of '" .. name .. "'"
 			return mod.type, mod.code, mod.warns
 
 		imports[name] = Circular

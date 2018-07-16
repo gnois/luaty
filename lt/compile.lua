@@ -54,6 +54,11 @@ return function(options, color)
             if ast[1] then
                 if r.continue() then
                     local sc = scope(options.declares, r.warn)
+                    if options.single then
+                        import = function()
+                            
+                        end
+                    end
                     typ = check(sc, ast, r.warn, import, options.typecheck)
                     ast = transform(ast)
                     if r.continue() then
@@ -61,7 +66,7 @@ return function(options, color)
                     end
                 end
             else
-                r.warn(0, 0, 1, "No such file or file is empty")
+                r.warn(0, 0, 1, "file not found or empty")
             end
         end
         return typ, luacode, r.as_text()
@@ -70,7 +75,7 @@ return function(options, color)
         local mod = imports[name]
         if mod then
             if mod == Circular then
-                return false, "Circular import of '" .. name .. "'"
+                return false, "circular import of '" .. name .. "'"
             end
             return mod.type, mod.code, mod.warns
         end

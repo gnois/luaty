@@ -12,6 +12,9 @@ local color = {
     , cyan = "\27[96;1m"
     , white = "\27[97;1m"
 }
+print = function(...)
+    io.stdout:write(...)
+end
 local usage = function(text)
     print(text)
     os.exit(1)
@@ -41,7 +44,6 @@ local scan = function(args)
     end)
 end
 local exec = function(cmd)
-    print(cmd)
     local ok, exit_or_signal, code = os.execute(cmd)
     if code then
         return code

@@ -5,15 +5,17 @@ var color = term.color
 var usage = \err ->
 	var spec = ``
 Usage: 
-  luajit lt.lua [-f] [-c] [-t] [-d xvar] src.lt [dst]
+  luajit lt.lua [-c1|-f1|c|f] [-t] [-d xvar] src.lt [dst]
   where:
-    -c        Transpile src.lt and its dependecies into ./dst/src.lua, ./dst/*.lua ... without running
-    -f        Transpile src.lt and its dependecies into ./dst/src.lua, ./dst/*.lua ... without running, overwriting them if they exist
+    -c1       Transpile src.lt into dst/src.lua without running
+    -f1       Same as -c1 but overwrites destination file
+    -c        Transpile src.lt and its dependencies into dst/src.lua, dst/*.lua ... without running
+    -f        Same as -c but overwrites destination files
     -t        Enable type checking
     -d xvar   Declares `xvar` to silent undeclared identifier warning
   
-  dst specifies an output directory and must not end with .lt
-  If it is empty, output files will reside in the same directory as source file.
+  dst specifies an output directory and defaults to ./
+  If specified, it must not end with .lt
 
   Running without parameters enters Read-Generate-Eval-Print loop
 ``
@@ -26,17 +28,20 @@ var run = true
 var force = false
 var already = false
 var typecheck = false
+var single = false
 var paths = {}
 var decls = {}
 
 for s, p in term.scan({...})
-	if s == 'c' or s == 'f'
+	if s == 'c' or s == 'c1' or s == 'f' or s == 'f1'
 		if already
 			usage("Error: use either -c or -f only")
 		already = true
 		run = false
-		if s == 'f'
+		if s == 'f' or s == 'f1'
 			force = true
+		if s == 'c1' or s == 'f1'
+			single = true
 		if p
 			table.insert(paths, p)
 	else if s == 'd'
@@ -44,12 +49,10 @@ for s, p in term.scan({...})
 			decls[p] = true
 		else
 			usage("Error: -d requires identifier")
-	else if s == 't'
-		typecheck = true
-		if p
-			table.insert(paths, p)
 	else
-		if s ~= ""
+		if s == 't'
+			typecheck = true
+		else if s ~= ""
 			usage("Error: unknown switch -" .. s)
 		if p
 			table.insert(paths, p)
@@ -61,14 +64,18 @@ if #paths > 2
 else
 	src = paths[1]
 	dst = paths[2]
+	if src
+		-- in case is a Windows drive letter
+		if string.sub(src, 2, 2) == ':'
+			src = string.sub(src, 3)
 	if dst
 		-- remove slashes at the end
 		dst = string.gsub(dst, term.slash .. "*$", "")
 		if string.sub(dst, -string.len(".lt")) == ".lt"
-			usage("Error: " .. dst .. " as output directory cannot end with .lt")
+			usage("Error: output directory `" .. dst .. "` cannot end with .lt")
 
 
-var compile = compiler({declares = decls, typecheck = typecheck}, color)
+var compile = compiler({declares = decls, typecheck = typecheck, single = single}, color)
 
 if src
 	var _, code, warns, imports = compile.file(src)
@@ -85,9 +92,10 @@ if src
 		var existed = {}  -- folders already exist
 		var skips = {}  -- files not overwritten or failed to compile
 		for __, file in pairs(imports)
-			print(file.path)
+			print(file.path .. "\n")
 			if file.warns
 				print(file.warns)
+				print("\n")
 
 			-- construct output file path
 			var dest = string.gsub(file.path, "%.lt", ".lua")
@@ -142,6 +150,8 @@ if src
 		print(color.red .. table.concat(fails, "\n") .. color.reset)
 
 else
+	var flush = -> io.stdout.flush(@)
+	var read = -> io.stdin.read(@)
 	-- https://stackoverflow.com/questions/20410082/why-does-the-lua-repl-require-you-to-prep-an-equal-sign-in-order-to-get-a-val
 	var print_results = \... ->
 		-- This function takes care of nils at the  of results and such
@@ -153,12 +163,12 @@ else
 	var list = {}
 	do
 		if #list > 0
-			io.stdout.write(@, '>>')
+			print('>>')
 		else
-			io.stdout.write(@, '> ')
+			print('> ')
 		
-		io.stdout.flush(@)
-		var s = io.stdin.read(@)
+		flush()
+		var s = read()
 		if s == 'exit' or s == 'quit'
 			break
 		else if #s == 0
@@ -177,7 +187,7 @@ else
 				
 
 				if fn
-					io.stdout.write(@, '=>')
+					print('=>')
 					print_results(pcall(fn))
 				else
 					print(err)
