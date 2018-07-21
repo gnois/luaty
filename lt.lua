@@ -4,6 +4,7 @@
 local term = require("term")
 local compiler = require("lt.compile")
 local color = term.color
+local write = term.write
 local usage = function(err)
     local spec = [=[
 Usage: 
@@ -88,23 +89,24 @@ if src then
     local _, code, warns, imports = compile.file(src)
     if run then
         if warns then
-            print(warns)
+            write(warns)
         end
         if code then
             local fn = assert(loadstring(code))
             fn()
         else
-            print(" Fail to run " .. src)
+            write(" Fail to run " .. src)
         end
+        write("\n")
     else
         local created = {}
         local existed = {}
         local skips = {}
         for __, file in pairs(imports) do
-            print(file.path .. "\n")
+            write(file.path .. "\n")
             if file.warns then
-                print(file.warns)
-                print("\n")
+                write(file.warns)
+                write("\n")
             end
             local dest = string.gsub(file.path, "%.lt", ".lua")
             if dst then
@@ -158,54 +160,50 @@ if src then
             end
             f = f + 1
         end
-        print(color.red .. table.concat(fails, "\n") .. color.reset)
+        write(color.red .. table.concat(fails, "\n") .. color.reset)
     end
 else
+    local show_results = function(...)
+        if select("#", ...) > 1 then
+            write(select(2, ...))
+        end
+    end
     local flush = function()
         io.stdout:flush()
     end
     local read = function()
-        io.stdin:read()
+        return io.stdin:read()
     end
-    local print_results = function(...)
-        if select("#", ...) > 1 then
-            print(select(2, ...))
-        end
-    end
-    print("Luaty  \n-- empty line to transpile --")
+    write("Luaty  \n-- empty line to transpile --\n")
     local list = {}
     repeat
-        if #list > 0 then
-            print(">>")
-        else
-            print("> ")
-        end
+        write("> ")
         flush()
         local s = read()
         if s == "exit" or s == "quit" then
             break
-        elseif #s == 0 then
+        elseif s and #s > 0 then
+            list[#list + 1] = s
+        else
             local str = table.concat(list, "\n")
             list = {}
             local _, code, warns = compile.string(str)
             if warns then
-                print(warns)
+                write(warns)
             end
             if code then
-                print(color.yellow .. code .. color.reset)
+                write(color.cyan .. code .. color.reset)
                 local fn, err = loadstring(code)
                 if err then
                     fn = load("return (" .. fn .. ")", "stdin")
                 end
                 if fn then
-                    print("=>")
-                    print_results(pcall(fn))
+                    show_results(pcall(fn))
                 else
-                    print(err)
+                    write(err)
                 end
             end
-        else
-            list[#list + 1] = s
+            write("\n")
         end
     until false
 end

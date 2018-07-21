@@ -261,7 +261,7 @@ return function(scope, stmts, warn, import, typecheck)
             if key then
                 for n = 1, #keys do
                     if keys[n] and ty.same(keys[n], key) then
-                        warn(key.line, key.col, 10, "duplicate keys at position " .. i .. " and " .. n .. " in table")
+                        warn(key.line, key.col, 2, "duplicate keys at position " .. i .. " and " .. n .. " in table")
                     end
                 end
             end
@@ -404,7 +404,7 @@ return function(scope, stmts, warn, import, typecheck)
                     tbl = ty.get_tbl(t)
                     tbl[#tbl + 1] = tytys[1]
                     if not scope.update_var(param, solv.extend(new(), t)) then
-                        warn(node.line, node.col, 3, "Fail to add field `" .. field .. "` to table `" .. param .. "`")
+                        warn(node.line, node.col, 1, "Fail to add field `" .. field .. "` to undeclared table `" .. param .. "`")
                     end
                 end
             end

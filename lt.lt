@@ -1,6 +1,7 @@
 var term = require('term')
 var compiler = require('lt.compile')
 var color = term.color
+var write = term.write
 
 var usage = \err ->
 	var spec = ``
@@ -81,21 +82,22 @@ if src
 	var _, code, warns, imports = compile.file(src)
 	if run
 		if warns
-			print(warns)
+			write(warns)
 		if code
 			var fn = assert(loadstring(code))
 			fn()
 		else
-			print(" Fail to run " .. src)
+			write(" Fail to run " .. src)
+		write("\n")
 	else
 		var created = {}  -- folders created
 		var existed = {}  -- folders already exist
 		var skips = {}  -- files not overwritten or failed to compile
 		for __, file in pairs(imports)
-			print(file.path .. "\n")
+			write(file.path .. "\n")
 			if file.warns
-				print(file.warns)
-				print("\n")
+				write(file.warns)
+				write("\n")
 
 			-- construct output file path
 			var dest = string.gsub(file.path, "%.lt", ".lua")
@@ -147,52 +149,44 @@ if src
 			else
 				fails[f] = "Fail to generate " .. k
 			f = f + 1
-		print(color.red .. table.concat(fails, "\n") .. color.reset)
+		write(color.red .. table.concat(fails, "\n") .. color.reset)
 
-else
-	var flush = -> io.stdout.flush(@)
-	var read = -> io.stdin.read(@)
+else -- repl
 	-- https://stackoverflow.com/questions/20410082/why-does-the-lua-repl-require-you-to-prep-an-equal-sign-in-order-to-get-a-val
-	var print_results = \... ->
-		-- This function takes care of nils at the  of results and such
+	var show_results = \... ->
+		-- This function takes care of nils at the end of results and such
 		if select('#', ...) > 1
-			print(select(2, ...))
+			write(select(2, ...))
 
+	var flush = -> io.stdout.flush(@)
+	var read = -> return io.stdin.read(@)
 
-	print("Luaty  \n-- empty line to transpile --")
+	write("Luaty  \n-- empty line to transpile --\n")
 	var list = {}
 	do
-		if #list > 0
-			print('>>')
-		else
-			print('> ')
-		
+		write('> ')
 		flush()
 		var s = read()
 		if s == 'exit' or s == 'quit'
 			break
-		else if #s == 0
+		else if s and #s > 0
+			list[#list + 1] = s
+		else
 			var str = table.concat(list, "\n")
 			list = {}
 			var _, code, warns = compile.string(str)
 			if warns
-				print(warns)
-			
+				write(warns)
 			if code
-				print(color.yellow .. code .. color.reset)
+				write(color.cyan .. code .. color.reset)
 				var fn, err = loadstring(code)
 				if err -- Maybe it's an expression
 					-- This is a bad hack, but it might work
 					fn = load('return (' .. fn .. ')', 'stdin')
-				
 
 				if fn
-					print('=>')
-					print_results(pcall(fn))
+					show_results(pcall(fn))
 				else
-					print(err)
-
-		else
-			list[#list + 1] = s
-		
+					write(err)
+			write("\n")
 	until false

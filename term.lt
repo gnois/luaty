@@ -15,12 +15,18 @@ var color = {
 
 
 -- we dont want ending newline in print
-print = \... ->
-	io.stdout.write(@, ...)
+var write = \... ->
+	var n = select("#", ...)
+	-- but io.write() doesn't implicitly call tostring()
+	for i = 1, n, 1
+		io.stdout.write(@, tostring(select(i, ...)))
+		if i ~= n
+			io.stdout.write(@, "\t")
 
--- print usage and exit
+
+-- show usage and exit
 var usage = \text ->
-	print(text)
+	write(text)
 	os.exit(1)
 
 
@@ -58,7 +64,7 @@ os.execute in Lua 5.2 and 5.3 returns three values: a boolean indicating sucessf
 But in 5.1 only 1 one value returned
 --``
 var exec = \cmd ->
-	--print(cmd)
+	--write(cmd)
 	var ok, exit_or_signal, code = os.execute(cmd)
 	if code
 		return code
@@ -119,7 +125,7 @@ if slash == '\\'
 		return false
 	
 	if not enable_VT()
-		-- print('No ANSI colors support, error ' .. kernel32.GetLastError())
+		-- write('No ANSI colors support, error ' .. kernel32.GetLastError())
 		color = setmetatable({}, {__index = -> return ""})
 
 
@@ -127,6 +133,7 @@ if slash == '\\'
 return {
 	slash = slash
 	, color = color
+	, write = write
 	, usage = usage
 	, scan = scan
 	, mkdir = mkdir

@@ -12,11 +12,17 @@ local color = {
     , cyan = "\27[96;1m"
     , white = "\27[97;1m"
 }
-print = function(...)
-    io.stdout:write(...)
+local write = function(...)
+    local n = select("#", ...)
+    for i = 1, n, 1 do
+        io.stdout:write(tostring(select(i, ...)))
+        if i ~= n then
+            io.stdout:write("\t")
+        end
+    end
 end
 local usage = function(text)
-    print(text)
+    write(text)
     os.exit(1)
 end
 local scan = function(args)
@@ -109,6 +115,7 @@ end
 return {
     slash = slash
     , color = color
+    , write = write
     , usage = usage
     , scan = scan
     , mkdir = mkdir
