@@ -539,9 +539,9 @@ return \ls, warn ->
 				vk, v = Kind.Call, Expr.call(v, args, at)
 			else if ls.token == ':'
 				ls.step()
-				var arg = expr()
+				var argm = expr()
 				lex_check('!')
-				vk, v = Kind.Union, Expr.union(parse_variants(true), v, arg, at)
+				vk, v = Kind.Union, Expr.union(parse_variants(true), v, argm, at)
 			else
 				break
 		return v, vk

@@ -166,12 +166,12 @@ var generate = \stmts ->
 		return priority(exp)
 
 	Expr[TExpr.Unary] = \node ->
-		var arg, arg_prio = emit_expr(node.right)
+		var a, arg_prio = emit_expr(node.right)
 		var op_prio = operator.unary_priority
-		if arg_prio < op_prio arg = format("(%s)", arg) 
+		if arg_prio < op_prio a = format("(%s)", a) 
 		var op = node.op
 		if op == 'not' op = 'not ' 
-		return format("%s%s", op, arg), operator.unary_priority
+		return format("%s%s", op, a), operator.unary_priority
 
 	Expr[TExpr.Binary] = \node ->
 		var oper = node.op

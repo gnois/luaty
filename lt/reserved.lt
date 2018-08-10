@@ -28,7 +28,9 @@ return {
 
 	-- built in variables
 	, Builtin = {
-		assert = true
+		-- http://www.lua.org/manual/5.1/manual.html#6
+		arg = true   -- global table for command line arguments
+		, assert = true
 		, collectgarbage = true
 		, coroutine = true
 		, debug = true

@@ -41,14 +41,14 @@ var scan = \args ->
 		var switch = null
 		var k = 1
 		while args[k]
-			var arg = args[k]
-			if "-" == string.sub(arg, 1, 1)
+			var a = args[k]
+			if "-" == string.sub(a, 1, 1)
 				-- previous loop had a switch
 				if switch ~= null
 					yield(switch)
-				switch = string.sub(arg, 2)
+				switch = string.sub(a, 2)
 			else
-				yield(switch, arg)
+				yield(switch, a)
 				switch = null
 			k = k + 1
 

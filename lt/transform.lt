@@ -147,9 +147,9 @@ return \stmts ->
 		var lambda = ast.Expr.function({_nm, ast.Expr.vararg(node)}, nil, nil, conds, node)
 
 		var test = visit_expr(node.test)
-		var arg = visit_expr(node.arg)
+		var argm = visit_expr(node.arg)
 		return ast.Expr.call(lambda
-			, { ast.Expr.call(test, {arg}, node) }
+			, { ast.Expr.call(test, {argm}, node) }
 			, node
 		)
 		
