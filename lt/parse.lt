@@ -377,6 +377,8 @@ return \ls, warn ->
 		return lambda
 
 
+	--`` remove this. using a simple {tag=xxx, ...} is much more flexible
+	--  Unless unify() in solve.lt can be written in pattern matching way
 	var parse_variants = \destruct ->
 		var variants, v = {}, 0
 		var ind = lex_indent()
@@ -430,9 +432,9 @@ return \ls, warn ->
 				break
 		until lex_dedent()
 		if v < 1
-			parse_error(3, "at least one constructor needed for disjoint union")
+			parse_error(3, "at least one constructor needed for tagged union")
 		return variants
-
+	--``
 
 	expr_simple = ->
 		var tk, val = ls.token, ls.value
@@ -456,9 +458,11 @@ return \ls, warn ->
 			return expr_table(loc)
 		else if tk == '\\' or tk == '->' or tk == '~>'
 			return expr_function(loc)
+		--`
 		else if tk == ':!'
 			ls.step()
 			return Expr.union(parse_variants(false), nil, nil, loc)
+		--`
 		else
 			return expr_primary()
 
@@ -537,11 +541,13 @@ return \ls, warn ->
 			else if ls.token == '(' -- or ls.token == 'TK_string' or ls.token == '{'
 				var args = parse_args()
 				vk, v = Kind.Call, Expr.call(v, args, at)
+			--`` no more tagged union
 			else if ls.token == ':'
 				ls.step()
 				var argm = expr()
 				lex_check('!')
 				vk, v = Kind.Union, Expr.union(parse_variants(true), v, argm, at)
+			--``
 			else
 				break
 		return v, vk

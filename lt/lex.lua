@@ -497,10 +497,6 @@ return function(read, warn)
                         nextchar()
                         return "::"
                     end
-                    if ch == "!" then
-                        nextchar()
-                        return ":!"
-                    end
                     return ":"
                 elseif ch == "<" then
                     nextchar()

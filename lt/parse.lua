@@ -375,66 +375,6 @@ return function(ls, warn)
         end
         return lambda
     end
-    local parse_variants = function(destruct)
-        local variants, v = {}, 0
-        local ind = lex_indent()
-        repeat
-            local ctor, body
-            local params, p = {}, 0
-            local starred
-            if ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
-                ctor = Expr.id(lex_str())
-            else
-                local name = is_keyword()
-                if name then
-                    ctor = Expr.id(name, ls)
-                elseif destruct and ls.token == "*" then
-                    if starred then
-                        err_syntax(ls.astext(ls.token) .. " already defined on line " .. starred)
-                    end
-                    starred = ls.line
-                    ctor = Expr.id(ls.token, ls)
-                end
-                ls.step()
-            end
-            if ctor then
-                if lex_opt(":") then
-                    repeat
-                        if ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
-                            p = p + 1
-                            params[p] = Expr.id(lex_str())
-                        elseif ls.token == "..." then
-                            ls.step()
-                            p = p + 1
-                            params[p] = Expr.vararg(ls)
-                            break
-                        end
-                    until not lex_opt(",")
-                end
-                if destruct then
-                    if not lex_opt("->") and p > 0 then
-                        err_expect("->")
-                    end
-                    body = parse_block(ls.line, "->")
-                end
-                lex_opt("TK_newline")
-                v = v + 1
-                variants[v] = {ctor = ctor, params = params, body = body}
-            else
-                err_symbol()
-                ls.step()
-                break
-            end
-            if not ind then
-                lex_opt(";")
-                break
-            end
-        until lex_dedent()
-        if v < 1 then
-            parse_error(3, "at least one constructor needed for disjoint union")
-        end
-        return variants
-    end
     expr_simple = function()
         local tk, val = ls.token, ls.value
         local loc = ls.loc()
@@ -457,9 +397,6 @@ return function(ls, warn)
             return expr_table(loc)
         elseif tk == "\\" or tk == "->" or tk == "~>" then
             return expr_function(loc)
-        elseif tk == ":!" then
-            ls.step()
-            return Expr.union(parse_variants(false), nil, nil, loc)
         else
             return expr_primary()
         end
@@ -536,11 +473,6 @@ return function(ls, warn)
             elseif ls.token == "(" then
                 local args = parse_args()
                 vk, v = Kind.Call, Expr.call(v, args, at)
-            elseif ls.token == ":" then
-                ls.step()
-                local arg = expr()
-                lex_check("!")
-                vk, v = Kind.Union, Expr.union(parse_variants(true), v, arg, at)
             else
                 break
             end

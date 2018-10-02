@@ -92,9 +92,6 @@ local Expression = {
     , call = function(func, args, ls)
         return make(TExpr.Call, {func = func, args = args}, ls)
     end
-    , union = function(variants, test, arg, ls)
-        return make(TExpr.Union, {variants = variants, test = test, arg = arg}, ls)
-    end
     , unary = function(op, right, ls)
         return make(TExpr.Unary, {op = op, right = right}, ls)
     end
