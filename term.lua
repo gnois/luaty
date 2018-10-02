@@ -32,14 +32,14 @@ local scan = function(args)
         local switch = null
         local k = 1
         while args[k] do
-            local arg = args[k]
-            if "-" == string.sub(arg, 1, 1) then
+            local a = args[k]
+            if "-" == string.sub(a, 1, 1) then
                 if switch ~= null then
                     yield(switch)
                 end
-                switch = string.sub(arg, 2)
+                switch = string.sub(a, 2)
             else
-                yield(switch, arg)
+                yield(switch, a)
                 switch = null
             end
             k = k + 1

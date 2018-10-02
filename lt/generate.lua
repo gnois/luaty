@@ -186,16 +186,16 @@ local generate = function(stmts)
         return priority(exp)
     end
     Expr[TExpr.Unary] = function(node)
-        local arg, arg_prio = emit_expr(node.right)
+        local a, arg_prio = emit_expr(node.right)
         local op_prio = operator.unary_priority
         if arg_prio < op_prio then
-            arg = format("(%s)", arg)
+            a = format("(%s)", a)
         end
         local op = node.op
         if op == "not" then
             op = "not "
         end
-        return format("%s%s", op, arg), operator.unary_priority
+        return format("%s%s", op, a), operator.unary_priority
     end
     Expr[TExpr.Binary] = function(node)
         local oper = node.op

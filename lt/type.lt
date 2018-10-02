@@ -221,17 +221,29 @@ var flatten = \ty, types ->
 
 ------------------ types ------------------------
 --``
-1,2,3, .. typevar
 # number
 $ string
 ! bool
-. vararg
-- optional/nillable. If used in func return [:-] means void
-* any, but not pure nil
+. vararg <- perhaps not needed
+* any, but not nil
 [:] type tuple to type tuple - function
 {:} type to type - table
 {} array
-~1,2,3... typeof
+Either:
+  - optional/nillable. If used in func return [:-] means void  <- NOPE
+  ? nil if used by itself. *? means nillable. [$:?] means function taking string, returns nil
+
+1,2,3, .. typevar
+&  typeof,  &var means typeof var
+
+Eg:
+&"a"  means $
+&9 means #
+&false means !
+var x&6 means var x #
+var y $#!  means y is a value type
+
+
 --``
 
 var create = \tag, node ->

@@ -93,8 +93,8 @@ return function(stmts)
         end
         local lambda = ast.Expr["function"]({_nm, ast.Expr.vararg(node)}, nil, nil, conds, node)
         local test = visit_expr(node.test)
-        local arg = visit_expr(node.arg)
-        return ast.Expr.call(lambda, {ast.Expr.call(test, {arg}, node)}, node)
+        local argm = visit_expr(node.arg)
+        return ast.Expr.call(lambda, {ast.Expr.call(test, {argm}, node)}, node)
     end
     Expr[TExpr.Id] = function(node)
         if node.name == "@" then
