@@ -257,8 +257,7 @@ local Type = {
         return create(TType.Val, {type = "bool"})
     end
     , tuple = function(types)
-        local list = flatten(TType.Tuple, types)
-        return create(TType.Tuple, list)
+        return create(TType.Tuple, types)
     end
     , func = function(ins, outs)
         return create(TType.Func, {ins = ins, outs = outs})

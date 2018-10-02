@@ -270,8 +270,7 @@ var Type = {
 
 	-- array of types
 	, tuple = \types ->
-		var list = flatten(TType.Tuple, types)
-		return create(TType.Tuple, list)
+		return create(TType.Tuple, types)
 
 	-- ins and outs are tuples
 	, func = \ins, outs ->

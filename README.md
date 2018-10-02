@@ -1,6 +1,5 @@
-
 Luaty is yet another indent sensitive language that compiles to Lua.
-It has a static analyzer with optional type checking, and some opinionated syntax.
+It has a static analyzer with optional limited type inference, and some opinionated syntax.
 
 
 Differences from Lua
@@ -83,14 +82,14 @@ Builtin static analyzer
 
 During transpiling, Luaty warns about:
   * unused variables
-  * unused labels or illegal gotos
-  * assignment to undeclared (a.k.a global) variable
-  * assignment having more expressions on the right side than the left
   * shadowed variables in the parent or the same scope
+  * unused labels and illegal gotos
+  * assignment to undeclared (global) variables
+  * assignment having more expressions on the right side than the left
   * duplicate keys in table constructor
 
 An optional type checker can be enabled to check consistent usage of variables.
-It could only infer a limited subset of Lua, and is probably wrong in non trivial cases.
+It will try to infer a limited subset of Lua, and is probably wrong in non trivial cases.
 Lua code will be generated regardless of warning by the static analyzer.
 
 ```
@@ -121,6 +120,7 @@ var p = {q = 5}
 p.q.r = 7                 -- assignment expects {} instead of <num>
 
 ```
+
 
 
 

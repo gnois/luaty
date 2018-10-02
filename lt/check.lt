@@ -58,16 +58,20 @@ return \scope, stmts, warn, import, typecheck ->
 				return vt, t
 		return ty.any(), t
 
-	var check_fn = \ftype, atypes, node ->
+	var check_fn = \ftype, atypes, node, fname ->
 		if typecheck
 			var fn = solv.apply(ftype)
 			if fn.tag == TType.New
 				solv.extend(fn, ty.func(ty.tuple(atypes), ty.tuple_any()))
 			else if fn.tag == TType.Nil or fn.tag == TType.Val
-				warn(node.line, node.col, 1, "trying to call " .. ty.tostr(fn))
+				if fname
+					fname = "`" .. fname .. "` but is "
+				warn(node.line, node.col, 1, "trying to call " .. (fname or "") .. ty.tostr(fn))
 			else
 				-- check params to args
-				check(fn, ty.func(ty.tuple(atypes), ty.tuple_any()), node, "function ")
+				if fname
+					fname = "`" .. fname .. "` "
+				check(fn, ty.func(ty.tuple(atypes), ty.tuple_any()), node, "function " .. (fname or ""))
 				if fn.outs
 					return fn.outs
 		return ty.tuple_any()
@@ -290,13 +294,13 @@ return \scope, stmts, warn, import, typecheck ->
 		var func = node.func
 		var ftype, fobj = infer_expr(func)
 		if arg1 and arg1.name == '@' and not func.bracketed
-				if func.tag == TExpr.Field or func.tag == TExpr.Index
-					atypes = infer_exprs(node.args, 2)
-					table.insert(atypes, 1, fobj)
+			if func.tag == TExpr.Field or func.tag == TExpr.Index
+				atypes = infer_exprs(node.args, 2)
+				table.insert(atypes, 1, fobj)
 
 		if not atypes
 			atypes = infer_exprs(node.args)
-		return check_fn(ftype, atypes, node)
+		return check_fn(ftype, atypes, node, func.name)
 
 	Expr[TExpr.Unary] = \node ->
 		var rtype = infer_expr(node.right)

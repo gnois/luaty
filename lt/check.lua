@@ -62,15 +62,21 @@ return function(scope, stmts, warn, import, typecheck)
         end
         return ty.any(), t
     end
-    local check_fn = function(ftype, atypes, node)
+    local check_fn = function(ftype, atypes, node, fname)
         if typecheck then
             local fn = solv.apply(ftype)
             if fn.tag == TType.New then
                 solv.extend(fn, ty.func(ty.tuple(atypes), ty.tuple_any()))
             elseif fn.tag == TType.Nil or fn.tag == TType.Val then
-                warn(node.line, node.col, 1, "trying to call " .. ty.tostr(fn))
+                if fname then
+                    fname = "`" .. fname .. "` but is "
+                end
+                warn(node.line, node.col, 1, "trying to call " .. (fname or "") .. ty.tostr(fn))
             else
-                check(fn, ty.func(ty.tuple(atypes), ty.tuple_any()), node, "function ")
+                if fname then
+                    fname = "`" .. fname .. "` "
+                end
+                check(fn, ty.func(ty.tuple(atypes), ty.tuple_any()), node, "function " .. (fname or ""))
                 if fn.outs then
                     return fn.outs
                 end
@@ -325,7 +331,7 @@ return function(scope, stmts, warn, import, typecheck)
         if not atypes then
             atypes = infer_exprs(node.args)
         end
-        return check_fn(ftype, atypes, node)
+        return check_fn(ftype, atypes, node, func.name)
     end
     Expr[TExpr.Unary] = function(node)
         local rtype = infer_expr(node.right)
