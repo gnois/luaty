@@ -83,6 +83,7 @@ if src
 	if run
 		if warns
 			write(warns)
+			write("\n")
 		if code
 			var fn = assert(loadstring(code))
 			fn()

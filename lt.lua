@@ -90,6 +90,7 @@ if src then
     if run then
         if warns then
             write(warns)
+            write("\n")
         end
         if code then
             local fn = assert(loadstring(code))
