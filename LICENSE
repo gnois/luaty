@@ -1,6 +1,5 @@
-Luaty - [Lua] with less [ty]ping
 
-Based on LuaJIT Language Toolkit, a toolkit for language implementations
+Luaty is based on LuaJIT Language Toolkit, a toolkit for language implementations.
 https://github.com/franko/luajit-lang-toolkit
 
 The MIT License (MIT)
