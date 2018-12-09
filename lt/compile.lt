@@ -79,11 +79,10 @@ return \options, color ->
 					ast = transform(ast)
 					if r.continue()
 						luacode = generate(ast)
-			else
-				r.warn(0, 0, 1, "file not found or empty")
 		return typ, luacode, r.as_text()
-		
 
+
+	-- name follows require('name')
 	import = \name ->
 
 		var mod = imports[name]
@@ -93,16 +92,17 @@ return \options, color ->
 			return mod.type, mod.code, mod.warns
 
 		imports[name] = Circular
+		-- get path by converting . to /
 		var path = string.gsub(name, "[.]", term.slash) .. ".lt"
 		var typ, code, warns = compile(read.file(path))
 		
 		imports[name] = { path = path, type = typ, code = code, warns = warns }
-		return typ, code, warns, imports
+		return warns, imports, name
 
 
 	return {
 		file = \src ->
-            -- loader accepts file without .lt
+            -- import() expects filename without .lt
 			var f = string.gsub(src, "%.lt", "")
 			return import(f)
 

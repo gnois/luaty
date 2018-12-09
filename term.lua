@@ -16,13 +16,10 @@ local write = function(...)
     local n = select("#", ...)
     for i = 1, n, 1 do
         io.stdout:write(tostring(select(i, ...)))
-        if i ~= n then
-            io.stdout:write("\t")
-        end
     end
 end
-local usage = function(text)
-    write(text)
+local usage = function(...)
+    write(...)
     os.exit(1)
 end
 local scan = function(args)

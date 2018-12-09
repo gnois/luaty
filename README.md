@@ -130,41 +130,66 @@ Quick start
 
 Luaty only requires LuaJIT to run. 
 
-With LuaJIT in your path, clone this repo, and cd into it.
+Given a main.lt file with its required .lt files under its subfolders, Luaty can optionally transpile and generate a complete mirror folder structure with .lua output.
 
-To transpile a Luaty *main.lt* file and its dependencies to *main.lua* and *dep1.lua*, *dep2.lua, ...* , use
-```
-luajit lt.lua -f [-t] /path/to/main.lt
-```
-Type checker is enabled when using ```-t```.
+With LuaJIT in your path, create a command alias for luaty
 
+Linux/Unix shell
+```
+alias luaty='/path/of/luajit -e "package.path=package.path .. '/path/to/luaty/?.lua'" /path/to/luaty/lt.lua'
 
-The Lua output files will be **overwritten** if they exist. To prevent overwriting, use -c instead of -f
 ```
-luajit lt.lua -c [-t] /path/to/main.lt
+Windows command prompt
 ```
-
-Alternatively, specify a new output directory
-```
-luajit lt.lua -c [-t] /path/to/main.lt outdir
-```
-
-To execute a Luaty source file, use
-```
-luajit lt.lua /path/to/source.lt
+doskey luaty=\path\of\luajit -e "package.path=package.path .. '\\path\\to\\luaty\\?.lua'" \path\to\luaty\lt.lua $*
 ```
 
 
+To begin a REPL, simple invoke
+```
+luaty
+```
 
+To run a Luaty source file, use
+```
+luaty /path/to/source
+```
+source is assumed to end with .lt
+
+
+
+To transpile a Luaty *path/main.lt* file and its dependencies to */dst*
+```
+luaty path/main /dst
+```
+Assuming transpilation succeeded, the output should appear in /dst/path/main.lua
+If *main.lt* requires */path/foo/dep.lt*, */path/bar/dep.lt*, /dst/path/foo/dep.lua and /dst/path/bar/dep.lua will also be generated
+Lua output files will not be overwritten if they exist.
+To force overwriting, use ```-f``` switch.
+
+To transpile only *main.lt* file without its dependencies, provide a destination ending with .lua
+```
+luaty [-f] path/main /out/main.lua
+```
+
+Destination without .lua is considered a folder, which will be created if it does not exist. For eg:
+```
+luaty -f main main.lt
+```
+main.lua and its dependencies goes into main.lt/*.lua, so that output file can never overwrite input.
+
+
+For all the commands above, type checker can be enabled by adding ```-t``` switch.
+
+
+To make and overwrite Luaty itself, use
+```
+luaty -f lt.lt .
+```
 
 To run tests in the [tests folder](https://github.com/gnois/luaty/tree/master/tests), use
 ```
 luajit run-test.lua
-```
-
-To make Luaty itself, use
-```
-luajit lt.lua -f lt.lt
 ```
 
 

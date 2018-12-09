@@ -14,19 +14,20 @@ var color = {
 }
 
 
--- we dont want ending newline in print
+-- we dont want ending newline in print()
 var write = \... ->
 	var n = select("#", ...)
 	-- but io.write() doesn't implicitly call tostring()
 	for i = 1, n, 1
 		io.stdout.write(@, tostring(select(i, ...)))
-		if i ~= n
-			io.stdout.write(@, "\t")
+		-- separate each item with tab
+		--if i ~= n
+		--	io.stdout.write(@, "\t")
 
 
 -- show usage and exit
-var usage = \text ->
-	write(text)
+var usage = \... ->
+	write(...)
 	os.exit(1)
 
 

@@ -6,45 +6,32 @@ local compiler = require("lt.compile")
 local color = term.color
 local write = term.write
 local usage = function(err)
-    local spec = [=[
+    term.usage(err or "", "\n", [=[
 Usage: 
-  luajit lt.lua [-c1|-f1|c|f] [-t] [-d xvar] src.lt [dst]
-  where:
-    -c1       Transpile src.lt into dst/src.lua without running
-    -f1       Same as -c1 but overwrites destination file
-    -c        Transpile src.lt and its dependencies into dst/src.lua, dst/*.lua ... without running
-    -f        Same as -c but overwrites destination files
+  luajit lt.lua [-f] [-t] [-d xvar] path/src [dst]
+  
+    if src does not end with .lt, .lt is appended
+
+    if dst is omitted, path/src.lt will be run
+    else if dst ends with .lua, path/src.lt will be transpiled to dst
+    else dst is assumed to be a folder, path/src.lt will be transpiled to dst/path/src.lua, and its dependencies to dst/path/*.lua
+  
+    -f        Force overwrite if output file already exists. Ignored if dst is omitted.
     -t        Enable type checking
     -d xvar   Declares `xvar` to silent undeclared identifier warning
   
-  dst specifies an output directory and defaults to ./
-  If specified, it must not end with .lt
-
   Running without parameters enters Read-Generate-Eval-Print loop
-]=]
-    err = err or ""
-    err = err .. "\n" .. spec
-    term.usage(err)
+]=])
 end
-local run = true
 local force = false
-local already = false
 local typecheck = false
 local single = false
 local paths = {}
 local decls = {}
 for s, p in term.scan({...}) do
-    if s == "c" or s == "c1" or s == "f" or s == "f1" then
-        if already then
-            usage("Error: use either -c or -f only")
-        end
-        already = true
-        run = false
-        if s == "f" or s == "f1" then
+    if s == "f" then
+        if s == "f" then
             force = true
-        end
-        if s == "c1" or s == "f1" then
-            single = true
         end
         if p then
             table.insert(paths, p)
@@ -68,7 +55,7 @@ for s, p in term.scan({...}) do
 end
 local src, dst
 if #paths > 2 then
-    usage("Error: only one file with an optional output directory accepted")
+    usage("Error: only one file with an optional output accepted")
 else
     src = paths[1]
     dst = paths[2]
@@ -78,39 +65,41 @@ else
         end
     end
     if dst then
-        dst = string.gsub(dst, term.slash .. "*$", "")
-        if string.sub(dst, -string.len(".lt")) == ".lt" then
-            usage("Error: output directory `" .. dst .. "` cannot end with .lt")
+        if string.sub(dst, -string.len(".lua")) == ".lua" then
+            single = true
+        else
+            dst = string.gsub(dst, term.slash .. "*$", "")
         end
     end
 end
 local compile = compiler({declares = decls, typecheck = typecheck, single = single}, color)
 if src then
-    local _, code, warns, imports = compile.file(src)
-    if run then
+    local warns, imports, main = compile.file(src)
+    if not dst then
+        if force then
+            write(color.red, "-f is ignored", color.reset, "\n")
+        end
         if warns then
-            write(warns)
+            write(warns, "\n")
+        end
+        local file = imports[main]
+        if file.code then
+            local fn = assert(loadstring(file.code))
+            fn()
             write("\n")
         end
-        if code then
-            local fn = assert(loadstring(code))
-            fn()
-        else
-            write(" Fail to run " .. src)
-        end
-        write("\n")
     else
         local created = {}
         local existed = {}
         local skips = {}
         for __, file in pairs(imports) do
-            write(file.path .. "\n")
+            write(file.path, "\n")
             if file.warns then
-                write(file.warns)
-                write("\n")
+                write(file.warns, "\n")
             end
-            local dest = string.gsub(file.path, "%.lt", ".lua")
-            if dst then
+            local dest = dst
+            if not single then
+                dest = string.gsub(file.path, "%.lt", ".lua")
                 dest = dst .. term.slash .. dest
             end
             if file.code then
@@ -144,7 +133,7 @@ if src then
                         error(err)
                     end
                     local srcname = string.gsub(file.path, "(.*[/\\])(.*)", "%2")
-                    f:write("--\n-- Generated from " .. srcname .. "\n--")
+                    f:write("--\n-- Generated from ", srcname, "\n--")
                     f:write(file.code)
                     f:close()
                 end
@@ -161,7 +150,9 @@ if src then
             end
             f = f + 1
         end
-        write(color.red .. table.concat(fails, "\n") .. color.reset)
+        if f > 1 then
+            write(color.red, table.concat(fails, "\n"), color.reset, "\n")
+        end
     end
 else
     local show_results = function(...)
@@ -175,13 +166,13 @@ else
     local read = function()
         return io.stdin:read()
     end
-    write("Luaty  \n-- empty line to transpile --\n")
+    write([[-- empty line to transpile, \q to quit --]], "\n")
     local list = {}
     repeat
         write("> ")
         flush()
         local s = read()
-        if s == "exit" or s == "quit" then
+        if s == [[\q]] then
             break
         elseif s and #s > 0 then
             list[#list + 1] = s
@@ -193,7 +184,7 @@ else
                 write(warns)
             end
             if code then
-                write(color.cyan .. code .. color.reset)
+                write(color.cyan, code, color.reset)
                 local fn, err = loadstring(code)
                 if err then
                     fn = load("return (" .. fn .. ")", "stdin")

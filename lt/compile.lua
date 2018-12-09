@@ -65,8 +65,6 @@ return function(options, color)
                         luacode = generate(ast)
                     end
                 end
-            else
-                r.warn(0, 0, 1, "file not found or empty")
             end
         end
         return typ, luacode, r.as_text()
@@ -83,7 +81,7 @@ return function(options, color)
         local path = string.gsub(name, "[.]", term.slash) .. ".lt"
         local typ, code, warns = compile(read.file(path))
         imports[name] = {path = path, type = typ, code = code, warns = warns}
-        return typ, code, warns, imports
+        return warns, imports, name
     end
     return {file = function(src)
         local f = string.gsub(src, "%.lt", "")

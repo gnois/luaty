@@ -9,9 +9,12 @@ var string_reader = \src ->
 
 
 var file_reader = \filename ->
-	var f
+	var f, err
 	if filename
-		f = io.open(filename, 'r')
+		f, err = io.open(filename, 'r')
+		if not f
+			io.write(err)
+			io.write('\n')
 	else
 		f = io.stdin
 	

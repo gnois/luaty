@@ -11,9 +11,13 @@ local string_reader = function(src)
     end
 end
 local file_reader = function(filename)
-    local f
+    local f, err
     if filename then
-        f = io.open(filename, "r")
+        f, err = io.open(filename, "r")
+        if not f then
+            io.write(err)
+            io.write("\n")
+        end
     else
         f = io.stdin
     end
