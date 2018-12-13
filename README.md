@@ -162,8 +162,10 @@ To transpile a Luaty *path/main.lt* file and its dependencies to */dst*
 ```
 luaty path/main /dst
 ```
-Assuming transpilation succeeded, the output should appear in /dst/path/main.lua
+Assuming transpilation succeeds, the output should appear in /dst/path/main.lua
+
 If *main.lt* requires */path/foo/dep.lt*, */path/bar/dep.lt*, /dst/path/foo/dep.lua and /dst/path/bar/dep.lua will also be generated
+
 Lua output files will not be overwritten if they exist.
 To force overwriting, use ```-f``` switch.
 

@@ -68,7 +68,7 @@ local mkdir = function(path)
 end
 local exist_dir = function(path)
     local p = string.gsub(path, "/*$", "")
-    local code = exec("pushd " .. p)
+    local code = exec("pushd " .. p .. " 2> nul")
     if code == 0 then
         exec("popd")
     end

@@ -92,18 +92,20 @@ if src
 		var existed = {}  -- folders already exist
 		var skips = {}  -- files not overwritten or failed to compile
 		for __, file in pairs(imports)
-			write(file.path, "\n")
-			if file.warns
-				write(file.warns, "\n")
-
 			-- construct output file path
 			var dest = dst
 			if not single
 				dest = string.gsub(file.path, "%.lt", ".lua")
-				dest = dst .. term.slash .. dest
+				dest = dst .. term.slash .. string.gsub(dest, "^".. term.slash .. "*", "") -- remove slashes in front of dest
 			
 			-- dest is now dir/sub/file.lua
 			if file.code
+				write(dest, ":")
+				if file.warns
+					write("\n", file.warns, "\n")
+				else
+					write(" Ok\n")
+
 				-- split into dir/sub and file.lua
 				var name = dest
 				var dir

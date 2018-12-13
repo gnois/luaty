@@ -86,13 +86,17 @@ var mkdir = \path ->
 	return false, cmd .. " failed, exit code: " .. tostring(code)
 
 
+-- pushd and popd exists on linux, unix and DOS
 var exist_dir = \path ->
 	var p = string.gsub(path, "/*$", "")
-	var code = exec("pushd " .. p)
+	-- if Path Not Found, dont show on stderr
+	var code = exec("pushd " .. p .. " 2> nul")
 	if code == 0
 		exec("popd")
 	return code == 0
 
+
+	
 
 -- Window to support ANSI color, may not work on all Windows version
 if slash == '\\'

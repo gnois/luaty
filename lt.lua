@@ -93,16 +93,18 @@ if src then
         local existed = {}
         local skips = {}
         for __, file in pairs(imports) do
-            write(file.path, "\n")
-            if file.warns then
-                write(file.warns, "\n")
-            end
             local dest = dst
             if not single then
                 dest = string.gsub(file.path, "%.lt", ".lua")
-                dest = dst .. term.slash .. dest
+                dest = dst .. term.slash .. string.gsub(dest, "^" .. term.slash .. "*", "")
             end
             if file.code then
+                write(dest, ":")
+                if file.warns then
+                    write("\n", file.warns, "\n")
+                else
+                    write(" Ok\n")
+                end
                 local name = dest
                 local dir
                 string.gsub(dest, "(.*[/\\])(.*)", function(d, n)
