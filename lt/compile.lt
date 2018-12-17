@@ -93,6 +93,7 @@ return \options, color ->
 
 		imports[name] = Circular
 		-- get path by converting . to /
+		--  FIXME: Find out what happens for Lua if require('path.file.1') if /path/file.1.lua exists, but we thought it is /path/file/1/lua.lua 
 		var path = string.gsub(name, "[.]", term.slash) .. ".lt"
 		var typ, code, warns = compile(read.file(path))
 		

@@ -15,9 +15,9 @@ var color = {
 
 
 -- we dont want ending newline in print()
+-- but io.write() doesn't implicitly call tostring()
 var write = \... ->
 	var n = select("#", ...)
-	-- but io.write() doesn't implicitly call tostring()
 	for i = 1, n, 1
 		io.stdout.write(@, tostring(select(i, ...)))
 		-- separate each item with tab

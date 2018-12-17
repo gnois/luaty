@@ -99,13 +99,13 @@ if src
 				dest = dst .. term.slash .. string.gsub(dest, "^".. term.slash .. "*", "") -- remove slashes in front of dest
 			
 			-- dest is now dir/sub/file.lua
-			if file.code
-				write(dest, ":")
-				if file.warns
-					write("\n", file.warns, "\n")
-				else
-					write(" Ok\n")
+			write(dest, ":")
+			if file.warns
+				write("\n", file.warns, "\n")
+			else if file.code
+				write(" Ok\n")
 
+			if file.code
 				-- split into dir/sub and file.lua
 				var name = dest
 				var dir

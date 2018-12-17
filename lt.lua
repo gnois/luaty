@@ -98,13 +98,13 @@ if src then
                 dest = string.gsub(file.path, "%.lt", ".lua")
                 dest = dst .. term.slash .. string.gsub(dest, "^" .. term.slash .. "*", "")
             end
+            write(dest, ":")
+            if file.warns then
+                write("\n", file.warns, "\n")
+            elseif file.code then
+                write(" Ok\n")
+            end
             if file.code then
-                write(dest, ":")
-                if file.warns then
-                    write("\n", file.warns, "\n")
-                else
-                    write(" Ok\n")
-                end
                 local name = dest
                 local dir
                 string.gsub(dest, "(.*[/\\])(.*)", function(d, n)
