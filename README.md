@@ -157,14 +157,36 @@ luaty /path/to/source
 source is assumed to end with .lt
 
 
-
-To transpile a Luaty *path/main.lt* file and its dependencies to */dst*
+Suppose our source files are laid out like below:
 ```
-luaty path/main /dst
+/
+├── src
+│   ├── main.lt
+    ├── sub.lt
+    └── lib/
+        ├── foo.lt
+        ├── bar.lt
+        └── ...
 ```
-Assuming transpilation succeeds, the output should appear in /dst/path/main.lua
 
-If *main.lt* requires */path/foo/dep.lt*, */path/bar/dep.lt*, /dst/path/foo/dep.lua and /dst/path/bar/dep.lua will also be generated
+To transpile a Luaty *src/main.lt* file and its dependencies to */dst*
+```
+cd src
+luaty main /dst
+```
+Assuming transpilation succeeds, the output should appear like below, with subfolders mirrored:
+```
+/
+├── dst
+│   ├── main.lua
+    ├── sub.lua
+    └── lib/
+        ├── foo.lua
+        ├── bar.lua
+        └── ...
+```
+However, do note that Luaty does not understand Lua package.path, which may not be statically resolvable.
+By the same reason, dynamically constructed require() is ignored by Luaty as well.
 
 Lua output files will not be overwritten if they exist.
 To force overwriting, use ```-f``` switch.
@@ -182,7 +204,6 @@ main.lua and its dependencies goes into main.lt/*.lua, so that output file can n
 
 
 For all the commands above, type checker can be enabled by adding ```-t``` switch.
-
 
 To make and overwrite Luaty itself, use
 ```
@@ -224,7 +245,7 @@ if x == nil for y = 1, 10 do until true else if x == 0 p(x) else if x p(x) else 
 
 ```
 
-4. A table constructor or function call can be indented, but the line having its closing brace/parenthesis must realign back to its starting indent level
+4. A table constructor or function call can be indented, but the line having its closing brace/parenthesis must realign back to its starting indent level.
 ```
 var y = { 1
    ,
@@ -243,7 +264,8 @@ print(
 
 ```
 
-5. A semicolon `;` is used to terminate single-lined function if it causes ambiguity in a list of expressions
+5. For single-lined function, semicolon `;` can be used as function terminator if it causes ambiguity in a list of expressions.
+Note that any needed comma after the semicolon does not become optional.
 ```
 print(pcall(\x-> return x, 10))                 -- multiple return values. Prints true, nil, 10
 
@@ -251,7 +273,7 @@ print(pcall(\x -> return x;, 10))               -- ok, single lined function end
 
 print(pcall(\x ->
    return x
-, 10))                                          -- ok, function ended with dedent. Prints true, 10
+, 10))                                          -- ok, same as above, function ended with dedent. Prints true, 10
 
 var o = { fn = -> return 1, 2;, 3, 4 }          -- use `;` to terminate single-lined function
 assert(o[2] == 4)

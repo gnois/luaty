@@ -44,9 +44,8 @@ return \scope, stmts, warn, import, typecheck ->
 		return check(x, y, node, "operator `" .. op .. "` ")
 
 	var check_field = \otype, field, node ->
-		var t
-		if check(ty.tbl({}), otype, node, "field `" .. field .. "` ")
-			t = solv.apply(otype)
+		var t = solv.apply(otype)
+		if check(ty.tbl({}), t, node, "field `" .. field .. "` ")
 			var tbl = ty.get_tbl(t)
 			if tbl
 				for _, tk in ipairs(tbl)

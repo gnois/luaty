@@ -45,9 +45,8 @@ return function(scope, stmts, warn, import, typecheck)
         return check(x, y, node, "operator `" .. op .. "` ")
     end
     local check_field = function(otype, field, node)
-        local t
-        if check(ty.tbl({}), otype, node, "field `" .. field .. "` ") then
-            t = solv.apply(otype)
+        local t = solv.apply(otype)
+        if check(ty.tbl({}), t, node, "field `" .. field .. "` ") then
             local tbl = ty.get_tbl(t)
             if tbl then
                 for _, tk in ipairs(tbl) do
