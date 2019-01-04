@@ -63,6 +63,7 @@ return \options, color ->
 	var imports = {}
 	var compile, import
 	
+	-- returns type, code, warns
 	compile = \reader ->
 		var ast, typ, luacode
 		
@@ -83,6 +84,7 @@ return \options, color ->
 
 
 	-- name follows require('name')
+	-- returns type, code, warns
 	import = \name ->
 
 		var mod = imports[name]
@@ -98,7 +100,7 @@ return \options, color ->
 		var typ, code, warns = compile(read.file(path))
 		
 		imports[name] = { path = path, type = typ, code = code, warns = warns }
-		return warns, imports, name
+		return typ, code, warns, imports
 
 
 	return {

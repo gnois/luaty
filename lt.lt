@@ -74,16 +74,15 @@ else
 var compile = compiler({declares = decls, typecheck = typecheck, single = single}, color)
 
 if src
-	var warns, imports, main = compile.file(src)
+	var _, code, warns, imports = compile.file(src)
 
 	if not dst -- run
 		if force
 			write(color.red, "-f is ignored", color.reset, "\n")
 		if warns
 			write(warns, "\n")
-		var file = imports[main]
-		if file.code
-			var fn = assert(loadstring(file.code))
+		if code
+			var fn = assert(loadstring(code))
 			fn()
 			write("\n")
 

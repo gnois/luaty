@@ -74,7 +74,7 @@ else
 end
 local compile = compiler({declares = decls, typecheck = typecheck, single = single}, color)
 if src then
-    local warns, imports, main = compile.file(src)
+    local _, code, warns, imports = compile.file(src)
     if not dst then
         if force then
             write(color.red, "-f is ignored", color.reset, "\n")
@@ -82,9 +82,8 @@ if src then
         if warns then
             write(warns, "\n")
         end
-        local file = imports[main]
-        if file.code then
-            local fn = assert(loadstring(file.code))
+        if code then
+            local fn = assert(loadstring(code))
             fn()
             write("\n")
         end

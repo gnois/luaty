@@ -81,7 +81,7 @@ return function(options, color)
         local path = string.gsub(name, "[.]", term.slash) .. ".lt"
         local typ, code, warns = compile(read.file(path))
         imports[name] = {path = path, type = typ, code = code, warns = warns}
-        return warns, imports, name
+        return typ, code, warns, imports
     end
     return {file = function(src)
         local f = string.gsub(src, "%.lt", "")
