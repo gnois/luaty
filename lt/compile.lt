@@ -84,8 +84,9 @@ return \options, color ->
 
 
 	-- name follows require('name')
+	-- if verbatim, dots in name is not replaced with slash
 	-- returns type, code, warns
-	import = \name ->
+	import = \name, verbatim ->
 
 		var mod = imports[name]
 		if mod
@@ -96,7 +97,12 @@ return \options, color ->
 		imports[name] = Circular
 		-- get path by converting . to /
 		--  FIXME: Find out what happens for Lua if require('path.file.1') if /path/file.1.lua exists, but we thought it is /path/file/1/lua.lua 
-		var path = string.gsub(name, "[.]", term.slash) .. ".lt"
+		var path
+		if verbatim
+			path = name
+		else
+			path = string.gsub(name, "[.]", term.slash)
+		path = path .. ".lt"
 		var typ, code, warns = compile(read.file(path))
 		
 		imports[name] = { path = path, type = typ, code = code, warns = warns }
@@ -107,7 +113,7 @@ return \options, color ->
 		file = \src ->
             -- import() expects filename without .lt
 			var f = string.gsub(src, "%.lt", "")
-			return import(f)
+			return import(f, true)
 
 		, string = \src ->
 			return compile(read.string(src))

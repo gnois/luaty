@@ -69,7 +69,7 @@ return function(options, color)
         end
         return typ, luacode, r.as_text()
     end
-    import = function(name)
+    import = function(name, verbatim)
         local mod = imports[name]
         if mod then
             if mod == Circular then
@@ -78,14 +78,20 @@ return function(options, color)
             return mod.type, mod.code, mod.warns
         end
         imports[name] = Circular
-        local path = string.gsub(name, "[.]", term.slash) .. ".lt"
+        local path
+        if verbatim then
+            path = name
+        else
+            path = string.gsub(name, "[.]", term.slash)
+        end
+        path = path .. ".lt"
         local typ, code, warns = compile(read.file(path))
         imports[name] = {path = path, type = typ, code = code, warns = warns}
         return typ, code, warns, imports
     end
     return {file = function(src)
         local f = string.gsub(src, "%.lt", "")
-        return import(f)
+        return import(f, true)
     end, string = function(src)
         return compile(read.string(src))
     end}
