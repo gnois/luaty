@@ -23,8 +23,8 @@ var x = false               -- `var` compiles to `local`
 if not x
    print(`"nay"`)           -- `then` and `end` not needed, `"nay"` compiles to [["nay"]]
 
---`a long string
-comment`
+--`` this is a long
+comment ``
 var z = {
    'a-str' = 'a-str'                         -- string as key
    , var = 7                                 -- works as in Lua
@@ -62,7 +62,7 @@ var obj = {
    value = 3
    , foo = \@, k ->
       return k * @.value            -- `@` compiles to `self`
-   , ['long-name'] = \@, n ->       -- notice this function has a special name
+   , ['long-name'] = \@, n ->       -- notice this function has a special name, but our function definition stays the same
       return n + @.value
 }
 
@@ -73,7 +73,29 @@ var get = -> return obj
 print(get()['long-name'](@, 10))    -- `@` *just works*, get() is only called once
 ```
 
+Due to backquote replacing `[[` and `]]`, long comments need one extra hyphen if we want to use the trick in https://www.lua.org/pil/1.3.html
+
+```
+-- Uncommenting long comment trick
+
+--`
+print(10)         -- commented out
+---`              -- ** use 3 hyphens at the end of comment **
+
+-- Now, if we add a single hyphen to the first line, the code is in again:
+
+---`
+print(10)         --> 10
+---`
+```
+
 The differences end here, so that a Lua file can easily be [hand converted](https://github.com/gnois/luaty/tree/master/convert.md) to a Luaty file.
+
+With these changes, we get
+- forced local variable declaration
+- consistent function definition syntax
+- arguably shorter codes
+
 
 
 
@@ -89,8 +111,8 @@ During transpiling, Luaty warns about:
   * duplicate keys in table constructor
 
 An optional type checker can be enabled to check consistent usage of variables.
-It will try to infer a limited subset of Lua, and is probably wrong in non trivial cases.
-Lua code will be generated regardless of warning by the static analyzer.
+It will try to infer a limited subset of Lua, but is probably wrong in non trivial cases for now. Improving the type checker is a work in progress.
+Lua code will be generated regardless of warning by the type checker.
 
 ```
 a = 1                     -- undeclared identifier a
@@ -174,7 +196,7 @@ To transpile a Luaty *src/main.lt* file and its dependencies to */dst*
 cd src
 luaty main /dst
 ```
-Assuming transpilation succeeds, the output should appear like below, with subfolders mirrored:
+If transpilation succeeds, the output should appear like below, with subfolders mirrored:
 ```
 /
 ├── dst
@@ -200,7 +222,7 @@ Destination without .lua is considered a folder, which will be created if it doe
 ```
 luaty -f main main.lt
 ```
-main.lua and its dependencies goes into main.lt/*.lua, so that output file can never overwrite input.
+The output main.lua and its dependencies goes into main.lt/*.lua, so that output file can never overwrite input.
 
 
 For all the commands above, type checker can be enabled by adding ```-t``` switch.

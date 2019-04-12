@@ -45,4 +45,15 @@ print("foo bar"--`` embedded ] --` `  ``, foo, bar)
 		
 	   -- at end of file
 	   
-	      
+-- Long comment trick at https://www.lua.org/pil/1.3.html
+
+
+--`
+print(10)         -- no action (commented)
+---`              -- use more than 2 hyphens at the end of comment
+
+-- Now, if we add a single hyphen to the first line, the code is in again:
+
+---`
+print(20)         --> 10
+---`
