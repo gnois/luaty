@@ -1,22 +1,20 @@
-Luaty is yet another indent sensitive language that compiles to Lua.
-It has a static analyzer with optional limited type inference, and some opinionated syntax.
+Luaty is yet another indent sensitive language, with some opinionated syntax that compiles to Lua.
+It comes with an optional type checker with limited type inference.
 
 
 Differences from Lua
 ---
 
-Due to [offside syntax](https://en.wikipedia.org/wiki/Off-side_rule), Luaty could use less syntax boilerplate than Lua:
+Less syntax boilerplates
   * no more `end`
   * no more `do` after `for` and `while`
   * no more `then` after `if`
 
-There are also some syntax changes:
+Minor syntactical changes
   * `repeat` becomes `do`
   * `elseif` becomes `else if`
   * `local` becomes `var`
   * `[[` and `]]` become backquote(s) \` that can be repeated multiple times
-  * table keys can be string or keyword
-
 
 ```
 var x = false               -- `var` compiles to `local`
@@ -25,6 +23,11 @@ if not x
 
 --`` this is a long
 comment ``
+
+```
+
+Literal string or keyword as table key
+```
 var z = {
    'a-str' = 'a-str'                         -- string as key
    , var = 7                                 -- works as in Lua
@@ -33,45 +36,47 @@ var z = {
    , if = \...-> return ...
    , goto = {true, false}
 }
-
 assert(z.var == 7)                           -- ok, z.var works as in Lua
-assert(11 == z.function + z.local)           -- becomes z['function'] and z['local']
-assert(z.if(z.goto)[2] == false)             -- ditto
-
+assert(z.if(z.goto)[2] == false)             -- works
 ```
 
 
-Unlike Lua, functions in Luaty are mostly desugared:
+Mostly desugared functions
   * function is defined using [lambda expression](https://www.lua.org/manual/5.1/manual.html#2.5.9) with `->` or `\param1, param2, ... ->`
   * function call always require parenthesis
-  * colon `:` is never used. `self` or `@` is specified as the first paramenter or call argument instead
-  * specifying `@` as the first call argument compiles to colon call syntax `:` in Lua, if possible
+  * colon `:` is never used. Use `self` or `@` as the first paramenter or call argument instead
 
 ```
 
 function f(x)                       -- error: use '->' instead of 'function'
 \x -> print(x)                      -- error: lambda expression by itself not allowed
 (\x -> print(x))(3)                 -- ok, immediately invoked lambda
-var f = -> print(3)                 -- ok, lambda with assignment statement, \ optional if no parameter
+var f = -> print(3)                 -- ok, lambda is assigned, \ optional if no parameter
 
 print 'a'                           -- error: '=' expected instead of 'a'; but this is valid in Lua
-print('a')                          -- ok, obviously
-
+print('a')                          -- ok obviously
 
 var obj = {
    value = 3
    , foo = \@, k ->
       return k * @.value            -- `@` compiles to `self`
-   , ['long-name'] = \@, n ->       -- notice this function has a special name, but our function definition stays the same
+   , ['long-name'] = \@, n ->       -- function with a special name
       return n + @.value
 }
 
 print(obj:foo(2))                   -- error: ')' expected instead of ':'
 assert(obj.foo(@, 2) == 6)          -- ok, compiles to obj:foo(2)
 
-var get = -> return obj
-print(get()['long-name'](@, 10))    -- `@` *just works*, get() is only called once
+var ox = -> return obj
+print(ox()['long-name'](@, 10))    -- `@` *just works*, get() is only called once
 ```
+
+The differences end here, so that a Lua file can easily be [hand converted](https://github.com/gnois/luaty/tree/master/convert.md) to a Luaty file.
+In return, we get
+- arguably shorter codes
+- forced local variable declaration
+- consistent function definition syntax
+- many linting features not unlike [luacheck](https://github.com/mpeterv/luacheck)
 
 Due to backquote replacing `[[` and `]]`, long comments need one extra hyphen if we want to use the trick in https://www.lua.org/pil/1.3.html
 
@@ -89,20 +94,14 @@ print(10)         --> 10
 ---`
 ```
 
-The differences end here, so that a Lua file can easily be [hand converted](https://github.com/gnois/luaty/tree/master/convert.md) to a Luaty file.
-
-With these changes, we get
-- forced local variable declaration
-- consistent function definition syntax
-- arguably shorter codes
 
 
 
 
-Builtin static analyzer
+Builtin static analyzer and type checker
 ---
 
-During transpiling, Luaty warns about:
+During compiling, Luaty warns about:
   * unused variables
   * shadowed variables in the parent or the same scope
   * unused labels and illegal gotos
@@ -110,9 +109,12 @@ During transpiling, Luaty warns about:
   * assignment having more expressions on the right side than the left
   * duplicate keys in table constructor
 
+It also strives to provide helpful error messages on typos or syntax errors.
+
 An optional type checker can be enabled to check consistent usage of variables.
-It will try to infer a limited subset of Lua, but is probably wrong in non trivial cases for now. Improving the type checker is a work in progress.
-Lua code will be generated regardless of warning by the type checker.
+Once enabled, it tries to infer a limited subset of Lua, but is probably wrong in non trivial cases for now. Improving the type checker is a work in progress.
+Lua code will be generated regardless of warning by the optional type checker.
+
 
 ```
 a = 1                     -- undeclared identifier a
@@ -147,13 +149,11 @@ p.q.r = 7                 -- assignment expects {} instead of <num>
 
 
 
+
 Quick start
 ---
 
 Luaty only requires LuaJIT to run. 
-
-Given a main.lt file with its required .lt files under its subfolders, Luaty can optionally transpile and generate a complete mirror folder structure with .lua output.
-
 With LuaJIT in your path, create a command alias for luaty
 
 Linux/Unix shell
@@ -167,19 +167,21 @@ doskey luaty=\path\of\luajit -e "package.path=package.path .. '\\path\\to\\luaty
 ```
 
 
-To begin a REPL, simple invoke
+To begin a REPL
 ```
 luaty
 ```
 
-To run a Luaty source file, use
+To run a Luaty source file
 ```
 luaty /path/to/source
 ```
 source is assumed to end with .lt
 
 
-Suppose our source files are laid out like below:
+Given a main.lt file with its required .lt files under its subfolders, Luaty can optionally compile and generate a complete mirror folder structure with .lua output.
+Suppose our source files are laid out like below, where *main* requires *sub*, which in turn requires *foo* and *bar* under lib folder:
+
 ```
 /
 ├── src
@@ -188,15 +190,16 @@ Suppose our source files are laid out like below:
     └── lib/
         ├── foo.lt
         ├── bar.lt
+        ├── orphan.lt
         └── ...
 ```
 
-To transpile a Luaty *src/main.lt* file and its dependencies to */dst*
+To compile *src/main.lt* file and its dependencies to */dst*
 ```
 cd src
 luaty main /dst
 ```
-If transpilation succeeds, the output should appear like below, with subfolders mirrored:
+If compilation succeeds, the output should appear like below, with subfolders mirrored:
 ```
 /
 ├── dst
@@ -207,13 +210,14 @@ If transpilation succeeds, the output should appear like below, with subfolders 
         ├── bar.lua
         └── ...
 ```
-However, do note that Luaty does not understand Lua package.path, which may not be statically resolvable.
-By the same reason, dynamically constructed require() is ignored by Luaty as well.
+Since orphan.lt is not required, it will not be processed.
+Also, Lua package.path and dynamically constructed require() are not processed, because they are not statically resolvable.
+
 
 Lua output files will not be overwritten if they exist.
-To force overwriting, use ```-f``` switch.
+To force overwriting, use `-f` switch.
 
-To transpile only *main.lt* file without its dependencies, provide a destination ending with .lua
+To compile only *main.lt* file without its dependencies, provide a destination ending with .lua
 ```
 luaty [-f] path/main /out/main.lua
 ```
@@ -225,7 +229,7 @@ luaty -f main main.lt
 The output main.lua and its dependencies goes into main.lt/*.lua, so that output file can never overwrite input.
 
 
-For all the commands above, type checker can be enabled by adding ```-t``` switch.
+For all the commands above, type checker can be enabled by adding `-t` switch.
 
 To make and overwrite Luaty itself, use
 ```
@@ -313,6 +317,6 @@ See the [tests folder](https://github.com/gnois/luaty/tree/master/tests) for mor
 Acknowledgments
 ---
 
-Luaty is modified from the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit).
+Luaty is modified from the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit). 
 
 Some of the tests are stolen from official Lua test suite.

@@ -41,6 +41,7 @@ return \scope, stmts, warn, import, typecheck ->
 		return x
 
 	var check_op = \x, y, node, op ->
+		-- operators like arithmetics can be overloaded via metatable, and we dont handle that yet, so as long as types are equal, let it pass for now
 		return check(x, y, node, "operator `" .. op .. "` ")
 
 	var check_field = \otype, field, node ->
