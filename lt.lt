@@ -60,11 +60,13 @@ else
 	src = paths[1]
 	dst = paths[2]
 	if src
+		src = term.localize(src)
 		-- in case is a Windows drive letter
 		if string.sub(src, 2, 2) == ':'
 			src = string.sub(src, 3)
 	
 	if dst
+		dst = term.localize(dst)
 		if string.sub(dst, -string.len(".lua")) == ".lua"
 			single = true
 		else -- remove slashes at the end

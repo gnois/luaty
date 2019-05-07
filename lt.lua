@@ -60,11 +60,13 @@ else
     src = paths[1]
     dst = paths[2]
     if src then
+        src = term.localize(src)
         if string.sub(src, 2, 2) == ":" then
             src = string.sub(src, 3)
         end
     end
     if dst then
+        dst = term.localize(dst)
         if string.sub(dst, -string.len(".lua")) == ".lua" then
             single = true
         else

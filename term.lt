@@ -58,6 +58,13 @@ var scan = \args ->
 
 	)
 
+
+var localize = \path ->
+	if slash == '\\'
+		return string.gsub(path, '/', slash)
+	return string.gsub(path, '\\', slash)
+
+
 --``
 https://github.com/keplerproject/lua-compat-5.3/wiki/os.execute
 
@@ -141,6 +148,7 @@ return {
 	, write = write
 	, usage = usage
 	, scan = scan
+	, localize = localize
 	, mkdir = mkdir
 	, exist_dir = exist_dir
 }

@@ -46,6 +46,12 @@ local scan = function(args)
         end
     end)
 end
+local localize = function(path)
+    if slash == "\\" then
+        return string.gsub(path, "/", slash)
+    end
+    return string.gsub(path, "\\", slash)
+end
 local exec = function(cmd)
     local ok, exit_or_signal, code = os.execute(cmd)
     if code then
@@ -115,6 +121,7 @@ return {
     , write = write
     , usage = usage
     , scan = scan
+    , localize = localize
     , mkdir = mkdir
     , exist_dir = exist_dir
 }
