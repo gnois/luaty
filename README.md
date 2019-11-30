@@ -1,10 +1,9 @@
-Luaty is yet another indent sensitive language, with some opinionated syntax that compiles to Lua.
+Luaty is yet another indent sensitive language with some opinionated syntax that compiles to Lua.
 It comes with an optional type checker with limited type inference.
 
 
 Differences from Lua
 ---
-
 Less syntax boilerplates
   * no more `end`
   * no more `do` after `for` and `while`
@@ -41,7 +40,7 @@ assert(z.if(z.goto)[2] == false)             -- works
 ```
 
 
-Mostly desugared functions
+Desugared functions
   * function is defined using [lambda expression](https://www.lua.org/manual/5.1/manual.html#2.5.9) with `->` or `\param1, param2, ... ->`
   * function call always require parenthesis
   * colon `:` is never used. Use `self` or `@` as the first paramenter or call argument instead
@@ -72,13 +71,14 @@ print(ox()['long-name'](@, 10))    -- `@` *just works*, get() is only called onc
 ```
 
 The differences end here, so that a Lua file can easily be [hand converted](https://github.com/gnois/luaty/tree/master/convert.md) to a Luaty file.
-In return, we get
-- arguably shorter codes
+
+In return, we enjoy
+- often shorter codes
 - forced local variable declaration
 - consistent function definition syntax
-- many linting features not unlike [luacheck](https://github.com/mpeterv/luacheck)
+- some features like [luacheck](https://github.com/mpeterv/luacheck), and some others
 
-Due to backquote replacing `[[` and `]]`, long comments need one extra hyphen if we want to use the trick in https://www.lua.org/pil/1.3.html
+Due to backquote replacing `[[` and `]]`, long comments need one extra hyphen if we want to use the [uncomment trick](https://www.lua.org/pil/1.3.html)
 
 ```
 -- Uncommenting long comment trick
@@ -97,24 +97,16 @@ print(10)         --> 10
 
 
 
-
-Builtin static analyzer and type checker
+Builtin type analyzer
 ---
 
-During compiling, Luaty warns about:
+During compilation, Luaty runs a simple static analyzer, which warns about:
   * unused variables
   * shadowed variables in the parent or the same scope
   * unused labels and illegal gotos
   * assignment to undeclared (global) variables
   * assignment having more expressions on the right side than the left
   * duplicate keys in table constructor
-
-It also strives to provide helpful error messages on typos or syntax errors.
-
-An optional type checker can be enabled to check consistent usage of variables.
-Once enabled, it tries to infer a limited subset of Lua, but is probably wrong in non trivial cases for now. Improving the type checker is a work in progress.
-Lua code will be generated regardless of warning by the optional type checker.
-
 
 ```
 a = 1                     -- undeclared identifier a
@@ -131,9 +123,14 @@ var tbl = {
    x = 1
    , x = 3                -- duplicate key 'x' in table
 }
+```
 
+An optional type checker can be enabled to check consistent usage of variables.
+Once enabled, it tries to infer variable types a limited subset of Lua, but is probably wrong in non trivial cases for now. 
+Lua code will be generated regardless of warning by the optional type checker.
+Improving the type checker is a work in progress.
 
--- when type checker enabled --
+```
 var j = \a -> return a
 j(4, 5)                   -- function expects only 1 arguments but got 2
 
@@ -144,8 +141,6 @@ var p = {q = 5}
 p.q.r = 7                 -- assignment expects {} instead of <num>
 
 ```
-
-
 
 
 
@@ -179,7 +174,7 @@ luaty /path/to/source
 source is assumed to end with .lt
 
 
-Given a main.lt file with its required .lt files under its subfolders, Luaty can optionally compile and generate a complete mirror folder structure with .lua output.
+Given a main.lt file with its required .lt files under its subfolders, Luaty can optionally compile and generate a full mirror folder structure of .lua output files.
 Suppose our source files are laid out like below, where *main* requires *sub*, which in turn requires *foo* and *bar* under lib folder:
 
 ```
