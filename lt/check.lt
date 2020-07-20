@@ -21,7 +21,7 @@ return \scope, stmts, warn, import, typecheck ->
 	
 	var id = 0
 	var new = ->
-		id = id + 1
+		id = id + 1 -- use line + col next time
 		return { tag = TType.New, id = id }
 
 
@@ -42,7 +42,8 @@ return \scope, stmts, warn, import, typecheck ->
 
 	var check_op = \x, y, node, op ->
 		-- operators like arithmetics can be overloaded via metatable, and we dont handle that yet, so as long as types are equal, let it pass for now
-		return check(x, y, node, "operator `" .. op .. "` ")
+		-- check x against y for now, bcoz probably most literal appears right
+		return check(y, x, node, "operator `" .. op .. "` ")
 
 	var check_field = \otype, field, node ->
 		var t = solv.apply(otype)
@@ -65,7 +66,7 @@ return \scope, stmts, warn, import, typecheck ->
 				solv.extend(fn, ty.func(ty.tuple(atypes), ty.tuple_any()))
 			else if fn.tag == TType.Nil or fn.tag == TType.Val
 				if fname
-					fname = "`" .. fname .. "` but is "
+					fname = "`" .. fname .. "` which is "
 				warn(node.line, node.col, 1, "trying to call " .. (fname or "") .. ty.tostr(fn))
 			else
 				-- check params to args

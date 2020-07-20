@@ -42,7 +42,7 @@ return function(scope, stmts, warn, import, typecheck)
         return x
     end
     local check_op = function(x, y, node, op)
-        return check(x, y, node, "operator `" .. op .. "` ")
+        return check(y, x, node, "operator `" .. op .. "` ")
     end
     local check_field = function(otype, field, node)
         local t = solv.apply(otype)
@@ -68,7 +68,7 @@ return function(scope, stmts, warn, import, typecheck)
                 solv.extend(fn, ty.func(ty.tuple(atypes), ty.tuple_any()))
             elseif fn.tag == TType.Nil or fn.tag == TType.Val then
                 if fname then
-                    fname = "`" .. fname .. "` but is "
+                    fname = "`" .. fname .. "` which is "
                 end
                 warn(node.line, node.col, 1, "trying to call " .. (fname or "") .. ty.tostr(fn))
             else

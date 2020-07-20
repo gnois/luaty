@@ -1,10 +1,72 @@
 Luaty is yet another indent sensitive language with some opinionated syntax that compiles to Lua.
-It comes with an optional type checker with limited type inference.
+It comes with a static analyzer and a limited but optional HM type inferencer.
+
+The name Lua(ty) means shorter syntax (less typing than Lua) with static type inferencer (more typed than Lua).
 
 
-Differences from Lua
+Static analyzer
 ---
-Less syntax boilerplates
+
+During compilation, Luaty runs a simple static analyzer, which warns about:
+  * unused variables
+  * shadowed variables in the parent or the same scope
+  * unused labels and illegal gotos
+  * assignment to undeclared (global) variables
+  * assignment having more expressions on the right side than the left
+  * duplicate keys in table constructor
+
+
+
+```
+a = 1                     -- undeclared identifier a
+
+var c, d = 1, 2, 4        -- assigning 3 values to 2 variables
+
+var p = print
+var p = 'p'               -- shadowing previous var p
+
+var f = \z->
+   var z = 10             -- shadowing previous var z
+
+var tbl = {
+   x = 1
+   , x = 3                -- duplicate key 'x' in table
+}
+```
+
+
+Optional static type inferencer/checker
+---
+
+A command line switch can be enabled to check consistent usage of variables.
+Once enabled, the compiler will try to statically infer variable types with a limited subset of Lua, but is probably wrong in non trivial cases for now.
+
+Lua code will be generated regardless of warning by the optional type checker.
+
+Improving the type inferencer is a work in progress.
+
+```
+var j = \a -> return a
+j(4, 5)                   -- function expects only 1 arguments but got 2
+
+var k = \a -> return a + 0
+k('s')                    -- function parameter 1 expects <num> instead of <str>
+
+var p = {q = 5}
+p.q.r = 7                 -- assignment expects {} instead of <num>
+
+var n
+if n > 0                  -- operator `>` expects <num> instead of <nil>
+   ...
+
+```
+
+
+
+Syntactical differences from Lua
+---
+
+Less syntax boilerplates due to indentation
   * no more `end`
   * no more `do` after `for` and `while`
   * no more `then` after `if`
@@ -74,9 +136,9 @@ The differences end here, so that a Lua file can easily be [hand converted](http
 
 In return, we enjoy
 - often shorter codes
-- forced local variable declaration
+- forced implicit local variable declaration
 - consistent function definition syntax
-- some features like [luacheck](https://github.com/mpeterv/luacheck), and some others
+
 
 Due to backquote replacing `[[` and `]]`, long comments need one extra hyphen if we want to use the [uncomment trick](https://www.lua.org/pil/1.3.html)
 
@@ -97,59 +159,11 @@ print(10)         --> 10
 
 
 
-Builtin type analyzer
----
-
-During compilation, Luaty runs a simple static analyzer, which warns about:
-  * unused variables
-  * shadowed variables in the parent or the same scope
-  * unused labels and illegal gotos
-  * assignment to undeclared (global) variables
-  * assignment having more expressions on the right side than the left
-  * duplicate keys in table constructor
-
-```
-a = 1                     -- undeclared identifier a
-
-var c, d = 1, 2, 4        -- assigning 3 values to 2 variables
-
-var p = print
-var p = 'p'               -- shadowing previous var p
-
-var f = \z->
-   var z = 10             -- shadowing previous var z
-
-var tbl = {
-   x = 1
-   , x = 3                -- duplicate key 'x' in table
-}
-```
-
-An optional type checker can be enabled to check consistent usage of variables.
-Once enabled, it tries to infer variable types a limited subset of Lua, but is probably wrong in non trivial cases for now. 
-Lua code will be generated regardless of warning by the optional type checker.
-Improving the type checker is a work in progress.
-
-```
-var j = \a -> return a
-j(4, 5)                   -- function expects only 1 arguments but got 2
-
-var k = \a -> return a + 0
-k('s')                    -- function parameter 1 expects <num> instead of <str>
-
-var p = {q = 5}           
-p.q.r = 7                 -- assignment expects {} instead of <num>
-
-```
-
-
-
-
 Quick start
 ---
 
-Luaty only requires LuaJIT to run. 
-With LuaJIT in your path, create a command alias for luaty
+Luaty only requires LuaJIT to run.
+With LuaJIT in your path, create a command alias for Luaty
 
 Linux/Unix shell
 ```
@@ -162,7 +176,7 @@ doskey luaty=\path\of\luajit -e "package.path=package.path .. '\\path\\to\\luaty
 ```
 
 
-To begin a REPL
+To begin a Read-Generate-Eval-Print Loop (RGEPL)
 ```
 luaty
 ```
@@ -174,7 +188,12 @@ luaty /path/to/source
 source is assumed to end with .lt
 
 
-Given a main.lt file with its required .lt files under its subfolders, Luaty can optionally compile and generate a full mirror folder structure of .lua output files.
+Compilation
+---
+
+The Luaty compiler processes its main input file *and its dependencies* due to its static type checker, unless it's told otherwise.
+Given a main.lt file with its required .lt files under its subfolders, Luaty can compile and generate a full mirror folder structure of .lua output files.
+
 Suppose our source files are laid out like below, where *main* requires *sub*, which in turn requires *foo* and *bar* under lib folder:
 
 ```
@@ -189,7 +208,7 @@ Suppose our source files are laid out like below, where *main* requires *sub*, w
         └── ...
 ```
 
-To compile *src/main.lt* file and its dependencies to */dst*
+To compile *src/main.lt* file and its dependencies to */dst*, specify */dst* as the second argument.
 ```
 cd src
 luaty main /dst
@@ -224,7 +243,7 @@ luaty -f main main.lt
 The output main.lua and its dependencies goes into main.lt/*.lua, so that output file can never overwrite input.
 
 
-For all the commands above, type checker can be enabled by adding `-t` switch.
+For all the commands above (including RGEPL), static type checker can be enabled by adding `-t` switch.
 
 To make and overwrite Luaty itself, use
 ```
@@ -304,14 +323,13 @@ assert(b == 7)                                  -- each `;` terminates one singl
 ```
 
 
-See the [tests folder](https://github.com/gnois/luaty/tree/master/tests) for more code examples.
 
-
+See the [tests folder](https://github.com/gnois/luaty/tree/master/tests) for more code examples, and [Losty](https://github.com/gnois/losty) for real world usage example.
 
 
 Acknowledgments
 ---
 
-Luaty is modified from the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit). 
+Luaty is modified from the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit).
 
-Some of the tests are stolen from official Lua test suite.
+Some of the tests are stolen and modified from official Lua test suite.
