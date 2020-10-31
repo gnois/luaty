@@ -448,6 +448,7 @@ return function(read, warn)
                 end
                 if mixed then
                     lex_error(nil, "cannot mix tab and space as indentation")
+                    mixed = false
                 end
                 return "TK_newline"
             else

@@ -1,7 +1,10 @@
-Luaty is yet another indent sensitive language with some opinionated syntax that compiles to Lua.
+What
+----
+Luaty is an indent sensitive language with few opinionated syntax that transpiles to Lua.
 It comes with a static analyzer and a limited but optional HM type inferencer.
+The additional transpilation step lifts possible runtime errors to transpile time warnings.
 
-The name Lua(ty) means shorter syntax (less typing than Lua) with static type inferencer (more typed than Lua).
+Lua(ty) is a play on type homonym - requires less typing, but more typed than Lua.
 
 
 Static analyzer
@@ -135,9 +138,9 @@ print(ox()['long-name'](@, 10))    -- `@` *just works*, get() is only called onc
 The differences end here, so that a Lua file can easily be [hand converted](https://github.com/gnois/luaty/tree/master/convert.md) to a Luaty file.
 
 In return, we enjoy
-- often shorter codes
+- mostly shorter codes
 - forced implicit local variable declaration
-- consistent function definition syntax
+- consistent function call and definition syntax
 
 
 Due to backquote replacing `[[` and `]]`, long comments need one extra hyphen if we want to use the [uncomment trick](https://www.lua.org/pil/1.3.html)
@@ -321,7 +324,6 @@ assert(o[2] == 4)
 var a, b = -> var d, e, f = 2, -> return -> return 9;;, 5;, 7
 assert(b == 7)                                  -- each `;` terminates one single-lined function
 ```
-
 
 
 See the [tests folder](https://github.com/gnois/luaty/tree/master/tests) for more code examples, and [Losty](https://github.com/gnois/losty) for real world usage example.
