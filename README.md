@@ -1,22 +1,17 @@
-What
+Introduction
 ----
-Luaty is an indent sensitive language with a few opinionated syntax that transpiles to Lua.
-Its syntax appears like Lua to most highlighting editors, and aims to be usable within minutes to one familiar with Lua.
+Luaty is an indent sensitive language that transpiles with static analysis to Lua.
+
+Its appears like Lua to most syntax highlighting editors, and aims to be usable within minutes to one familiar with Lua.
+
 The name is a play on type homonym - requires less **ty**ping, but more typed than **Lua**.
-
-
-Why
-----
-Shorter syntax -> faster to write, easier to read
-Static analyzer -> less runtime errors
-TD;LR More enjoyable Lua development
 
 
 
 Static analyzer
 ---
 
-During compilation, Luaty runs a simple static analyzer, which warns about:
+During transpilation, Luaty runs a basic static analyzer, which warns about:
   * unused variables
   * shadowed variables in the parent or the same scope
   * assignment to undeclared (global) variables
@@ -37,7 +32,7 @@ var p = 'p'               -- shadowing previous var p
 var f = \z->
    var z = 10             -- shadowing previous var z
 
-goto g                    -- goto <d> jumps over variable 'gg' declared at line ...
+goto g                    -- goto <g> jumps over variable 'gg' declared at line ...
 var gg = 10               -- unused variable 'gg'
 ::g::
 
@@ -53,7 +48,7 @@ Optional static type inferencer/checker
 ---
 
 A command line switch can be enabled to check consistent usage of variables.
-Once enabled, the compiler will try to statically infer variable types with a limited subset of Lua, but is probably wrong in non trivial cases for now.
+Once enabled, the transpiler will try to statically infer variable types with a limited subset of Lua, but is probably wrong in non trivial cases for now.
 
 Improving the type inferencer is a work in progress.
 
@@ -93,9 +88,9 @@ Minor syntactical changes
   * `[[` and `]]` become backquote(s) \` that can be repeated multiple times
 
 ```
-var x = false               -- `var` compiles to `local`
+var x = false               -- `var` transpiles to `local`
 if not x
-   print(`"nay"`)           -- `then` and `end` not needed, `"nay"` compiles to [["nay"]]
+   print(`"nay"`)           -- `then` and `end` not needed, `"nay"` transpiles to [["nay"]]
 
 --`` this is a long
 comment ``
@@ -140,13 +135,13 @@ print('a')                          -- ok obviously
 var obj = {
    value = 3
    , foo = \@, k ->
-      return k * @.value            -- `@` compiles to `self`
+      return k * @.value            -- `@` transpiles to `self`
    , ['long-name'] = \@, n ->       -- function with a special name
       return n + @.value
 }
 
 print(obj:foo(2))                   -- error: ')' expected instead of ':'
-assert(obj.foo(@, 2) == 6)          -- ok, compiles to obj:foo(2)
+assert(obj.foo(@, 2) == 6)          -- ok, transpiles to obj:foo(2)
 
 var ox = -> return obj
 print(ox()['long-name'](@, 10))    -- `@` *just works*, get() is only called once
@@ -214,11 +209,11 @@ source is assumed to end with .lt
 
 
 
-Compilation
+Usage
 ---
 
-The Luaty compiler processes its main input file *and its dependencies* due to its static type checker, unless it's told otherwise.
-Given a main.lt file with its required .lt files under its subfolders, Luaty can compile and generate a full mirror folder structure of .lua output files.
+The transpiler processes its main input file *and its dependencies* due to its static type checker, unless it's told otherwise.
+Given a main.lt file with its required .lt files under its subfolders, Luaty can transpile and generate a full mirror folder structure of .lua output files.
 
 Suppose our source files are laid out like below, where *main* requires *sub*, which in turn requires *foo* and *bar* under lib folder:
 
@@ -234,12 +229,12 @@ Suppose our source files are laid out like below, where *main* requires *sub*, w
         └── ...
 ```
 
-To compile *src/main.lt* file and its dependencies to */dst*, specify */dst* as the second argument.
+To transpile *src/main.lt* file and its dependencies to */dst*, specify */dst* as the second argument.
 ```
 cd src
 luaty main /dst
 ```
-If compilation succeeds, the output should appear like below, with subfolders mirrored:
+If transpilation succeeds, the output should appear like below, with subfolders mirrored:
 ```
 /
 ├── dst
@@ -257,7 +252,7 @@ Also, Lua package.path and dynamically constructed require() are not processed, 
 Lua output files will not be overwritten if they exist.
 To force overwriting, use `-f` switch.
 
-To compile only *main.lt* file without its dependencies, provide a destination ending with .lua
+To transpile only *main.lt* file without its dependencies, provide a destination ending with .lua
 ```
 luaty [-f] path/main /out/main.lua
 ```
@@ -348,7 +343,7 @@ assert(b == 7)                                  -- each `;` terminates one singl
 Development
 ---
 
-Luaty is written in itself and compiled to Lua. To modify and overwrite Luaty itself, use
+Luaty is written in itself and transpiled to Lua. To modify and overwrite Luaty itself, use
 ```
 luaty -f lt.lt .
 ```
@@ -358,7 +353,7 @@ To run tests in the [tests folder](https://github.com/gnois/luaty/tree/master/te
 luajit run-test.lua
 ```
 
-See the [tests folder](https://github.com/gnois/luaty/tree/master/tests) for more code examples, and Luaty compiler and [Losty](https://github.com/gnois/losty) for real world usage.
+See the [tests folder](https://github.com/gnois/luaty/tree/master/tests) for more code examples, and Luaty transpiler and [Losty](https://github.com/gnois/losty) for real world usage.
 
 
 
@@ -368,4 +363,4 @@ Acknowledgments
 
 Luaty is modified from the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit).
 
-Some of the tests are gratefully taken and modified from official Lua test suite.
+Some of the tests are taken gratefully and modified from official Lua test suite.
