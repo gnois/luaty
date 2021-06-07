@@ -42,7 +42,7 @@ return function(scope, stmts, warn, import, typecheck)
         return x
     end
     local check_op = function(x, y, node, op)
-        return check(y, x, node, "operator `" .. op .. "` ")
+        return check(x, y, node, "operator `" .. op .. "` ")
     end
     local check_field = function(otype, field, node)
         local t = solv.apply(otype)

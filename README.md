@@ -1,10 +1,16 @@
 What
 ----
-Luaty is an indent sensitive language with few opinionated syntax that transpiles to Lua.
-It comes with a static analyzer and a limited but optional HM type inferencer.
-The additional transpilation step lifts possible runtime errors to transpile time warnings.
+Luaty is an indent sensitive language with a few opinionated syntax that transpiles to Lua.
+Its syntax appears like Lua to most highlighting editors, and aims to be usable within minutes to one familiar with Lua.
+The name is a play on type homonym - requires less **ty**ping, but more typed than **Lua**.
 
-Lua(ty) is a play on type homonym - requires less typing, but more typed than Lua.
+
+Why
+----
+Shorter syntax -> faster to write, easier to read
+Static analyzer -> less runtime errors
+TD;LR More enjoyable Lua development
+
 
 
 Static analyzer
@@ -13,9 +19,9 @@ Static analyzer
 During compilation, Luaty runs a simple static analyzer, which warns about:
   * unused variables
   * shadowed variables in the parent or the same scope
-  * unused labels and illegal gotos
   * assignment to undeclared (global) variables
   * assignment having more expressions on the right side than the left
+  * unused labels and illegal gotos
   * duplicate keys in table constructor
 
 
@@ -31,10 +37,15 @@ var p = 'p'               -- shadowing previous var p
 var f = \z->
    var z = 10             -- shadowing previous var z
 
+goto g                    -- goto <d> jumps over variable 'gg' declared at line ...
+var gg = 10               -- unused variable 'gg'
+::g::
+
 var tbl = {
    x = 1
    , x = 3                -- duplicate key 'x' in table
 }
+
 ```
 
 
@@ -43,8 +54,6 @@ Optional static type inferencer/checker
 
 A command line switch can be enabled to check consistent usage of variables.
 Once enabled, the compiler will try to statically infer variable types with a limited subset of Lua, but is probably wrong in non trivial cases for now.
-
-Lua code will be generated regardless of warning by the optional type checker.
 
 Improving the type inferencer is a work in progress.
 
@@ -64,6 +73,9 @@ if n > 0                  -- operator `>` expects <num> instead of <nil>
 
 ```
 
+Lua code will be generated regardless of warning by the optional type checker.
+
+
 
 
 Syntactical differences from Lua
@@ -76,8 +88,8 @@ Less syntax boilerplates due to indentation
 
 Minor syntactical changes
   * `repeat` becomes `do`
-  * `elseif` becomes `else if`
   * `local` becomes `var`
+  * `elseif` becomes `else if`
   * `[[` and `]]` become backquote(s) \` that can be repeated multiple times
 
 ```
@@ -107,15 +119,20 @@ assert(z.if(z.goto)[2] == false)             -- works
 
 Desugared functions
   * function is defined using [lambda expression](https://www.lua.org/manual/5.1/manual.html#2.5.9) with `->` or `\param1, param2, ... ->`
+  * a named function is always declared like a variable using `var`
   * function call always require parenthesis
   * colon `:` is never used. Use `self` or `@` as the first paramenter or call argument instead
 
 ```
 
-function f(x)                       -- error: use '->' instead of 'function'
+function f()                       -- error: use '->' instead of 'function'
+                                    -- note that this syntax creates f in global scope in Lua, unless local is specified
+
+var f = ->                          -- ok, empty lambda assigned to f, \ optional if no parameter
+                                    -- consistent with variable declaration syntax making sure f is always locally scoped
+
 \x -> print(x)                      -- error: lambda expression by itself not allowed
 (\x -> print(x))(3)                 -- ok, immediately invoked lambda
-var f = -> print(3)                 -- ok, lambda is assigned, \ optional if no parameter
 
 print 'a'                           -- error: '=' expected instead of 'a'; but this is valid in Lua
 print('a')                          -- ok obviously
@@ -135,15 +152,20 @@ var ox = -> return obj
 print(ox()['long-name'](@, 10))    -- `@` *just works*, get() is only called once
 ```
 
-The differences end here, so that a Lua file can easily be [hand converted](https://github.com/gnois/luaty/tree/master/convert.md) to a Luaty file.
+The differences end here.
 
-In return, we enjoy
+
+Some properly indented Lua code can even be [hand converted](https://github.com/gnois/luaty/tree/master/convert.md) to Luaty using just Find and Replace.
+In return, we get
 - mostly shorter codes
-- forced implicit local variable declaration
+- forced local variable declaration
 - consistent function call and definition syntax
+- static analyzer that may uncover hidden bugs in existing code
 
 
-Due to backquote replacing `[[` and `]]`, long comments need one extra hyphen if we want to use the [uncomment trick](https://www.lua.org/pil/1.3.html)
+
+*Due to backquote replacing `[[` and `]]`, long comments need one extra hyphen if we want to use the [uncomment trick](https://www.lua.org/pil/1.3.html)*
+
 
 ```
 -- Uncommenting long comment trick
@@ -189,6 +211,7 @@ To run a Luaty source file
 luaty /path/to/source
 ```
 source is assumed to end with .lt
+
 
 
 Compilation
@@ -246,17 +269,12 @@ luaty -f main main.lt
 The output main.lua and its dependencies goes into main.lt/*.lua, so that output file can never overwrite input.
 
 
-For all the commands above (including RGEPL), static type checker can be enabled by adding `-t` switch.
+For all the commands above (including RGEPL), static type checker can be enabled by adding `-t` switch. For eg:
 
-To make and overwrite Luaty itself, use
 ```
-luaty -f lt.lt .
+luaty -t src
 ```
 
-To run tests in the [tests folder](https://github.com/gnois/luaty/tree/master/tests), use
-```
-luajit run-test.lua
-```
 
 
 
@@ -326,7 +344,23 @@ assert(b == 7)                                  -- each `;` terminates one singl
 ```
 
 
-See the [tests folder](https://github.com/gnois/luaty/tree/master/tests) for more code examples, and [Losty](https://github.com/gnois/losty) for real world usage example.
+
+Development
+---
+
+Luaty is written in itself and compiled to Lua. To modify and overwrite Luaty itself, use
+```
+luaty -f lt.lt .
+```
+
+To run tests in the [tests folder](https://github.com/gnois/luaty/tree/master/tests), use
+```
+luajit run-test.lua
+```
+
+See the [tests folder](https://github.com/gnois/luaty/tree/master/tests) for more code examples, and Luaty compiler and [Losty](https://github.com/gnois/losty) for real world usage.
+
+
 
 
 Acknowledgments
@@ -334,4 +368,4 @@ Acknowledgments
 
 Luaty is modified from the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit).
 
-Some of the tests are stolen and modified from official Lua test suite.
+Some of the tests are gratefully taken and modified from official Lua test suite.

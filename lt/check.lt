@@ -18,7 +18,7 @@ return \scope, stmts, warn, import, typecheck ->
 	var Expr = {}
 	var Type = {}
 	var solv = solve()
-	
+
 	var id = 0
 	var new = ->
 		id = id + 1 -- use line + col next time
@@ -43,7 +43,7 @@ return \scope, stmts, warn, import, typecheck ->
 	var check_op = \x, y, node, op ->
 		-- operators like arithmetics can be overloaded via metatable, and we dont handle that yet, so as long as types are equal, let it pass for now
 		-- check x against y for now, bcoz probably most literal appears right
-		return check(y, x, node, "operator `" .. op .. "` ")
+		return check(x, y, node, "operator `" .. op .. "` ")
 
 	var check_field = \otype, field, node ->
 		var t = solv.apply(otype)
@@ -83,7 +83,7 @@ return \scope, stmts, warn, import, typecheck ->
 		var rule = Type[tnode.tag]
 		if rule
 			rule(tnode, loc)
-	
+
 	var check_types = \tnodes, loc ->
 		if tnodes
 			for _, node in ipairs(tnodes)
@@ -142,7 +142,7 @@ return \scope, stmts, warn, import, typecheck ->
 	Type[TType.Func] = \node, loc ->
 		check_types(node.ins, loc)
 		check_types(node.outs, loc)
-		
+
 	Type[TType.Tbl] = \node, loc ->
 			var vtypes = {}
 			var keys = {}
@@ -162,7 +162,7 @@ return \scope, stmts, warn, import, typecheck ->
 					if dup > 0
 						warn(loc.line, loc.col, 1, "duplicate key types at position " .. i .. " and " .. dup .. " in table type annotation")
 				keys[i] = key
-				
+
 				var vt = vk[1]
 				check_type(vt, loc)
 				if vt and not key
@@ -170,8 +170,8 @@ return \scope, stmts, warn, import, typecheck ->
 						if vtypes[n] and ty.same(vtypes[n], vt)
 							warn(loc.line, loc.col, 1, "similar value types at position " .. i .. " and " .. n .. " in table type annotation")
 					vtypes[i] = vt
-			
-	
+
+
 	--------- Expressions --------------------
 	Expr[TExpr.Nil] = ->
 		return ty.nil()
@@ -181,10 +181,10 @@ return \scope, stmts, warn, import, typecheck ->
 
 	Expr[TExpr.Number] = ->
 		return ty.num()
-		
+
 	Expr[TExpr.String] = ->
 		return ty.str()
-	
+
 	Expr[TExpr.Vararg] = \node ->
 		if not scope.is_varargs()
 			warn(node.line, node.col, 2, "cannot use `...` in a function without variable arguments")
@@ -202,7 +202,7 @@ return \scope, stmts, warn, import, typecheck ->
 			if not t
 				t = new()
 		return t
-		
+
 	Expr[TExpr.Function] = \node ->
 		scope.begin_func()
 		check_types(node.types, node)
@@ -217,11 +217,11 @@ return \scope, stmts, warn, import, typecheck ->
 			else
 				declare(p, t)
 			ptypes[i] = t
-				
+
 		-- retypes can be null, means no annotation
 		scope.set_returns(node.retypes)
 		check_block(node.body)
-		
+
 		-- check parameter usage
 		var anno = node.types
 		if anno
@@ -274,7 +274,7 @@ return \scope, stmts, warn, import, typecheck ->
 		var it = infer_expr(node.idx)
 		if it.tag == TExpr.String
 			return check_field(ot, it.value, node)
-		
+
 		-- else key index can be any type
 		-- if index is number, it can be float, so we cannot know
 		-- else index is its runtime value, so we cannot know
@@ -318,7 +318,7 @@ return \scope, stmts, warn, import, typecheck ->
 	Expr[TExpr.Binary] = \node ->
 		var ltype = infer_expr(node.left)
 		var rtype = infer_expr(node.right)
-		
+
 		var op = node.op
 		if op == 'and'
 			return rtype
@@ -339,7 +339,7 @@ return \scope, stmts, warn, import, typecheck ->
 
 	Expr[TExpr.Union] = ->
 		return ty.any()
-		
+
 	--------- Statements --------------------
 	Stmt[TStmt.Expr] = \node ->
 		var etype
@@ -372,7 +372,7 @@ return \scope, stmts, warn, import, typecheck ->
 						tk[1] = ty.or(tk[1], rtype)
 						solv.extend(otype, t)
 						return
-				
+
 				-- try to add a new field
 				-- clone in case it is a parameter so that for f: t1 -> t2,  t2 is different from t1
 				var param = node.obj.name
