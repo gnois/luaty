@@ -1,17 +1,19 @@
 Introduction
 ----
-Luaty is an indent sensitive language that transpiles with static analysis to Lua.
+Luaty is an indent sensitive language that transpiles to readable Lua.
 
-Its appears like Lua to most syntax highlighting editors, and aims to be usable within minutes to one familiar with Lua.
+It appears like Lua to most syntax highlighting editors, and aims to be usable within minutes to one familiar with Lua.
 
-The name is a play on type homonym - requires less **ty**ping, but more typed than **Lua**.
+The transpiler has a built-in static analyzer and limited but optional HM type inferencer.
+
+Its name is a play on *type* homonym - requires less **ty**ping, but more typed than **Lua**.
 
 
 
 Static analyzer
 ---
 
-During transpilation, Luaty runs a basic static analyzer, which warns about:
+The built-in static analyzer warns about:
   * unused variables
   * shadowed variables in the parent or the same scope
   * assignment to undeclared (global) variables

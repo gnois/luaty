@@ -122,7 +122,7 @@ lvl = {
 		, dd = ->
 			return \@, x ->
 				return @.val / x
-		
+
 		, ee = ->
 			return lvl.a.cc
 		-- unused
@@ -140,7 +140,40 @@ assert((lvl['a'].cc.fn)(@, 4) == 24)
 assert(lvl.a.dd()(@, 2) == 3)
 
 
-
 -- substitute val works
 var oth = { val = 7 }
 assert(lvl.a.cc.fn(oth, 4) == 28)
+
+
+-----------------------------
+
+var Boo = {w = 0, h = 0}
+
+Boo.copy = \@->
+	return Boo.new(@, {@.w, @.h})
+
+Boo.new = \@, wh ->
+	var o = {w = wh[1], h = wh[2]}
+	setmetatable(o, @)
+	@.__index = @
+	return o
+
+Boo.width = \@ ->
+	return @.w
+
+Boo.height = \@ ->
+	return @.h
+
+Boo.expand = \@, mul, w, h ->
+	return Boo.new(@, {@.w * mul + w, @.h * mul + h})
+
+
+var b = Boo.new(@, {2, 8}).copy(@)
+var c = Boo.new(@, {10, 20})
+var bb = b.expand(@, 2, c.width(@), c.height(@))
+
+assert(b.w == 2)
+assert(b.h == 8)
+assert(bb.w == 14)
+assert(bb.h == 36)
+

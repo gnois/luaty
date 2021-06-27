@@ -21,18 +21,18 @@ return \stmts ->
 
 	var Stmt = {}
 	var Expr = {}
-	
+
 	var visit_stmts = \nodes ->
 		var list = {}
 		for i, node in ipairs(nodes)
 			var rule = Stmt[node.tag]
 			list[i] = rule and rule(node) or node
 		return list
-	
+
 	var visit_expr = \node ->
 		var rule = Expr[node.tag]
 		return rule and rule(node) or node
-			
+
 	var visit_exprs = \nodes ->
 		var list = {}
 		for i, node in ipairs(nodes)
@@ -50,7 +50,7 @@ return \stmts ->
 		var mt = ast.Expr.table({
 			{ _id, str("__metatable", node) }
 		}, node)
-	
+
 		var maker = ast.Stmt.local({_mk}, {}, {
 			ast.Expr.function({_nm, ast.Expr.vararg(node)}, nil, nil, {
 				ast.Stmt.return({
@@ -75,7 +75,7 @@ return \stmts ->
 				params[n+1] = p
 			var val = ast.Expr.function(v.params, nil, nil, { ast.Stmt.return({ast.Expr.call(_mk, params , v.ctor)}, v.ctor) }, node)
 			vks[i] = { val, key }
-		
+
 		var tbl = ast.Expr.table(vks, node)
 
 		var unique_str = str(table.concat(uniq), node)
@@ -120,7 +120,7 @@ return \stmts ->
 				, loc
 			)}, loc)
 
-		-- must use if-elseif-else, in case user never return in one of the branch 
+		-- must use if-elseif-else, in case user never return in one of the branch
 		var tests, blocks, n = {}, {}, 0
 		var els
 		var _nm = id("_nm", node)
@@ -152,14 +152,14 @@ return \stmts ->
 			, { ast.Expr.call(test, {argm}, node) }
 			, node
 		)
-		
+
 
 	--------- Expressions --------------------
 	Expr[TExpr.Id] = \node ->
 		if node.name == '@'
 			node.name = 'self'
 		return node
-		
+
 	Expr[TExpr.Function] = \node ->
 		node.params = visit_exprs(node.params)
 		node.body = visit_stmts(node.body)
@@ -192,12 +192,14 @@ return \stmts ->
 			if not func.bracketed
 				if func.tag == TExpr.Field
 					table.remove(node.args, 1)
+					node.args = visit_exprs(node.args)
 					return ast.Expr.invoke(func.obj, func.field, node.args, node)
 
 				if func.tag == TExpr.Index
 					-- simulate a wrapped self method call
 					var obj = id('_self_', node)  -- lets hope we dont shadow parent scope variable
 					node.args[1] = obj
+					node.args = visit_exprs(node.args)
 					var body = {
 						ast.Stmt.local({obj}, {}, {func.obj}, node)
 						, ast.Stmt.return({
@@ -263,7 +265,7 @@ return \stmts ->
 			node.step = visit_expr(node.step)
 		node.body = visit_stmts(node.body)
 		return node
-		
+
 	Stmt[TStmt.While] = \node ->
 		node.test = visit_expr(node.test)
 		node.body = visit_stmts(node.body)

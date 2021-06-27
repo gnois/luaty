@@ -136,11 +136,13 @@ return function(stmts)
             if not func.bracketed then
                 if func.tag == TExpr.Field then
                     table.remove(node.args, 1)
+                    node.args = visit_exprs(node.args)
                     return ast.Expr.invoke(func.obj, func.field, node.args, node)
                 end
                 if func.tag == TExpr.Index then
                     local obj = id("_self_", node)
                     node.args[1] = obj
+                    node.args = visit_exprs(node.args)
                     local body = {ast.Stmt["local"]({obj}, {}, {func.obj}, node), ast.Stmt["return"]({ast.Expr.call(ast.Expr.index(obj, func.idx, node), node.args, node)}, node)}
                     local lambda = ast.Expr["function"]({}, nil, nil, body, node)
                     return ast.Expr.call(lambda, {}, node)
