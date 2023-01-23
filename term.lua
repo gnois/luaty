@@ -80,6 +80,15 @@ local exist_dir = function(path)
     end
     return code == 0
 end
+local list_files = function(path)
+    local cmd
+    if slash == "\\" then
+        cmd = "dir /b/a:-D \"" .. path .. "\""
+    else
+        cmd = "/bin/ls -p \"" .. path .. "\" | grep -v /"
+    end
+    return io.popen(cmd)
+end
 if slash == "\\" then
     local bit = require("bit")
     local ffi = require("ffi")
@@ -124,4 +133,5 @@ return {
     , localize = localize
     , mkdir = mkdir
     , exist_dir = exist_dir
+    , list_files = list_files
 }

@@ -68,7 +68,7 @@ var localize = \path ->
 --``
 https://github.com/keplerproject/lua-compat-5.3/wiki/os.execute
 
-os.execute in Lua 5.2 and 5.3 returns three values: a boolean indicating sucessful/unsuccessful execution, a string ("exit" or "signal"), and the actual exit status or signal number. 
+os.execute in Lua 5.2 and 5.3 returns three values: a boolean indicating sucessful/unsuccessful execution, a string ("exit" or "signal"), and the actual exit status or signal number.
 But in 5.1 only 1 one value returned
 --``
 var exec = \cmd ->
@@ -103,7 +103,15 @@ var exist_dir = \path ->
 	return code == 0
 
 
-	
+var list_files = \path ->
+	var cmd
+	if slash == '\\'
+		cmd = 'dir /b/a:-D "' .. path .. '"'
+	else
+		cmd = '/bin/ls -p "' .. path .. '" | grep -v /'
+	return io.popen(cmd)
+
+
 
 -- Window to support ANSI color, may not work on all Windows version
 if slash == '\\'
@@ -135,7 +143,7 @@ if slash == '\\'
 				return true
 
 		return false
-	
+
 	if not enable_VT()
 		-- write('No ANSI colors support, error ' .. kernel32.GetLastError())
 		color = setmetatable({}, {__index = -> return ""})
@@ -151,4 +159,5 @@ return {
 	, localize = localize
 	, mkdir = mkdir
 	, exist_dir = exist_dir
+	, list_files = list_files
 }

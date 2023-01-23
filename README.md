@@ -62,7 +62,7 @@ var k = \a -> return a + 0
 k('s')                    -- function parameter 1 expects <num> instead of <str>
 
 var p = {q = 5}
-p.q.r = 7                 -- assignment expects {} instead of <num>
+p.q.r = 7                 -- assignment expects {} instead of <num>  (q is a number)
 
 var n
 if n > 0                  -- operator `>` expects <num> instead of <nil>
@@ -138,15 +138,15 @@ var obj = {
    value = 3
    , foo = \@, k ->
       return k * @.value            -- `@` transpiles to `self`
-   , ['long-name'] = \@, n ->       -- function with a special name
+   , ['long-name'] = \@, n ->       -- colon call syntax can't invoke function with special name
       return n + @.value
 }
 
 print(obj:foo(2))                   -- error: ')' expected instead of ':'
 assert(obj.foo(@, 2) == 6)          -- ok, transpiles to obj:foo(2)
 
-var ox = -> return obj
-print(ox()['long-name'](@, 10))    -- `@` *just works*, get() is only called once
+var get = -> return obj
+print(get()['long-name'](@, 10))    -- `@` *just works*, get() is only called once
 ```
 
 The differences end here.
@@ -185,17 +185,20 @@ Quick start
 ---
 
 Luaty only requires LuaJIT to run.
-With LuaJIT in your path, create a command alias for Luaty
+With LuaJIT executable in your path, create a command alias for Luaty like below, replacing both `path/to/luaty` with your extracted luaty folder location.
+
 
 Linux/Unix shell
 ```
-alias luaty='/path/of/luajit -e "package.path=package.path .. '/path/to/luaty/?.lua'" /path/to/luaty/lt.lua'
+
+alias luaty="luajit -e \"package.path=package.path .. ';/path/to/luaty/?.lua'\" /path/to/luaty/lt.lua"
 
 ```
 Windows command prompt
 ```
-doskey luaty=\path\of\luajit -e "package.path=package.path .. '\\path\\to\\luaty\\?.lua'" \path\to\luaty\lt.lua $*
+doskey luaty=luajit -e "package.path=package.path .. ';\\path\\to\\luaty\\?.lua'" \path\to\luaty\lt.lua $*
 ```
+
 
 
 To begin a Read-Generate-Eval-Print Loop (RGEPL)
@@ -214,7 +217,7 @@ source is assumed to end with .lt
 Usage
 ---
 
-The transpiler processes its main input file *and its dependencies* due to its static type checker, unless it's told otherwise.
+The transpiler processes its main input file *and its dependencies*, unless it's told otherwise.
 Given a main.lt file with its required .lt files under its subfolders, Luaty can transpile and generate a full mirror folder structure of .lua output files.
 
 Suppose our source files are laid out like below, where *main* requires *sub*, which in turn requires *foo* and *bar* under lib folder:
@@ -365,4 +368,4 @@ Acknowledgments
 
 Luaty is modified from the excellent [LuaJIT Language Toolkit](https://github.com/franko/luajit-lang-toolkit).
 
-Some of the tests are taken gratefully and modified from official Lua test suite.
+Some of the tests are gratefully taken and modified from official Lua test suite.

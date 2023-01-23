@@ -43,18 +43,18 @@ end
 
 function split(str)
     local t = {}
-    local function helper(line) 
-        table.insert(t, line) 
-        return "" 
+    local function helper(line)
+        table.insert(t, line)
+        return ""
     end
     helper((str:gsub("(.-)\r?\n", helper)))
     return t
 end
 
 function scandir(directory)
-    local i, t, popen = 0, {}, io.popen
-    local dir = popen('dir /b/a:-D "' .. directory .. '"')
-    if dir then 
+    local i, t = 0, {}
+    local dir = term.list_files(directory)
+    if dir then
        local files = dir:read("*a")
        t = split(files)
     end
