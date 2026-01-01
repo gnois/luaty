@@ -52,7 +52,9 @@ Optional static type inferencer/checker
 A command line switch can be enabled to check consistent usage of variables.
 Once enabled, the transpiler will try to statically infer variable types with a limited subset of Lua, but is probably wrong in non trivial cases for now.
 
-Improving the type inferencer is a work in progress.
+The type inferencer has been improved with insights from [Simple-sub](https://github.com/LPTK/simple-sub), 
+including better subtyping support, type variable bounds, improved union type simplification, and compact 
+recursive type representation. See [TYPE_IMPROVEMENTS.md](TYPE_IMPROVEMENTS.md) for details.
 
 ```
 var j = \a -> return a
@@ -71,7 +73,6 @@ if n > 0                  -- operator `>` expects <num> instead of <nil>
 ```
 
 Lua code will be generated regardless of warning by the optional type checker.
-
 
 
 

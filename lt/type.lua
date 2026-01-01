@@ -220,13 +220,27 @@ local flatten = function(ty, types)
         local out, o = {}, 0
         for _, t in ipairs(list) do
             local skip = false
+            local dominated = false
             for __, v in ipairs(out) do
                 if subtype(t, v) then
                     skip = true
                     break
                 end
+                if subtype(v, t) then
+                    dominated = true
+                end
             end
             if not skip then
+                if dominated then
+                    local new_out = {}
+                    for __, v in ipairs(out) do
+                        if not subtype(v, t) then
+                            new_out[#new_out + 1] = v
+                        end
+                    end
+                    out = new_out
+                    o = #out
+                end
                 o = o + 1
                 out[o] = t
             end
@@ -296,6 +310,42 @@ local tostr = function(t)
         return s .. "*"
     end
     return s
+end
+local compact_rec
+compact_rec = function(t, seen)
+    if not seen then
+        seen = {}
+    end
+    if seen[t] then
+        return seen[t]
+    end
+    if t.tag == TType.New then
+        seen[t] = t
+        return t
+    end
+    if t.tag == TType.Func then
+        seen[t] = t
+        local ins = compact_rec(t.ins, seen)
+        local outs = compact_rec(t.outs, seen)
+        return Type.func(ins, outs)
+    end
+    if t.tag == TType.Tuple then
+        seen[t] = t
+        local elems = {}
+        for i, v in ipairs(t) do
+            elems[i] = compact_rec(v, seen)
+        end
+        return Type.tuple(elems)
+    end
+    if t.tag == TType.Tbl then
+        seen[t] = t
+        local fields = {}
+        for i, tk in ipairs(t) do
+            fields[i] = {compact_rec(tk[1], seen), tk[2]}
+        end
+        return Type.tbl(fields)
+    end
+    return t
 end
 Str[TType.New] = function(t)
     return "T" .. t.id
@@ -394,4 +444,6 @@ return {
     , clone = clone
     , get_tbl = get_tbl
     , tostr = tostr
+    , compact_rec = compact_rec
+    , subtype = subtype
 }
