@@ -8,8 +8,6 @@ return function()
     local subs = {}
     local lower_bounds = {}
     local upper_bounds = {}
-    local type_level = 0
-    local var_levels = {}
     local Subst = {}
     local subst = function(node, tvar, texp)
         assert(tvar.tag == TType.New)

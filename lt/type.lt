@@ -260,7 +260,7 @@ var y $#!  means y is a value type
 
 
 Simple-sub improvements:
-- Type variables now have levels for let-polymorphism
+- Type variables now have levels for let-polymorphism (foundation/future work)
 - Type variables track lower and upper bounds for better subtyping
 - Compact representation for recursive types
 --``

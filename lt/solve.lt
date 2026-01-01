@@ -11,10 +11,11 @@ return ->
 	var lower_bounds = {}  -- lower_bounds[id] = {types...}
 	var upper_bounds = {}  -- upper_bounds[id] = {types...}
 	
-	-- Type levels for let-polymorphism
-	-- Variables with lower levels are more general (can be polymorphic)
-	var type_level = 0
-	var var_levels = {}  -- var_levels[id] = level
+	-- TODO: Type levels for let-polymorphism (infrastructure for future work)
+	-- These will enable better handling of polymorphic functions like identity
+	-- by tracking the generalization level of each type variable
+	-- var type_level = 0
+	-- var var_levels = {}  -- var_levels[id] = level
 
 	------ subst in place --------------
 	var Subst = {}
@@ -149,6 +150,10 @@ return ->
 		var ub2 = get_upper_bounds(tvar2)
 		for _, b in ipairs(ub2)
 			ub1[#ub1 + 1] = b
+		
+		-- Note: We keep tvar2's bounds to maintain the constraint history
+		-- This is intentional as tvar2 may still be referenced elsewhere
+		-- and the bounds help with debugging and error messages
 
 
 	var extend = \tvar, texp, ignore ->
