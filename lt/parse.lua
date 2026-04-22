@@ -8,7 +8,6 @@ local reserved = require("lt.reserved")
 local Stmt = ast.Stmt
 local Expr = ast.Expr
 local Keyword = reserved.Keyword
-local LJ_52 = false
 local EndOfBlock = {
     TK_dedent = true
     , TK_else = true
@@ -95,7 +94,7 @@ return function(ls, warn)
     local lex_str = function()
         local loc = ls.loc()
         local s
-        if ls.token ~= "TK_name" and (LJ_52 or ls.token ~= "TK_goto") then
+        if ls.token ~= "TK_name" then
             err_expect("TK_name")
             s = ls.tostr(ls.token)
         else
@@ -217,7 +216,7 @@ return function(ls, warn)
             typ = ast.bracket(parse_type())
             lex_match(")", "(", loc.line)
         else
-            return 
+            return
         end
         while ls.token == "." do
             ls.step()
@@ -446,7 +445,7 @@ return function(ls, warn)
         else
             local str
             local loc = ls.loc()
-            if ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
+            if ls.token == "TK_name" then
                 str, loc = lex_str()
             else
                 err_symbol()
@@ -522,7 +521,7 @@ return function(ls, warn)
     parse_args = function()
         local line = ls.line
         lex_check("(")
-        if not LJ_52 and line ~= ls.prevline then
+        if line ~= ls.prevline then
             err_warn("ambiguous syntax (function call x new statement)")
         end
         local dented = false
@@ -670,14 +669,12 @@ return function(ls, warn)
             return stmt, true
         elseif ls.token == "TK_break" then
             stmt = parse_break(loc)
-            return stmt, not LJ_52
+            return stmt, false
         elseif ls.token == "::" then
             stmt = parse_label(loc)
         elseif ls.token == "TK_goto" then
-            if LJ_52 or ls.next() == "TK_name" then
-                ls.step()
-                stmt = parse_goto(loc)
-            end
+            ls.step()
+            stmt = parse_goto(loc)
         end
         if not stmt then
             stmt = parse_call_assign(loc)
@@ -727,7 +724,7 @@ return function(ls, warn)
         local varargs = false
         if ls.token ~= "->" and ls.token ~= "~>" then
             repeat
-                if ls.token == "TK_name" or not LJ_52 and ls.token == "TK_goto" then
+                if ls.token == "TK_name" then
                     n = n + 1
                     params[n] = Expr.id(lex_str())
                     ptypes = opt_type(ptypes, n)
