@@ -1,0 +1,6 @@
+var obj = {
+   foo = \@, x ->
+      return x
+}
+
+print(obj:foo(2))

@@ -98,7 +98,9 @@ for k, v in pairs(files) do
         local _, code, warns = compile.file(filename)
         if not warns then
             failed()
-        end
+		  else
+				io.stderr:write(warns .. "\n")
+		  end
     end
 end
 

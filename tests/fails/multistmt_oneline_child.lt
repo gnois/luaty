@@ -1,0 +1,2 @@
+var p = print
+if true p(1) p(2)
