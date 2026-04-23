@@ -5,6 +5,17 @@ var TType = Tag.Type
 return ->
 	-- list of type var to type expr
 	var subs = {}
+	
+	-- Type variable bounds: lower and upper bounds for better subtyping
+	-- Inspired by simple-sub's use of bounds instead of just substitutions
+	var lower_bounds = {}  -- lower_bounds[id] = {types...}
+	var upper_bounds = {}  -- upper_bounds[id] = {types...}
+	
+	-- TODO: Type levels for let-polymorphism (infrastructure for future work)
+	-- These will enable better handling of polymorphic functions like identity
+	-- by tracking the generalization level of each type variable
+	-- var type_level = 0
+	-- var var_levels = {}  -- var_levels[id] = level
 
 	------ subst in place --------------
 	var Subst = {}
@@ -106,6 +117,45 @@ return ->
 		return false
 
 
+	-- Get or initialize bounds for a type variable
+	var get_lower_bounds = \tvar ->
+		if not lower_bounds[tvar.id]
+			lower_bounds[tvar.id] = {}
+		return lower_bounds[tvar.id]
+
+	var get_upper_bounds = \tvar ->
+		if not upper_bounds[tvar.id]
+			upper_bounds[tvar.id] = {}
+		return upper_bounds[tvar.id]
+
+	-- Add a lower bound: tvar :> bound (tvar is a supertype of bound)
+	var add_lower_bound = \tvar, bound ->
+		var bounds = get_lower_bounds(tvar)
+		bounds[#bounds + 1] = bound
+
+	-- Add an upper bound: tvar <: bound (tvar is a subtype of bound)
+	var add_upper_bound = \tvar, bound ->
+		var bounds = get_upper_bounds(tvar)
+		bounds[#bounds + 1] = bound
+
+	-- Merge bounds when unifying type variables
+	var merge_bounds = \tvar1, tvar2 ->
+		-- Transfer bounds from tvar2 to tvar1
+		var lb1 = get_lower_bounds(tvar1)
+		var lb2 = get_lower_bounds(tvar2)
+		for _, b in ipairs(lb2)
+			lb1[#lb1 + 1] = b
+		
+		var ub1 = get_upper_bounds(tvar1)
+		var ub2 = get_upper_bounds(tvar2)
+		for _, b in ipairs(ub2)
+			ub1[#ub1 + 1] = b
+		
+		-- Note: We keep tvar2's bounds to maintain the constraint history
+		-- This is intentional as tvar2 may still be referenced elsewhere
+		-- and the bounds help with debugging and error messages
+
+
 	var extend = \tvar, texp, ignore ->
 		assert(tvar.tag == TType.New)
 		if occurs(tvar, texp)
@@ -176,10 +226,20 @@ return ->
 		x = apply(x)
 		y = apply(y)
 
+		-- Handle type variable unification with bounds support
+		if x.tag == TType.New and y.tag == TType.New
+			-- Both are type variables, merge their bounds
+			merge_bounds(x, y)
+			return extend(x, y)
+
 		if x.tag == TType.New
+			-- Add y as an upper bound for x (x <: y in subtyping context)
+			add_upper_bound(x, y)
 			return extend(x, y)
 
 		if y.tag == TType.New
+			-- Add x as an upper bound for y
+			add_upper_bound(y, x)
 			return extend(y, x)
 
 		-- any match all except pure nil
@@ -228,8 +288,68 @@ return ->
 		return false, ignore and "" or ("expects " .. ty.tostr(x) .. " instead of " .. ty.tostr(y))
 
 
+	-- Constrain for subtyping: a <: b means a is a subtype of b
+	-- This is inspired by simple-sub's constraint handling
+	-- In simple-sub, this adds bounds instead of eagerly unifying
+	var constrain
+	
+	var constrain_func = \a, b ->
+		-- Function subtyping is contravariant in parameters, covariant in returns
+		-- (A -> B) <: (A' -> B') iff A' <: A and B <: B'
+		var ok1 = constrain(b.ins, a.ins)  -- contravariant
+		var ok2 = constrain(a.outs, b.outs)  -- covariant
+		return ok1 and ok2
+	
+	constrain = \a, b ->
+		-- Apply current substitutions
+		a = apply(a)
+		b = apply(b)
+		
+		-- Same type is always subtype
+		if a == b
+			return true
+		
+		-- Type variable on left: add upper bound
+		if a.tag == TType.New
+			add_upper_bound(a, b)
+			return true
+		
+		-- Type variable on right: add lower bound
+		if b.tag == TType.New
+			add_lower_bound(b, a)
+			return true
+		
+		-- Handle unions: A|B <: C iff A <: C and B <: C
+		if a.tag == TType.Or
+			for _, t in ipairs(a)
+				if not constrain(t, b)
+					return false
+			return true
+		
+		-- A <: B|C iff A <: B or A <: C
+		if b.tag == TType.Or
+			for _, t in ipairs(b)
+				if constrain(a, t)
+					return true
+			return false
+		
+		-- Structural subtyping
+		if a.tag == b.tag
+			if a.tag == TType.Nil or a.tag == TType.Any
+				return true
+			
+			if a.tag == TType.Val
+				return a.type == b.type
+			
+			if a.tag == TType.Func
+				return constrain_func(a, b)
+		
+		return false
+
+
 	return {
 		apply = apply
 		, extend = extend
 		, unify = unify
+		, constrain = constrain
 	}

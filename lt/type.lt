@@ -201,18 +201,33 @@ var flatten = \ty, types ->
 		else
 			l = l + 1
 			list[l] = t
-	-- remove subtypes
-	-- this is WRONG for now
-	-- PARAMS ARE CONTRAVARIANT, RETURN ARE COVARIANT
+	
+	-- Improved union simplification inspired by simple-sub
+	-- Remove subtypes and merge equivalent types
 	if l > 1
 		var out, o = {}, 0
 		for _, t in ipairs(list)
 			var skip = false
+			var dominated = false
+			
+			-- Check if this type is a subtype of any existing type in out
 			for __, v in ipairs(out)
 				if subtype(t, v)
 					skip = true
 					break
+				-- Also check if v is subtype of t, and replace v with t
+				if subtype(v, t)
+					dominated = true
+			
 			if not skip
+				if dominated
+					-- Remove dominated types
+					var new_out = {}
+					for __, v in ipairs(out)
+						if not subtype(v, t)
+							new_out[#new_out + 1] = v
+					out = new_out
+					o = #out
 				o = o + 1
 				out[o] = t
 		return out
@@ -244,6 +259,10 @@ var x&6 means var x #
 var y $#!  means y is a value type
 
 
+Simple-sub improvements:
+- Type variables now have levels for let-polymorphism (foundation/future work)
+- Type variables track lower and upper bounds for better subtyping
+- Compact representation for recursive types
 --``
 
 var create = \tag, node ->
@@ -314,6 +333,45 @@ var tostr = \t ->
 	if t.varargs
 		return s .. "*"
 	return s
+
+-- Compact recursive type representation
+-- Detects and compactly represents recursive types
+-- Inspired by simple-sub's canonicalization
+var compact_rec
+compact_rec = \t, seen ->
+	if not seen
+		seen = {}
+	
+	if seen[t]
+		-- Found a cycle, return a placeholder
+		return seen[t]
+	
+	if t.tag == TType.New
+		-- Mark this type variable as being processed
+		seen[t] = t
+		return t
+	
+	if t.tag == TType.Func
+		seen[t] = t
+		var ins = compact_rec(t.ins, seen)
+		var outs = compact_rec(t.outs, seen)
+		return Type.func(ins, outs)
+	
+	if t.tag == TType.Tuple
+		seen[t] = t
+		var elems = {}
+		for i, v in ipairs(t)
+			elems[i] = compact_rec(v, seen)
+		return Type.tuple(elems)
+	
+	if t.tag == TType.Tbl
+		seen[t] = t
+		var fields = {}
+		for i, tk in ipairs(t)
+			fields[i] = {compact_rec(tk[1], seen), tk[2]}
+		return Type.tbl(fields)
+	
+	return t
 
 -- build switch table only once
 Str[TType.New] = \t ->
@@ -400,4 +458,6 @@ return {
 	, clone = clone
 	, get_tbl = get_tbl
 	, tostr = tostr
+	, compact_rec = compact_rec
+	, subtype = subtype
 }

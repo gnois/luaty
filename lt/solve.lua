@@ -6,6 +6,8 @@ local Tag = require("lt.tag")
 local TType = Tag.Type
 return function()
     local subs = {}
+    local lower_bounds = {}
+    local upper_bounds = {}
     local Subst = {}
     local subst = function(node, tvar, texp)
         assert(tvar.tag == TType.New)
@@ -116,6 +118,38 @@ return function()
         end
         return false
     end
+    local get_lower_bounds = function(tvar)
+        if not lower_bounds[tvar.id] then
+            lower_bounds[tvar.id] = {}
+        end
+        return lower_bounds[tvar.id]
+    end
+    local get_upper_bounds = function(tvar)
+        if not upper_bounds[tvar.id] then
+            upper_bounds[tvar.id] = {}
+        end
+        return upper_bounds[tvar.id]
+    end
+    local add_lower_bound = function(tvar, bound)
+        local bounds = get_lower_bounds(tvar)
+        bounds[#bounds + 1] = bound
+    end
+    local add_upper_bound = function(tvar, bound)
+        local bounds = get_upper_bounds(tvar)
+        bounds[#bounds + 1] = bound
+    end
+    local merge_bounds = function(tvar1, tvar2)
+        local lb1 = get_lower_bounds(tvar1)
+        local lb2 = get_lower_bounds(tvar2)
+        for _, b in ipairs(lb2) do
+            lb1[#lb1 + 1] = b
+        end
+        local ub1 = get_upper_bounds(tvar1)
+        local ub2 = get_upper_bounds(tvar2)
+        for _, b in ipairs(ub2) do
+            ub1[#ub1 + 1] = b
+        end
+    end
     local extend = function(tvar, texp, ignore)
         assert(tvar.tag == TType.New)
         if occurs(tvar, texp) then
@@ -184,10 +218,16 @@ return function()
         end
         x = apply(x)
         y = apply(y)
+        if x.tag == TType.New and y.tag == TType.New then
+            merge_bounds(x, y)
+            return extend(x, y)
+        end
         if x.tag == TType.New then
+            add_upper_bound(x, y)
             return extend(x, y)
         end
         if y.tag == TType.New then
+            add_upper_bound(y, x)
             return extend(y, x)
         end
         if x.tag == TType.Any and y.tag ~= TType.Nil then
@@ -239,5 +279,54 @@ return function()
         end
         return false, ignore and "" or "expects " .. ty.tostr(x) .. " instead of " .. ty.tostr(y)
     end
-    return {apply = apply, extend = extend, unify = unify}
+    local constrain
+    local constrain_func = function(a, b)
+        local ok1 = constrain(b.ins, a.ins)
+        local ok2 = constrain(a.outs, b.outs)
+        return ok1 and ok2
+    end
+    constrain = function(a, b)
+        a = apply(a)
+        b = apply(b)
+        if a == b then
+            return true
+        end
+        if a.tag == TType.New then
+            add_upper_bound(a, b)
+            return true
+        end
+        if b.tag == TType.New then
+            add_lower_bound(b, a)
+            return true
+        end
+        if a.tag == TType.Or then
+            for _, t in ipairs(a) do
+                if not constrain(t, b) then
+                    return false
+                end
+            end
+            return true
+        end
+        if b.tag == TType.Or then
+            for _, t in ipairs(b) do
+                if constrain(a, t) then
+                    return true
+                end
+            end
+            return false
+        end
+        if a.tag == b.tag then
+            if a.tag == TType.Nil or a.tag == TType.Any then
+                return true
+            end
+            if a.tag == TType.Val then
+                return a.type == b.type
+            end
+            if a.tag == TType.Func then
+                return constrain_func(a, b)
+            end
+        end
+        return false
+    end
+    return {apply = apply, extend = extend, unify = unify, constrain = constrain}
 end

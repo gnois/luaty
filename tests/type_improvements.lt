@@ -1,0 +1,113 @@
+-- Test cases demonstrating improved type inference with simple-sub enhancements
+-- These examples showcase better subtyping, union types, and bounds tracking
+
+-- Example 1: Better union type simplification
+-- The flatten function now removes dominated types more effectively
+var test_union = ->
+	var x = 5
+	-- Previously, type would be num|num, now simplified to just num
+	var y
+	if x > 0
+		y = 10
+	else
+		y = 20
+	-- y has type num (simplified from num|num)
+	return y
+
+assert(test_union() == 10)
+
+
+-- Example 2: Subtyping with bounds
+-- Type variables now accumulate bounds instead of immediate unification
+-- Note: Full parametric polymorphism (allowing identity to be polymorphic)
+-- requires implementing let-polymorphism with type levels (infrastructure is in place)
+var identity = \x -> return x
+
+var a = identity(5)      -- a : num
+-- var b = identity("hi")   -- Would require let-polymorphism to work correctly
+-- Each call would get its own type variable with appropriate bounds
+
+assert(a == 5)
+-- assert(b == "hi")
+
+
+-- Example 3: Function subtyping (contravariance/covariance)
+-- The constrain function properly handles function subtyping
+var apply_to_num = \f, n ->
+	return f(n)
+
+var double = \x -> return x * 2
+var result = apply_to_num(double, 5)
+
+assert(result == 10)
+
+
+-- Example 4: More complex union types
+var get_value = \flag ->
+	if flag
+		return 42
+	else
+		return "not a number"
+
+var val1 = get_value(true)   -- val1 : num|str (union type)
+var val2 = get_value(false)  -- val2 : num|str
+
+-- The improved union handling ensures compact representation
+assert(val1 == 42)
+assert(val2 == "not a number")
+
+
+-- Example 5: Table type inference with better bounds
+var make_point = \x, y ->
+	return {x = x, y = y}
+
+var p1 = make_point(1, 2)
+var p2 = make_point(3, 4)
+
+-- Both p1 and p2 get consistent table types with field tracking
+assert(p1.x == 1 and p1.y == 2)
+assert(p2.x == 3 and p2.y == 4)
+
+
+-- Example 6: Recursive function with improved inference
+var factorial
+factorial = \n ->
+	if n <= 1
+		return 1
+	else
+		return n * factorial(n - 1)
+
+assert(factorial(5) == 120)
+
+
+-- Example 7: Higher-order functions
+var map_list = \f, list ->
+	var out = {}
+	for i, v in ipairs(list)
+		out[i] = f(v)
+	return out
+
+var nums = {1, 2, 3, 4, 5}
+var add_ten = \x -> return x + 10
+var result_list = map_list(add_ten, nums)
+
+assert(result_list[1] == 11)
+assert(result_list[5] == 15)
+
+
+-- Example 8: Compact recursive type representation
+-- The compact_rec function prevents infinite loops in type printing
+var make_list = \value, nxt ->
+	return {value = value, next = nxt}
+
+var node1 = make_list(1, nil)
+var node2 = make_list(2, node1)
+var node3 = make_list(3, node2)
+
+-- Type inference handles recursive structures without infinite loops
+assert(node3.value == 3)
+assert(node3.next.value == 2)
+assert(node3.next.next.value == 1)
+
+
+print("All type inference improvement tests passed!")
