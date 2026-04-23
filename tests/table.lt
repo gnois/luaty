@@ -110,10 +110,10 @@ var html = {
 	">" = "&gt;",
 	["&"] = "&amp;"
 }
-	
+
 for key, val in pairs(html)
 	print(key .. ': ' .. val)
-   
+
 
 -- keyword as table keys
 var z = {
@@ -123,8 +123,16 @@ var z = {
 	, if = \...-> return ...
 	, else = {true, false}
 	, goto = 'goto'
+	, in = true
+	, true = 11   -- declaring will NOT convert to string 'true'
+	, false = 22  -- declaring will NOT convert to string 'false'
+	, nil = 33    -- declaring will convert to string 'nil'
 }
 
 assert(4 == z.function + z.local - z.var)
 assert(z.if(z.else)[2] == false)
 assert(z.goto == "goto")
+assert(z.in)
+assert(z.true == 11)    -- indexing will NOT convert to string 'true'
+assert(z.false == 22)   -- indexing will NOT convert to string 'false'
+assert(z.nil == 33)     -- indexing will convert to string 'nil'
