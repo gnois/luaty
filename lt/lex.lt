@@ -1,7 +1,7 @@
 var bit = require('bit')
 var ffi = require('ffi')
 var chars = require('lt.chars')
-var stack = require('lt.stack')
+var stack = require('lt.stack')()
 var reserved = require('lt.reserved')
 var Keyword = reserved.Keyword
 

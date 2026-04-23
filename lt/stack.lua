@@ -1,17 +1,20 @@
 --
 -- Generated from stack.lt
 --
-local stack, s = {}, 0
-local top = function()
-    return stack[s]
+return function()
+    local stack, s = {}, 0
+    return {top = function()
+        return stack[s]
+    end, push = function(val)
+        s = s + 1
+        stack[s] = val
+    end, pop = function()
+        if s < 1 then
+            return nil, "stack empty"
+        end
+        local val = stack[s]
+        stack[s] = nil
+        s = s - 1
+        return val
+    end}
 end
-local push = function(input)
-    s = s + 1
-    stack[s] = input
-end
-local pop = function()
-    local output = stack[s]
-    s = s - 1
-    return output
-end
-return {top = top, push = push, pop = pop}
