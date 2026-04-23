@@ -294,9 +294,15 @@ return \read, warn ->
 			add_buffer(c)
 			nextchar()
 		else if c == END_OF_STREAM
+			lex_error('TK_eof', "unfinished string")
+			return
 		else
 			if not is.digit(c)
 				lex_error('TK_string', "invalid escape character \\" .. c)
+				add_buffer('\\')
+				add_buffer(c)
+				nextchar()
+				return
 
 			add_buffer('\\')
 			add_buffer(c)
@@ -331,8 +337,9 @@ return \read, warn ->
 				add_buffer(ch)
 				nextchar()
 
-		add_buffer(ch) -- skip delimiter
-		nextchar()
+		if ch == delim
+			add_buffer(ch)
+			nextchar()
 		return get_buffer(1, 1)
 
 

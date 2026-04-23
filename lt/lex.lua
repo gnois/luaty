@@ -290,10 +290,15 @@ return function(read, warn)
             add_buffer(c)
             nextchar()
         elseif c == END_OF_STREAM then
-            
+            lex_error("TK_eof", "unfinished string")
+            return 
         else
             if not is.digit(c) then
                 lex_error("TK_string", "invalid escape character \\" .. c)
+                add_buffer("\\")
+                add_buffer(c)
+                nextchar()
+                return 
             end
             add_buffer("\\")
             add_buffer(c)
@@ -329,8 +334,10 @@ return function(read, warn)
                 nextchar()
             end
         end
-        add_buffer(ch)
-        nextchar()
+        if ch == delim then
+            add_buffer(ch)
+            nextchar()
+        end
         return get_buffer(1, 1)
     end
     local tokenize = function()
