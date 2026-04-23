@@ -5,19 +5,19 @@ var write = term.write
 
 var usage = \err ->
 	term.usage(err or "", "\n", ``
-Usage: 
+Usage:
   luajit lt.lua [-f] [-t] [-d xvar] path/src [dst]
-  
+
     if src does not end with .lt, .lt is appended
 
     if dst is omitted, path/src.lt will be run
     else if dst ends with .lua, path/src.lt will be transpiled to dst
     else dst is assumed to be a folder, path/src.lt will be transpiled to dst/path/src.lua, and its dependencies to dst/path/*.lua
-  
+
     -f        Force overwrite if output file already exists. Ignored if dst is omitted.
     -t        Enable type checking
     -d xvar   Declares `xvar` to silent undeclared identifier warning
-  
+
   Running without parameters enters Read-Generate-Eval-Print loop
 ``)
 
@@ -64,7 +64,7 @@ else
 		-- in case is a Windows drive letter
 		if string.sub(src, 2, 2) == ':'
 			src = string.sub(src, 3)
-	
+
 	if dst
 		dst = term.localize(dst)
 		if string.sub(dst, -string.len(".lua")) == ".lua"
@@ -98,7 +98,7 @@ if src
 			if not single
 				dest = string.gsub(file.path, "%.lt", ".lua")
 				dest = dst .. term.slash .. string.gsub(dest, "^".. term.slash .. "*", "") -- remove slashes in front of dest
-			
+
 			-- dest is now dir/sub/file.lua
 			if file.warns or file.code
 				write(dest, ":")
@@ -113,7 +113,7 @@ if src
 				-- split into dir/sub and file.lua
 				var name = dest
 				var dir
-				string.gsub(dest, "(.*[/\\])(.*)", \d, n -> 
+				string.gsub(dest, "(.*[/\\])(.*)", \d, n ->
 					dir = d
 					name = n
 				)
@@ -154,46 +154,9 @@ if src
 			else
 				fails[f] = "Fail to generate " .. k
 			f = f + 1
-		
+
 		if f > 1 -- dont show extra \n if no fails
 			write(color.red, table.concat(fails, "\n"), color.reset, "\n")
 
-else -- repl
-	-- https://stackoverflow.com/questions/20410082/why-does-the-lua-repl-require-you-to-prep-an-equal-sign-in-order-to-get-a-val
-	var show_results = \... ->
-		-- This function takes care of nils at the end of results and such
-		if select('#', ...) > 1
-			write(select(2, ...))
-
-	var flush = -> io.stdout.flush(@)
-	var read = -> return io.stdin.read(@)
-
-	write(`-- empty line to transpile, \q to quit --`, '\n')
-	var list = {}
-	do
-		write('> ')
-		flush()
-		var s = read()
-		if s == `\q`
-			break
-		else if s and #s > 0
-			list[#list + 1] = s
-		else
-			var str = table.concat(list, "\n")
-			list = {}
-			var _, code, warns = compile.string(str)
-			if warns
-				write(warns)
-			if code
-				write(color.cyan, code, color.reset)
-				var fn, err = loadstring(code)
-				if err -- Maybe it's an expression
-					-- This is a bad hack, but it might work
-					fn = load('return (' .. fn .. ')', 'stdin')
-
-				if fn
-					show_results(pcall(fn))
-				else
-					write(err)
-			write("\n")
-	until false
+else
+	term.repl(compile)

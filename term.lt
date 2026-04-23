@@ -93,9 +93,17 @@ var mkdir = \path ->
 	return false, cmd .. " failed, exit code: " .. tostring(code)
 
 
+var exist_file = \path ->
+	var f = io.open(path, "r")
+	if f
+		io.close(f)
+		return true
+	return false
+
+
 -- pushd and popd exists on linux, unix and DOS
 var exist_dir = \path ->
-	var p = string.gsub(path, "/*$", "")
+	var p = string.gsub(path, slash .. "*$", "")
 	-- if Path Not Found, dont show on stderr
 	var code = exec("pushd " .. p .. " 2> nul")
 	if code == 0
@@ -103,6 +111,9 @@ var exist_dir = \path ->
 	return code == 0
 
 
+--var f = list_files("\\path")
+--for line in f.lines(@)
+--   print(line)
 var list_files = \path ->
 	var cmd
 	if slash == '\\'
@@ -110,6 +121,46 @@ var list_files = \path ->
 	else
 		cmd = '/bin/ls -p "' .. path .. '" | grep -v /'
 	return io.popen(cmd)
+
+
+var repl = \compile ->
+	-- https://stackoverflow.com/questions/20410082/why-does-the-lua-repl-require-you-to-prep-an-equal-sign-in-order-to-get-a-val
+	var show_results = \... ->
+		-- This function takes care of nils at the end of results and such
+		if select('#', ...) > 1
+			write(select(2, ...))
+
+
+	write(`-- empty line to transpile, \q to quit --`, '\n')
+	var list = {}
+	do
+		write('> ')
+		io.stdout.flush(@)
+		var s = io.stdin.read(@)
+		if s == `\q`
+			break
+		else if s and #s > 0
+			list[#list + 1] = s
+		else
+			var str = table.concat(list, "\n")
+			list = {}
+			var _, code, warns = compile.string(str)
+			if warns
+				write(warns)
+			if code
+				write(color.cyan, code, color.reset)
+				var fn, err = loadstring(code)
+				if err -- Maybe it's an expression
+					-- This is a bad hack, but it might work
+					fn = load('return (' .. fn .. ')', 'stdin')
+
+				if fn
+					show_results(pcall(fn))
+				else
+					write(err)
+			write("\n")
+	until false
+
 
 
 
@@ -149,7 +200,6 @@ if slash == '\\'
 		color = setmetatable({}, {__index = -> return ""})
 
 
-
 return {
 	slash = slash
 	, color = color
@@ -159,5 +209,7 @@ return {
 	, localize = localize
 	, mkdir = mkdir
 	, exist_dir = exist_dir
+	, exist_file = exist_file
 	, list_files = list_files
+	, repl = repl
 }
