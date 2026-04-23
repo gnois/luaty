@@ -1,0 +1,11 @@
+var t = {a = 1, b = 2}
+t = {a = 3, b = 'r', c = 7}
+
+
+
+var f = \a, b ->
+	return a.a + b.b
+
+f = \a, ... ->
+	return a.c + a.d + ({...})[1].b
+

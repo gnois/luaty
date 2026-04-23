@@ -1,3 +1,7 @@
+for k in -> return 13
+	print(k)
+	break
+
 -- inline function
 var split = \str, pattern, plain ->
 	var arr = {}
@@ -12,16 +16,16 @@ var split = \str, pattern, plain ->
 
 -- immeidately invoked inline function with multi return value
 var squares_iter= \ ls, i ->
-	if i + 1 <= #ls 
+	if i + 1 <= #ls
 		var v = ls[i + 1]
 		return i + 1, v, v*v
 
-var foo= \ ls -> 
+var foo= \ ls ->
 	var s, ssq = 0, 0
 	for i, v, vsq in (\ l ->return squares_iter, l, 0)(ls)
 		s = s + v
 		ssq = ssq + vsq
-	
+
 	return s, ssq
 
 var a, b = foo({3, 7, -2, 5})
@@ -38,14 +42,14 @@ var rand = \s->
 
 
 var iter= \s, i->
-	if i < 20 
-		return i + 1, rand(s) 
+	if i < 20
+		return i + 1, rand(s)
 
 var bar = ->
 	var s = { x = 13 }
-	for i, val in iter, s, 0 
+	for i, val in iter, s, 0
 		print(i, val)
-	
+
 bar()
 
 
