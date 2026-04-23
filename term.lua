@@ -72,8 +72,16 @@ local mkdir = function(path)
     end
     return false, cmd .. " failed, exit code: " .. tostring(code)
 end
+local exist_file = function(path)
+    local f = io.open(path, "r")
+    if f then
+        io.close(f)
+        return true
+    end
+    return false
+end
 local exist_dir = function(path)
-    local p = string.gsub(path, "/*$", "")
+    local p = string.gsub(path, slash .. "*$", "")
     local code = exec("pushd " .. p .. " 2> nul")
     if code == 0 then
         exec("popd")
@@ -88,6 +96,45 @@ local list_files = function(path)
         cmd = "/bin/ls -p \"" .. path .. "\" | grep -v /"
     end
     return io.popen(cmd)
+end
+local repl = function(compile)
+    local show_results = function(...)
+        if select("#", ...) > 1 then
+            write(select(2, ...))
+        end
+    end
+    write([[-- empty line to transpile, \q to quit --]], "\n")
+    local list = {}
+    repeat
+        write("> ")
+        io.stdout:flush()
+        local s = io.stdin:read()
+        if s == [[\q]] then
+            break
+        elseif s and #s > 0 then
+            list[#list + 1] = s
+        else
+            local str = table.concat(list, "\n")
+            list = {}
+            local _, code, warns = compile.string(str)
+            if warns then
+                write(warns)
+            end
+            if code then
+                write(color.cyan, code, color.reset)
+                local fn, err = loadstring(code)
+                if err then
+                    fn = load("return (" .. fn .. ")", "stdin")
+                end
+                if fn then
+                    show_results(pcall(fn))
+                else
+                    write(err)
+                end
+            end
+            write("\n")
+        end
+    until false
 end
 if slash == "\\" then
     local bit = require("bit")
@@ -133,5 +180,7 @@ return {
     , localize = localize
     , mkdir = mkdir
     , exist_dir = exist_dir
+    , exist_file = exist_file
     , list_files = list_files
+    , repl = repl
 }

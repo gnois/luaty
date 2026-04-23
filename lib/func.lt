@@ -1,0 +1,189 @@
+-- continuation passing style
+-- from http://lua-users.org/wiki/VarargTheSecondClassCitizen
+var trace = \f ->
+	var helper = \... ->
+		print("end", f)
+		return ...
+
+	return \... ->
+		print("begin", f)
+		return helper(f(...))
+
+
+var K = {}
+
+-- Copied from https://github.com/jspahrsummers/pure-lua
+-- Copyright Justin Spahr-Summers
+
+-- Maps 'func' across 'lst', passing each element into 'func' (in order), and constructing a new list from the results.
+K.map = \lst, func ->
+	var result = {}
+	for i, v in ipairs(lst)
+		result[i] = func(v)
+	return result
+
+-- Maps 'func' across 'table', passing every key and value into 'func'.
+-- 'func' should return a new key and a new value, which will be used to construct a new table from the results.
+-- Because the same key may be returned multiple times, the resultant table may contain fewer elements than the input table.
+K.map_pairs = \tbl, func ->
+	var result = {}
+	for k, v in pairs(tbl)
+		var key, val = func(k, v)
+		result[key] = val
+	return result
+
+-- Returns a list of the elements from 'lst' for which 'func' returns a true value.
+K.filter = \lst, func ->
+	var result = {}
+	for _, v in ipairs(lst)
+		if func(v)
+			table.insert(result, v)
+	return result
+
+-- Returns a table of the key/value pairs from 'table' for which 'func' returns a true value.
+K.filter_pairs = \tbl, func ->
+	var result = {}
+	for k, v in pairs(tbl)
+		if func(v)
+			result[k] = v
+	return result
+
+-- Curries 'func', returning a function that takes the first argument to 'func', and which returns a function taking all the other arguments.
+K.curry = \func ->
+	return \a ->
+		return \... ->
+			return func(a, ...)
+
+-- Binds the first arguments of 'func' to the given values. The first argument of 'bindr' is bound to the first argument of 'func', and so on.
+K.bindl = \func, ...->
+	var args = { ... }
+	return \... ->
+		return func(unpack(args), ...)
+
+-- Binds the last arguments of 'func' to the given values. The last argument of 'bindr' is bound to the last argument to 'func', and so on.
+K.bindr = \func, ... ->
+	var args = { ... }
+	return \... ->
+		return func(..., unpack(args))
+
+-- For the given functor, returns a function which takes one more argument than 'func'.
+-- The additional argument will be passed into the function returned by 'func', and the result of that call returned.
+K.uncurry = \func ->
+	return \... ->
+		var args = { ... }
+		var f = func(args[1])
+		return f(unpack(args, 2))
+
+-- Returns two lists: one composed of the elements from 'lst' that passed predicate 'func', and one composed of elements that failed the predicate.
+K.partition = \lst, func ->
+	var pass = {}
+	var fail = {}
+	for _, v in ipairs(lst)
+		if func(v)
+			table.insert(pass, v)
+		else
+			table.insert(fail, v)
+	return pass, fail
+
+-- Returns two tables: one composed of the pairs from 'table' that passed predicate 'func', and one composed of pairs that failed the predicate.
+K.partition_pairs = \tbl, func ->
+	var pass = {}
+	var fail = {}
+	for k, v in pairs(tbl)
+		if func(k, v)
+			pass[k] = v
+		else
+			fail[k] = v
+	return pass, fail
+
+-- Creates a table by combining the given lists of keys and values.
+-- The key at each index in 'keys' is combined with the value at the same index in 'values'.
+-- The two lists must have the same number of elements.
+-- It is an error to have two identical keys, as doing so would result in an indeterminate result.
+K.zip = \keys, values ->
+	var tbl = {}
+	var count = #keys
+	if count ~= #values
+		error("The lists of keys and values provided to zip() must have the same number of elements", 2)
+	for i = 1, count
+		var key = keys[i]
+		if tbl[key] ~= nil
+			error("Cannot have two identical keys in the list provided to zip()", 2)
+		tbl[key] = values[i]
+	return tbl
+
+-- Returns a list of the keys of 'table', and a list of the values of 'table', respectively.
+-- The order of the lists is undefined, except that the index of a given key matches the index of its associated value.
+K.unzip = \tbl ->
+	var keys = {}
+	var values = {}
+	for k, v in pairs(tbl)
+		keys.insert(k)
+		values.insert(v)
+	return keys, values
+
+-- Flattens all recursive lists within 'list' into a one-dimensional list.
+K.flatten = \list ->
+	var result = {}
+	for _, v in ipairs(list)
+		if K.istable(v)
+			var flattened = K.flatten(v)
+			for __, fv in ipairs(flattened)
+				table.insert(result, fv)
+		else
+			table.insert(result, v)
+	return result
+
+-- Returns the first element from 'list', or nil if the list is empty.
+K.head = \list ->
+	if list
+		return list[1]
+	return nil
+
+-- Returns all but the first element from 'list'. If 'list' only contains one element, returns an empty list. If 'list' is empty, returns nil.
+K.tail = \list ->
+	var head, tail = K.decons(list)
+	if head
+		return tail
+	return nil
+
+-- Returns the head and the tail of 'list', or nil if the list is empty.
+K.decons = \list ->
+	if list
+		var count = #list
+		if count > 0
+			var tail = {}
+			for i = 2, count
+				tail[i - 1] = list[i]
+			return list[1], tail
+	return nil
+
+-- Performs a left fold on the elements of 'list', passing 'value' and the first element into 'func'.
+-- The result of 'func' is combined with the second element of 'list' into another call to 'func', and so forth, until the whole list has been reduced down to one element.
+-- If 'list' is empty, 'value' is returned unmodified.
+K.foldl = \func, value, list ->
+	if list and #list > 0
+		var head, tail = K.decons(list)
+		return K.foldl(func, func(value, head), tail)
+	return value
+
+-- Performs a right fold on the elements of 'list', applying 'func' to each successive element of the list and the result of calling 'foldr' on the rest of the list.
+-- The last element of the list is combined with 'value'.
+-- If 'list' is empty, 'value' is returned unmodified.
+K.foldr = \func, value, list ->
+	if list and #list > 0
+		var head, tail = K.decons(list)
+		return func(head, K.foldr(func, value, tail))
+	return value
+
+-- Returns a function which takes the first two arguments to 'func' in reverse order, and passes the rest of the arguments through unmodified.
+-- 'func' must accept at least two arguments.
+K.flip = \func ->
+	return \a, b, ... ->
+		return func(b, a, ...)
+
+K.identity = \... ->
+	return ...
+
+
+return K

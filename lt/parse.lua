@@ -338,7 +338,11 @@ return function(ls, warn)
                 else
                     local name = is_keyword()
                     if name then
-                        key = Expr.string(name, false, ls)
+                        if ls.token == "TK_true" or ls.token == "TK_false" then
+                            key = Expr.bool(ls.token == "TK_true", ls)
+                        else
+                            key = Expr.string(name, false, ls)
+                        end
                     else
                         err_syntax("invalid table key " .. ls_value() or ls.astext(ls.token))
                     end
@@ -460,7 +464,11 @@ return function(ls, warn)
                 ls.step()
                 local kw = is_keyword()
                 if kw then
-                    key = Expr.string(kw, false, ls)
+                    if ls.token == "TK_true" or ls.token == "TK_false" then
+                        key = Expr.bool(ls.token == "TK_true", ls)
+                    else
+                        key = Expr.string(kw, false, ls)
+                    end
                     vk, v = Kind.Index, Expr.index(v, key, at)
                     ls.step()
                 else

@@ -1,3 +1,9 @@
+for k in -> return 13
+	print(k)
+	break
+	
+
+
 -- inline function
 var split = \str, pattern, plain ->
 	var arr = {}

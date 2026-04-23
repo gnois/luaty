@@ -7,19 +7,19 @@ local color = term.color
 local write = term.write
 local usage = function(err)
     term.usage(err or "", "\n", [=[
-Usage: 
+Usage:
   luajit lt.lua [-f] [-t] [-d xvar] path/src [dst]
-  
+
     if src does not end with .lt, .lt is appended
 
     if dst is omitted, path/src.lt will be run
     else if dst ends with .lua, path/src.lt will be transpiled to dst
     else dst is assumed to be a folder, path/src.lt will be transpiled to dst/path/src.lua, and its dependencies to dst/path/*.lua
-  
+
     -f        Force overwrite if output file already exists. Ignored if dst is omitted.
     -t        Enable type checking
     -d xvar   Declares `xvar` to silent undeclared identifier warning
-  
+
   Running without parameters enters Read-Generate-Eval-Print loop
 ]=])
 end
@@ -160,47 +160,5 @@ if src then
         end
     end
 else
-    local show_results = function(...)
-        if select("#", ...) > 1 then
-            write(select(2, ...))
-        end
-    end
-    local flush = function()
-        io.stdout:flush()
-    end
-    local read = function()
-        return io.stdin:read()
-    end
-    write([[-- empty line to transpile, \q to quit --]], "\n")
-    local list = {}
-    repeat
-        write("> ")
-        flush()
-        local s = read()
-        if s == [[\q]] then
-            break
-        elseif s and #s > 0 then
-            list[#list + 1] = s
-        else
-            local str = table.concat(list, "\n")
-            list = {}
-            local _, code, warns = compile.string(str)
-            if warns then
-                write(warns)
-            end
-            if code then
-                write(color.cyan, code, color.reset)
-                local fn, err = loadstring(code)
-                if err then
-                    fn = load("return (" .. fn .. ")", "stdin")
-                end
-                if fn then
-                    show_results(pcall(fn))
-                else
-                    write(err)
-                end
-            end
-            write("\n")
-        end
-    until false
+    term.repl(compile)
 end

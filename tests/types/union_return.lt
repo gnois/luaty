@@ -1,0 +1,21 @@
+var f = \a ->
+	if a
+		return true, a
+	return nil, "a is nil
+
+var p, q = f(8)
+print(p, q)
+
+
+Checker got:
+p: Or({bool, any}, {nil, str})
+q: nil
+
+
+Shd be:
+p: bool
+q: any
+
+or
+p: nil
+q: str

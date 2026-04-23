@@ -1,0 +1,50 @@
+-- Stolen from https://github.com/kernelsauce/turbo
+-- Copyright 2013 John Abrahamsen
+
+var ffi = require('ffi')
+var ex = require('losty.exec')
+
+var fs = {}
+
+fs.glob = \pattern ->
+	var re = -1
+	var glob_t = ffi.new("glob_t[1]")
+	re = ffi.C.glob(pattern, 0, nil, glob_t)
+	if re ~= 0
+		ffi.C.globfree(glob_t)
+		return nil
+
+	var files = {}
+	var i = 0
+	while i < glob_t[0].gl_pathc
+		table.insert(files, ffi.string(glob_t[0].gl_pathv[i]))
+		i = i + 1
+	ffi.C.globfree(glob_t)
+	return files
+
+--- Check if file exists
+fs.exists = \path ->
+	var f = io.open(path, "r")
+	if f ~= nil
+		io.close(f)
+		return true
+	return false
+
+fs.read_all = \file ->
+	var f = io.open(file, "rb")
+	assert(f, "Could not open file ", file, " for reading.")
+	var content = f.read(@, "*all")
+	f.close(@)
+	return content
+
+-- create path
+fs.create = \path, owners ->
+	var ok, err = ex.exec("mkdir -p " .. path)
+	if ok
+		ok, err = ex.exec("chown " .. owners .. " " .. path)
+		--ex.exec("chmod -x " .. path)
+	
+	if not ok
+		error(err)
+
+return fs

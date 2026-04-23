@@ -68,7 +68,7 @@ var fn = \x, y->
 	var z = x + y
 	return boo(z, x < y and x or y)
 
-assert(fn(3, 7) == 10)
+assert(fn((3), (7)) == 10)
 
 
 ---

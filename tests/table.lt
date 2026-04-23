@@ -123,8 +123,10 @@ var z = {
 	, if = \...-> return ...
 	, else = {true, false}
 	, goto = 'goto'
+	, true = 701
 }
 
 assert(4 == z.function + z.local - z.var)
 assert(z.if(z.else)[2] == false)
 assert(z.goto == "goto")
+assert(z.true == 701)

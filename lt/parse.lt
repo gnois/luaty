@@ -134,7 +134,7 @@ return \ls, warn ->
 		lex_opt('TK_newline')
 
 	--- Type Declarations ------------------------------------------------
-	var parse_type, type_unary, type_binary, type_basic 
+	var parse_type, type_unary, type_binary, type_basic
 
 	-- Only table type annotation can span multiple lines
 	var type_tbl = \loc ->
@@ -157,7 +157,7 @@ return \ls, warn ->
 				ls.step()  -- skip ':'
 				key = val
 				val = parse_type()
-				
+
 			if key and not val
 				err_instead(3, "value type expected in table type annotation")
 			n = n + 1
@@ -202,7 +202,7 @@ return \ls, warn ->
 		if ls.token == ':'
 			ls.step()
 			returns = type_tuple(false)
-		
+
 		lex_match(']', '[', loc.line)
 		return ty.func(params, returns)
 
@@ -224,12 +224,12 @@ return \ls, warn ->
 
 		-- Parse multiple type suffix
 		while ls.token == '.'  -- typeof var cannot have index [], bcoz [] indexer type is always `any`
-			ls.step() 
+			ls.step()
 			if ls.token ~= 'TK_name'
 				break
 			typ = ty.index(typ, ls.value)
 			ls.step()  -- skip TK_name
-			
+
 		return typ
 
 
@@ -336,20 +336,22 @@ return \ls, warn ->
 				if ls.token == 'TK_name'
 					var name, at = lex_str()
 					key = Expr.string(name, false, at)
-				-- accept string
+				-- accept string or bool
 				else if ls.token == 'TK_string'
 					key = Expr.string(ls.value, false, ls)
 					ls.step()
-				-- accept keyword
-				else
+				else  -- accept keyword
 					var name = is_keyword()
 					if name
-						key = Expr.string(name, false, ls)
+						if ls.token == 'TK_true' or ls.token == 'TK_false'
+							key = Expr.bool(ls.token == 'TK_true', ls)
+						else
+							key = Expr.string(name, false, ls)
 					else
 						err_syntax("invalid table key " .. ls_value() or ls.astext(ls.token))
 					ls.step()
 				lex_check('=')
-		
+
 			var val = expr()
 			n = n + 1
 			vks[n] = { val, key }  -- key can be nil
@@ -529,7 +531,10 @@ return \ls, warn ->
 				ls.step() -- skip dot
 				var kw = is_keyword()
 				if kw
-					key = Expr.string(kw, false, ls)
+					if ls.token == 'TK_true' or ls.token == 'TK_false'
+						key = Expr.bool(ls.token == 'TK_true', ls)
+					else
+						key = Expr.string(kw, false, ls)
 					vk, v = Kind.Index, Expr.index(v, key, at)
 					ls.step()
 				else
@@ -620,7 +625,7 @@ return \ls, warn ->
 			dented = lex_opt_dent(dented)
 			if not lex_opt(',')
 				break
-			
+
 		if dented and not lex_dedent()
 			err_instead(3, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), line)
 		lex_match(')', '(', line)
@@ -860,7 +865,7 @@ return \ls, warn ->
 		if rtypes
 			rtypes = ty.tuple(rtypes)
 		return curry, params, ptypes, varargs, rtypes
-		
+
 
 
 	-- Parse function body

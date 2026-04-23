@@ -1,0 +1,88 @@
+---Luaty supports disjoint union with pattern matching expressions
+
+-- disjoint union is a normal expression
+-- () can be omitted if constructor does not take parameters
+var tree =| empty | node(l, x, r)
+
+-- need to reference tree so that we can export it
+-- lets give shorter names
+var e = tree.empty()
+var n = tree.node
+
+var top = n(n(n(e, 3, e), 4, e), 5, n(e, 2, e))
+
+var depth
+depth = \t ->
+	-- pattern match 't'
+	return |t|
+		~: return 0       -- nothing means catch all, can appear in any order and can take parameters
+		~ node(l, _, r): return 1 + math.max(depth(l), depth(r))
+
+assert(depth(top) == 3)
+
+
+
+
+-- messy
+var tbl = {
+	dum = 9,
+	adt =| 
+		-- g is some ctor
+		g
+		
+	--`some long comments`
+				-- comment
+		| h(i, j, k)
+		|l(...)
+
+		|m(q, o)
+	, my = 'helo'
+}
+
+
+var adt = tbl.adt
+
+var g = adt.g()
+var h = adt.h(1, 2, 3)
+var m = adt.m('a', 'b')
+assert(adt(m) == "m")
+
+var show = \r ->
+	-- `adt` is needed to compile check if all cases are listed ... later
+	print(|r|
+		~g: return "G"
+		~h(i, j, k): return i, j, k
+		~(...):
+			return 'fallback', ...
+	)
+
+show(g)
+show(h)
+show(m)
+show()
+show(tbl)
+
+
+-- complex test and arg expression
+var hh = (\x -> return x)(adt)|(-> return { 0, adt.h(89, 99) })()[2]|~h (i, j): return j
+assert(hh == 99)
+
+var mm = (adt)|(-> return {{ adt.m('la') }})()[1][1]|~ (a): return a
+assert(mm == 'la')
+
+
+
+var any, all, some = |  any(...);, | all|none; , \s -> return s
+
+var a = any(1, 2, 3)
+print(|a|~(...): return ...)
+assert(some(6) == 6)
+
+var z = false
+-- destructor can be a statement
+any|nil| ~: z = true
+assert(z)
+
+assert(any|7|~: return 10; == 10)
+assert(any('j') == nil)
+
