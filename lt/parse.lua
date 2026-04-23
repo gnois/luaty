@@ -216,7 +216,7 @@ return function(ls, warn)
             typ = ast.bracket(parse_type())
             lex_match(")", "(", loc.line)
         else
-            return
+            return 
         end
         while ls.token == "." do
             ls.step()
@@ -337,7 +337,11 @@ return function(ls, warn)
                 else
                     local name = is_keyword()
                     if name then
-                        key = Expr.string(name, false, ls)
+                        if ls.token == "TK_true" or ls.token == "TK_false" then
+                            key = Expr.bool(ls.token == "TK_true", ls)
+                        else
+                            key = Expr.string(name, false, ls)
+                        end
                     else
                         err_syntax("invalid table key " .. ls_value() or ls.astext(ls.token))
                     end
@@ -459,7 +463,11 @@ return function(ls, warn)
                 ls.step()
                 local kw = is_keyword()
                 if kw then
-                    key = Expr.string(kw, false, ls)
+                    if ls.token == "TK_true" or ls.token == "TK_false" then
+                        key = Expr.bool(ls.token == "TK_true", ls)
+                    else
+                        key = Expr.string(kw, false, ls)
+                    end
                     vk, v = Kind.Index, Expr.index(v, key, at)
                     ls.step()
                 else
@@ -522,7 +530,7 @@ return function(ls, warn)
         local line = ls.line
         lex_check("(")
         if line ~= ls.prevline then
-            err_warn("ambiguous syntax (function call x new statement)")
+            err_syntax("ambiguous syntax (function call x new statement)")
         end
         local dented = false
         local args, a = {}, 0
@@ -655,7 +663,7 @@ return function(ls, warn)
             err_symbol()
             stmt = parse_do(loc)
         elseif ls.token == "\\" or ls.token == "->" or ls.token == "~>" then
-            err_warn("lambda must either be assigned or immediately invoked")
+            err_syntax("lambda must either be assigned or immediately invoked")
             stmt = expr_function(loc)
         elseif ls.token == "TK_name" and ls.value == "var" and ls.next() == "TK_name" then
             ls.step()

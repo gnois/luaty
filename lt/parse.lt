@@ -343,7 +343,10 @@ return \ls, warn ->
 				else
 					var name = is_keyword()
 					if name
-						key = Expr.string(name, false, ls)
+						if ls.token == 'TK_true' or ls.token == 'TK_false'
+							key = Expr.bool(ls.token == 'TK_true', ls)
+						else
+							key = Expr.string(name, false, ls)
 					else
 						err_syntax("invalid table key " .. ls_value() or ls.astext(ls.token))
 					ls.step()
@@ -528,7 +531,10 @@ return \ls, warn ->
 				ls.step() -- skip dot
 				var kw = is_keyword()
 				if kw
-					key = Expr.string(kw, false, ls)
+					if ls.token == 'TK_true' or ls.token == 'TK_false'
+						key = Expr.bool(ls.token == 'TK_true', ls)
+					else
+						key = Expr.string(kw, false, ls)
 					vk, v = Kind.Index, Expr.index(v, key, at)
 					ls.step()
 				else
