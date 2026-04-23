@@ -1,4 +1,4 @@
-  
+
 var x, y = 3, 4
 
 var u = {[y-x] = 1, [2*x-y] = 4, [x] = 9, [y] = 16, [2*y-x] = 25, [2*x-y] = 36}  -- duplicate key at pos 2 and 6
@@ -8,7 +8,19 @@ var s = '0'
 
 print( {
 ['b' .. s] = 7
-  , ['b' .. s] = 8   -- duplicate at pos 1 and 2
+	, ['b' .. s] = 8   -- duplicate at pos 1 and 2
 }
 )
 
+var n = {
+	nil = 33    -- same as string 'nil'
+	, ['nil'] = 66  -- duplicate
+}
+assert(n.nil == 66)
+
+-- cannot catch duplicate bcoz need to evaluate the [not nil] constexpr
+var m = {
+	true = 77
+	, [not nil] = 44  -- no syntax error
+}
+print(m.true == 44)

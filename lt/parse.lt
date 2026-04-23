@@ -122,6 +122,11 @@ return \ls, warn ->
 		return dented
 
 
+	var close_dented = \dented, line ->
+		if dented and not lex_dedent()
+			err_instead(3, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), line)
+
+
 	var skip_stmt = ->
 		while not EndOfBlock[ls.token] and not NewLine[ls.token] and ls.token ~= 'TK_eof'
 			ls.step()
@@ -362,8 +367,7 @@ return \ls, warn ->
 			if not lex_opt(',') and not lex_opt(';')
 				break
 
-		if dented and not lex_dedent()
-			err_instead(3, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), loc.line)
+		close_dented(dented, loc.line)
 		lex_match('}', '{', loc.line)
 		return Expr.table(vks, loc)
 
@@ -522,6 +526,8 @@ return \ls, warn ->
 				str, loc = lex_str()
 			else
 				err_symbol()
+				str = ls.tostr(ls.token)
+				ls.step()
 			v, vk = Expr.id(str, loc), Kind.Var
 
 		var key
@@ -606,8 +612,6 @@ return \ls, warn ->
 	parse_args = ->
 		var line = ls.line
 		lex_check('(')
-		if line ~= ls.prevline
-			err_syntax("ambiguous syntax (function call x new statement)")
 
 		var dented = false
 		var args, a = {}, 0
@@ -626,8 +630,7 @@ return \ls, warn ->
 			if not lex_opt(',')
 				break
 
-		if dented and not lex_dedent()
-			err_instead(3, "%s expected to match %s at line %d", ls.astext('TK_dedent'), ls.astext('TK_indent'), line)
+		close_dented(dented, line)
 		lex_match(')', '(', line)
 
 		return args

@@ -124,15 +124,20 @@ var z = {
 	, else = {true, false}
 	, goto = 'goto'
 	, in = true
-	, true = 11   -- declaring will NOT convert to string 'true'
-	, false = 22  -- declaring will NOT convert to string 'false'
-	, nil = 33    -- declaring will convert to string 'nil'
+	, true = 11
+	, ['true'] = 44
+	, false = 22
+	, ['false'] = 55
 }
 
 assert(4 == z.function + z.local - z.var)
 assert(z.if(z.else)[2] == false)
 assert(z.goto == "goto")
 assert(z.in)
-assert(z.true == 11)    -- indexing will NOT convert to string 'true'
-assert(z.false == 22)   -- indexing will NOT convert to string 'false'
-assert(z.nil == 33)     -- indexing will convert to string 'nil'
+assert(z.true == 11)
+assert(z.false == 22)
+
+assert(z['true'] == 44)
+assert(z['false'] == 55)
+
+assert(({[not nil]=true, [not not false]=false}).true)
