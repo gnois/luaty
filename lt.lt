@@ -1,3 +1,14 @@
+var source = debug.getinfo(1, 'S').source
+var script = source
+if string.sub(source, 1, 1) == '@'
+	script = string.sub(source, 2)
+else if arg and arg[0]
+	script = arg[0]
+script = string.gsub(script, '\\', '/')
+var root = string.match(script, '^(.*)/[^/]*$') or '.'
+if not string.find(package.path, root .. '/?.lua;', 1, true)
+	package.path = root .. '/?.lua;' .. package.path
+
 var term = require('term')
 var compiler = require('lt.compile')
 var color = term.color

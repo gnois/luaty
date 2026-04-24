@@ -1,6 +1,18 @@
 --
 -- Generated from lt.lt
 --
+local source = debug.getinfo(1, "S").source
+local script = source
+if string.sub(source, 1, 1) == "@" then
+    script = string.sub(source, 2)
+elseif arg and arg[0] then
+    script = arg[0]
+end
+script = string.gsub(script, "\\", "/")
+local root = string.match(script, "^(.*)/[^/]*$") or "."
+if not string.find(package.path, root .. "/?.lua;", 1, true) then
+    package.path = root .. "/?.lua;" .. package.path
+end
 local term = require("term")
 local compiler = require("lt.compile")
 local color = term.color

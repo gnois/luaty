@@ -185,7 +185,22 @@ Quick start
 ---
 
 Luaty only requires LuaJIT to run.
-With LuaJIT executable in your path, create a command alias for Luaty like below, replacing both `path/to/luaty` with your extracted luaty folder location.
+With LuaJIT executable in your path, run Luaty through the provided launchers:
+
+Linux/Unix shell
+```
+chmod +x ./bin/luaty
+./bin/luaty
+```
+
+Windows command prompt
+```
+bin\luaty.bat
+```
+
+Both launchers resolve Luaty location from their own path, so running from any working directory is supported.
+
+If you prefer alias-based invocation, create a command alias for Luaty like below, replacing both `path/to/luaty` with your extracted luaty folder location.
 
 
 Linux/Unix shell
@@ -359,6 +374,20 @@ luajit run-test.lua
 ```
 
 See the [tests folder](https://github.com/gnois/luaty/tree/master/tests) for more code examples, and Luaty transpiler and [Losty](https://github.com/gnois/losty) for real world usage.
+
+
+Redistribution notes
+---
+
+For easiest cross-platform redistribution:
+
+1. Keep Luaty source as-is and ship the repo (or a subset containing `lt.lua`, `term.lua`, `lt/`, `lib/`, and `bin/`) with both launchers.
+2. Include LuaJIT runtime per target OS, or require users to have `luajit` in PATH.
+
+About "without dependency":
+
+- Truly dependency-free delivery requires bundling a LuaJIT runtime into platform-specific binaries/packages.
+- This is typically done as separate Windows and Unix artifacts; there is no single binary that runs on both.
 
 
 

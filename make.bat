@@ -1,8 +1,16 @@
 @echo off
+setlocal
+set "ROOT=%~dp0"
+if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
 if [%1]==[nuke] (
-	del .\lt\*.lua
+	del "%ROOT%\lt\*.lua"
 ) else (
-	luajit -e "package.path=package.path .. 'c:\\luaty\\?.lua'" c:\luaty\lt.lua -f lt.lt .
+	pushd "%ROOT%"
+	luajit lt.lua -f lt.lt .
+	popd
 	pause
+	pushd "%ROOT%"
 	luajit run-test.lua
+	popd
 )
+endlocal
