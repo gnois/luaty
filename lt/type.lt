@@ -73,7 +73,7 @@ var subtype_tuple = \a, s ->
 		else
 			if not a[i].varargs
 				return false
-		
+
 	if i < #s
 		i = i + 1
 		if not s[i].varargs
@@ -104,10 +104,12 @@ var subtype_func = \a, s ->
 			return false
 
 	-- return types are covariant
-	as, ss = a.outs, s.outs
+	as, ss = a.outs or {}, s.outs or {}
 	i, n = 0, #as
 	while i < n
 		i = i + 1
+		if not ss[i]
+			return false
 		if not subtype(as[i], ss[i])
 			return false
 	-- ignore extra returns for now
@@ -143,12 +145,15 @@ subtype = \a, s ->
 	if a == s
 		return true
 
+	if not a or not s
+		return false
+
 	if a.tag == TType.Or
 		for _, v in ipairs(a)
 			if not subtype(v, s)
 				return false
 		return true
-	
+
 	if s.tag == TType.Or
 		for _, v in ipairs(s)
 			if subtype(a, v)
@@ -171,7 +176,7 @@ subtype = \a, s ->
 
 		if a.tag == TType.Tbl
 			return subtype_tbl(a, s)
-	
+
 	return false
 
 
@@ -274,7 +279,7 @@ var Type = {
 
 	-- ins and outs are tuples
 	, func = \ins, outs ->
-		return create(TType.Func, {ins = ins, outs = outs})
+		return create(TType.Func, {ins = ins, outs = outs or create(TType.Tuple, {})})
 
 	-- Lua table key can be any type
 	-- If it's string, we'll use back the string literal, else it is a Type object

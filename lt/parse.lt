@@ -219,7 +219,12 @@ return \ls, warn ->
 			ls.step()
 		else if ls.token == '('
 			ls.step()
-			typ = ast.bracket(parse_type())
+			var inner = parse_type()
+			if inner
+				typ = ast.bracket(inner)
+			else
+				parse_error(3, "invalid type annotation %s", ls_value() or ls.astext(ls.token))
+				typ = ty.any()
 			lex_match(')', '(', loc.line)
 		else
 			-- parse_error(3, "invalid type annotation %s", ls.astext(ls.token))
@@ -353,7 +358,7 @@ return \ls, warn ->
 						else
 							key = Expr.string(name, false, ls)
 					else
-						err_syntax("invalid table key " .. ls_value() or ls.astext(ls.token))
+						err_syntax("invalid table key " .. (ls_value() or ls.astext(ls.token)))
 					ls.step()
 				lex_check('=')
 

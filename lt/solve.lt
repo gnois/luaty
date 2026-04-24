@@ -89,7 +89,7 @@ return ->
 			if occurs(x, p)
 				return true
 		return false
-				
+
 	Occur[TType.Func] = \x, node ->
 		return occurs(x, node.ins) or occurs(x, node.outs)
 
@@ -148,13 +148,13 @@ return ->
 	var unify_tbl = \x, y, ignore ->
 		var key_str = \k ->
 			return "string" == type(k) and k or ty.tostr(k)
-			
+
 		var keys = {}
 		-- convert to lookup table
 		for __, tty in ipairs(y)
 			if tty[2]
 				keys[tty[2]] = tty[1]
-				
+
 		for _, ttx in ipairs(x)
 			if ttx[2]
 				var vy = keys[ttx[2]]
@@ -185,7 +185,7 @@ return ->
 		-- any match all except pure nil
 		if x.tag == TType.Any and y.tag ~= TType.Nil
 			return x
-			
+
 		if y.tag == TType.Any and x.tag ~= TType.Nil
 			return x
 
@@ -211,9 +211,17 @@ return ->
 
 			if x.tag == TType.Tuple
 				return unify_tuple(x, y, ignore)
-				
+
 			if x.tag == TType.Func
-				return unify(x.ins, y.ins, ignore)
+				var xouts = x.outs or ty.tuple_none()
+				var youts = y.outs or ty.tuple_none()
+				var ok, err = unify(x.ins, y.ins, ignore)
+				if not ok
+					return false, err
+				ok, err = unify(xouts, youts, ignore)
+				if not ok
+					return false, ignore and "" or ("return " .. err)
+				return x
 
 			if x.tag == TType.Tbl
 				return unify_tbl(x, y, ignore)
@@ -221,7 +229,7 @@ return ->
 
 		if x.tag == TType.Tuple
 			return unify(x[1] or ty.nil(), y)
-			
+
 		if y.tag == TType.Tuple
 			return unify(x, y[1] or ty.nil())
 

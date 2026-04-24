@@ -109,10 +109,13 @@ local subtype_func = function(a, s)
             return false
         end
     end
-    as, ss = a.outs, s.outs
+    as, ss = a.outs or {}, s.outs or {}
     i, n = 0, #as
     while i < n do
         i = i + 1
+        if not ss[i] then
+            return false
+        end
         if not subtype(as[i], ss[i]) then
             return false
         end
@@ -151,6 +154,9 @@ end
 subtype = function(a, s)
     if a == s then
         return true
+    end
+    if not a or not s then
+        return false
     end
     if a.tag == TType.Or then
         for _, v in ipairs(a) do
@@ -260,7 +266,7 @@ local Type = {
         return create(TType.Tuple, types)
     end
     , func = function(ins, outs)
-        return create(TType.Func, {ins = ins, outs = outs})
+        return create(TType.Func, {ins = ins, outs = outs or create(TType.Tuple, {})})
     end
     , tbl = function(typetypes)
         return create(TType.Tbl, typetypes)

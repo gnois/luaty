@@ -225,7 +225,17 @@ return function()
                 return unify_tuple(x, y, ignore)
             end
             if x.tag == TType.Func then
-                return unify(x.ins, y.ins, ignore)
+                local xouts = x.outs or ty.tuple_none()
+                local youts = y.outs or ty.tuple_none()
+                local ok, err = unify(x.ins, y.ins, ignore)
+                if not ok then
+                    return false, err
+                end
+                ok, err = unify(xouts, youts, ignore)
+                if not ok then
+                    return false, ignore and "" or "return " .. err
+                end
+                return x
             end
             if x.tag == TType.Tbl then
                 return unify_tbl(x, y, ignore)
