@@ -303,8 +303,8 @@ return function(scope, stmts, warn, import, typecheck)
     Expr[TExpr.Index] = function(node)
         local ot = infer_expr(node.obj)
         local it = infer_expr(node.idx)
-        if it.tag == TExpr.String then
-            return check_field(ot, it.value, node)
+        if node.idx.tag == TExpr.String and it.tag == TType.Val and it.type == "str" then
+            return check_field(ot, node.idx.value, node)
         end
         check(ty.tbl({}), ot, node, "indexer ")
         return ty.any(), ot
@@ -431,8 +431,8 @@ return function(scope, stmts, warn, import, typecheck)
                 if check(ty.tbl({}), ot, n, "assignment ") then
                     if n.tag == TExpr.Index then
                         local it = infer_expr(n.idx)
-                        if it.tag == TExpr.String then
-                            assign_field(n, ot, it.value, rtype)
+                        if n.idx.tag == TExpr.String and it.tag == TType.Val and it.type == "str" then
+                            assign_field(n, ot, n.idx.value, rtype)
                         end
                     else
                         assign_field(n, ot, n.field, rtype)
