@@ -5,6 +5,46 @@ var TType = Tag.Type
 return ->
 	-- list of type var to type expr
 	var subs = {}
+	-- type var metadata for constraint-based subtyping
+	var vars = {}
+	var next_id = 1
+
+	var ensure_var = \node ->
+		assert(node and node.tag == TType.New)
+		if not node.sub
+			node.sub = {}
+		if not node.sup
+			node.sup = {}
+		if not node.level
+			node.level = 0
+		if node.id >= next_id
+			next_id = node.id + 1
+		vars[node.id] = node
+		return node
+
+	var fresh_var = \level ->
+		while vars[next_id] or subs[next_id]
+			next_id = next_id + 1
+		var node = { tag = TType.New, id = next_id, level = level or 0, sub = {}, sup = {} }
+		next_id = next_id + 1
+		return ensure_var(node)
+
+	var push_unique = \list, t ->
+		for _, v in ipairs(list)
+			if v == t or ty.same(v, t)
+				return false
+		list[#list + 1] = t
+		return true
+
+	var touch = \node ->
+		if node and node.tag == TType.New
+			ensure_var(node)
+		return node
+
+	var maybe_varargs = \src, dst ->
+		if src and src.varargs
+			dst.varargs = true
+		return dst
 
 	------ subst in place --------------
 	var Subst = {}
@@ -50,6 +90,7 @@ return ->
 		return node
 
 	Apply[TType.New] = \node ->
+		touch(node)
 		return subs[node.id] or node
 
 	Apply[TType.Tuple] = \node ->
@@ -108,6 +149,7 @@ return ->
 
 	var extend = \tvar, texp, ignore ->
 		assert(tvar.tag == TType.New)
+		ensure_var(tvar)
 		if occurs(tvar, texp)
 			return false, ignore and "" or ("contains recursive type " .. ty.tostr(tvar) .. " in " .. ty.tostr(texp))
 
@@ -236,8 +278,231 @@ return ->
 		return false, ignore and "" or ("expects " .. ty.tostr(x) .. " instead of " .. ty.tostr(y))
 
 
+	------ subtyping constraints (MVP) --------------
+	var seen_pair = \cache, lhs, rhs ->
+		var row = cache[lhs]
+		if not row
+			row = {}
+			cache[lhs] = row
+		if row[rhs]
+			return true
+		row[rhs] = true
+		return false
+
+	var same_key = \a, b ->
+		if "string" == type(a) or "string" == type(b)
+			return a == b
+		return ty.same(a, b)
+
+	var find_field = \tbl, key ->
+		for _, tk in ipairs(tbl)
+			if tk[2] and same_key(tk[2], key)
+				return tk[1]
+		return nil
+
+	var constrain
+
+	var constrain_tuple = \lhs, rhs, contra, cache ->
+		var i, n = 0, #lhs
+		while i < n
+			i = i + 1
+			if rhs[i]
+				var ok, err
+				if contra
+					ok, err = constrain(rhs[i], lhs[i], cache)
+				else
+					ok, err = constrain(lhs[i], rhs[i], cache)
+				if not ok
+					return false, err
+			else
+				if not lhs[i].varargs
+					return false, "tuple arity mismatch"
+				return true
+		if i < #rhs
+			i = i + 1
+			if not rhs[i].varargs
+				return false, "tuple arity mismatch"
+		return true
+
+	var bind_upper = \lhs_var, rhs, cache ->
+		ensure_var(lhs_var)
+		rhs = apply(rhs)
+		if rhs.tag == TType.New and rhs.id == lhs_var.id
+			return true
+		push_unique(lhs_var.sup, rhs)
+		for _, low in ipairs(lhs_var.sub)
+			var ok, err = constrain(low, rhs, cache)
+			if not ok
+				return false, err
+		return true
+
+	var bind_lower = \rhs_var, lhs, cache ->
+		ensure_var(rhs_var)
+		lhs = apply(lhs)
+		if lhs.tag == TType.New and lhs.id == rhs_var.id
+			return true
+		push_unique(rhs_var.sub, lhs)
+		for _, up in ipairs(rhs_var.sup)
+			var ok, err = constrain(lhs, up, cache)
+			if not ok
+				return false, err
+		return true
+
+	var instantiate = \tyexp, lim, to_lvl ->
+		lim = lim or 0
+		to_lvl = to_lvl or lim
+		var freshened = {}
+
+		var rec
+		rec = \node ->
+			node = apply(node)
+			if node.tag == TType.New
+				ensure_var(node)
+				if node.level <= lim
+					return node
+				var fv = freshened[node.id]
+				if fv
+					return fv
+				fv = fresh_var(to_lvl)
+				freshened[node.id] = fv
+				for _, b in ipairs(node.sub)
+					fv.sub[#fv.sub + 1] = rec(b)
+				for _, b in ipairs(node.sup)
+					fv.sup[#fv.sup + 1] = rec(b)
+				return maybe_varargs(node, fv)
+			if node.tag == TType.Tuple or node.tag == TType.Or or node.tag == TType.And
+				var out = {}
+				for i, v in ipairs(node)
+					out[i] = rec(v)
+				return maybe_varargs(node, { tag = node.tag, unpack(out) })
+			if node.tag == TType.Func
+				return maybe_varargs(node, {
+					tag = TType.Func
+					, ins = rec(node.ins)
+					, outs = rec(node.outs)
+				})
+			if node.tag == TType.Tbl
+				var out = {}
+				for i, tk in ipairs(node)
+					out[i] = { rec(tk[1]), tk[2] and rec(tk[2]) or tk[2] }
+				return maybe_varargs(node, { tag = TType.Tbl, unpack(out) })
+			return node
+
+		return rec(tyexp)
+
+	constrain = \lhs, rhs, cache ->
+		lhs = apply(lhs)
+		rhs = apply(rhs)
+		cache = cache or {}
+
+		if lhs == rhs
+			return true
+
+		if seen_pair(cache, lhs, rhs)
+			return true
+
+		if rhs.tag == TType.Top or lhs.tag == TType.Bot
+			return true
+
+		if lhs.tag == TType.Top and rhs.tag ~= TType.Top
+			return false, "cannot constrain <top> to narrower type"
+
+		if rhs.tag == TType.Bot and lhs.tag ~= TType.Bot
+			return false, "cannot constrain non-bottom to <bot>"
+
+		-- keep old Any behavior: Any matches any non-nil supertype
+		if rhs.tag == TType.Any and lhs.tag ~= TType.Nil
+			return true
+		if lhs.tag == TType.Any
+			if rhs.tag == TType.Any
+				return true
+			return false, "<any> is too wide"
+
+		if lhs.tag == TType.New
+			var ok, err = bind_upper(lhs, rhs, cache)
+			if not ok
+				return false, err
+			if rhs.tag == TType.New
+				ok, err = bind_lower(rhs, lhs, cache)
+				if not ok
+					return false, err
+			return true
+
+		if rhs.tag == TType.New
+			return bind_lower(rhs, lhs, cache)
+
+		if lhs.tag == TType.Or
+			for _, t in ipairs(lhs)
+				var ok, err = constrain(t, rhs, cache)
+				if not ok
+					return false, err
+			return true
+
+		if rhs.tag == TType.Or
+			for _, t in ipairs(rhs)
+				var ok = constrain(lhs, t, cache)
+				if ok
+					return true
+			return false, "cannot fit into union"
+
+		if lhs.tag == TType.And
+			for _, t in ipairs(lhs)
+				var ok, err = constrain(t, rhs, cache)
+				if not ok
+					return false, err
+			return true
+
+		if rhs.tag == TType.And
+			for _, t in ipairs(rhs)
+				var ok, err = constrain(lhs, t, cache)
+				if not ok
+					return false, err
+			return true
+
+		if lhs.tag == TType.Tuple
+			if rhs.tag == TType.Tuple
+				return constrain_tuple(lhs, rhs, false, cache)
+			return constrain(lhs[1] or ty.nil(), rhs, cache)
+
+		if rhs.tag == TType.Tuple
+			return constrain(lhs, rhs[1] or ty.nil(), cache)
+
+		if lhs.tag == rhs.tag
+			if lhs.tag == TType.Nil
+				return true
+			if lhs.tag == TType.Val
+				if lhs.type == rhs.type
+					return true
+				return false, "primitive mismatch"
+			if lhs.tag == TType.Func
+				var lhs_outs = lhs.outs or ty.tuple_none()
+				var rhs_outs = rhs.outs or ty.tuple_none()
+				var ok, err = constrain_tuple(lhs.ins, rhs.ins, true, cache)
+				if not ok
+					return false, err
+				ok, err = constrain_tuple(lhs_outs, rhs_outs, false, cache)
+				if not ok
+					return false, err
+				return true
+			if lhs.tag == TType.Tbl
+				for _, tk in ipairs(rhs)
+					if tk[2]
+						var lv = find_field(lhs, tk[2])
+						if not lv
+							return false, "missing required field"
+						var ok, err = constrain(lv, tk[1], cache)
+						if not ok
+							return false, err
+				return true
+
+		return false, "cannot constrain " .. ty.tostr(lhs) .. " <: " .. ty.tostr(rhs)
+
 	return {
 		apply = apply
+		, touch = touch
+		, fresh_var = fresh_var
+		, instantiate = instantiate
 		, extend = extend
 		, unify = unify
+		, constrain = constrain
 	}

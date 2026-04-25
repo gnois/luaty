@@ -44,4 +44,6 @@ return {Stmt = {
     , Name = "Name"
     , Index = "Index"
     , Typeof = "Typeof"
+    , Top = "Top"
+    , Bot = "Bot"
 }, Constraint = {Eq = "Eq", Sub = "Sub", Opt = "Opt"}}

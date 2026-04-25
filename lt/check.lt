@@ -18,11 +18,19 @@ return \scope, stmts, warn, import, typecheck ->
 	var Expr = {}
 	var Type = {}
 	var solv = solve()
+	var lvl = 0
+
+	var with_lvl = \delta, fn ->
+		var prev = lvl
+		lvl = lvl + (delta or 0)
+		var out = fn()
+		lvl = prev
+		return out
 
 	var id = 0
-	var new = ->
+	var new = \level ->
 		id = id + 1 -- use line + col next time
-		return { tag = TType.New, id = id }
+		return { tag = TType.New, id = id, level = level or lvl, sub = {}, sup = {} }
 
 
 	var fail = \node ->
@@ -39,6 +47,14 @@ return \scope, stmts, warn, import, typecheck ->
 				warn(node.line, node.col, 1, msg .. err)
 			return t
 		return x
+
+	var check_sub = \lhs, rhs, node, msg ->
+		if typecheck
+			var ok, err = solv.constrain(lhs, rhs)
+			if not ok
+				warn(node.line, node.col, 1, msg .. err)
+			return ok and lhs or false
+		return lhs
 
 	var check_op = \x, y, node, op ->
 		-- operators like arithmetics can be overloaded via metatable, and we dont handle that yet, so as long as types are equal, let it pass for now
@@ -72,7 +88,7 @@ return \scope, stmts, warn, import, typecheck ->
 				-- check params to args
 				if fname
 					fname = "`" .. fname .. "` "
-				check(fn, ty.func(ty.tuple(atypes), ty.tuple_any()), node, "function " .. (fname or ""))
+				check_sub(fn, ty.func(ty.tuple(atypes), ty.tuple_any()), node, "function " .. (fname or ""))
 				if fn.outs
 					return fn.outs
 		return ty.tuple_any()
@@ -131,6 +147,14 @@ return \scope, stmts, warn, import, typecheck ->
 		if name == '@'
 			name = 'self'
 		scope.new_var(name, vtype, var.line, var.col)
+
+	var declared_raw_type = \var ->
+		assert(var.tag == TExpr.Id)
+		var name = var.name
+		if name == '@'
+			name = 'self'
+		var __, t = scope.declared(name)
+		return t
 
 	var balance_check = \lefts, rights ->
 		var r = #rights
@@ -201,6 +225,8 @@ return \scope, stmts, warn, import, typecheck ->
 				warn(node.line, node.col, 1, "undeclared identifier `" .. node.name .. "`")
 			if not t
 				t = new()
+			else
+				t = solv.instantiate(t, lvl, lvl)
 		return t
 
 	Expr[TExpr.Function] = \node ->
@@ -227,7 +253,7 @@ return \scope, stmts, warn, import, typecheck ->
 		if anno
 			for i, p in ipairs(node.params)
 				if anno[i]
-					check(infer_expr(p), anno[i], p, "parameter " .. (p.tag == TExpr.Vararg and "..." or p.name) .. " ")
+					check_sub(infer_expr(p), anno[i], p, "parameter " .. (p.tag == TExpr.Vararg and "..." or p.name) .. " ")
 
 		var rtuple = scope.get_returns() or ty.tuple_none()
 		scope.end_func()
@@ -349,11 +375,13 @@ return \scope, stmts, warn, import, typecheck ->
 		check_types(node.types, node)
 		balance_check(node.vars, node.exprs)
 		-- TODO: rtypes can be Or[{tuple1 + any.vararg}, {tuple2}], need to combine lhs as Or tuple
-		var rtypes = infer_exprs(node.exprs)
+		var rtypes = with_lvl(1, ->
+			return infer_exprs(node.exprs)
+		)
 		for i, var in ipairs(node.vars)
 			var ltype = node.types and node.types[i]
 			if ltype and rtypes[i]
-				check(ltype, rtypes[i], node, "type annotation ")
+				check_sub(rtypes[i], ltype, node, "type annotation ")
 			declare(var, solv.extend(new(), ltype or rtypes[i] or ty.nil()))
 
 
@@ -361,7 +389,7 @@ return \scope, stmts, warn, import, typecheck ->
 		var tytys = {
 			{ rtype, field }
 		}
-		var ok = solv.unify(ty.tbl(tytys), otype, true)
+		var ok = solv.constrain(ty.tbl(tytys), otype)
 		if not ok
 			var t = solv.apply(otype)
 			var tbl = ty.get_tbl(t)
@@ -394,10 +422,10 @@ return \scope, stmts, warn, import, typecheck ->
 			var rtype = rtypes[i] or ty.nil()
 			var ltype
 			if n.tag == TExpr.Id
-				ltype = infer_expr(n)
+				ltype = declared_raw_type(n) or infer_expr(n)
 				-- warn if reassignment of different type
 				-- check(ltype, rtype, n, "assigment ")
-				if not solv.unify(ltype, rtype, true)
+				if not solv.constrain(rtype, ltype)
 					solv.extend(ltype, ty.or(solv.apply(ltype), rtype))
 			else
 				var ot = infer_expr(n.obj)

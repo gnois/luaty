@@ -21,7 +21,7 @@ return function(scope, stmts, warn, import, typecheck)
     local id = 0
     local new = function()
         id = id + 1
-        return {tag = TType.New, id = id}
+        return {tag = TType.New, id = id, sub = {}, sup = {}}
     end
     local fail = function(node)
         local msg = (node.tag or "nil") .. " cannot match a statement type"
@@ -40,6 +40,16 @@ return function(scope, stmts, warn, import, typecheck)
             return t
         end
         return x
+    end
+    local check_sub = function(lhs, rhs, node, msg)
+        if typecheck then
+            local ok, err = solv.constrain(lhs, rhs)
+            if not ok then
+                warn(node.line, node.col, 1, msg .. err)
+            end
+            return ok and lhs or false
+        end
+        return lhs
     end
     local check_op = function(x, y, node, op)
         return check(x, y, node, "operator `" .. op .. "` ")
@@ -75,7 +85,7 @@ return function(scope, stmts, warn, import, typecheck)
                 if fname then
                     fname = "`" .. fname .. "` "
                 end
-                check(fn, ty.func(ty.tuple(atypes), ty.tuple_any()), node, "function " .. (fname or ""))
+                check_sub(fn, ty.func(ty.tuple(atypes), ty.tuple_any()), node, "function " .. (fname or ""))
                 if fn.outs then
                     return fn.outs
                 end
@@ -251,7 +261,7 @@ return function(scope, stmts, warn, import, typecheck)
         if anno then
             for i, p in ipairs(node.params) do
                 if anno[i] then
-                    check(infer_expr(p), anno[i], p, "parameter " .. (p.tag == TExpr.Vararg and "..." or p.name) .. " ")
+                    check_sub(infer_expr(p), anno[i], p, "parameter " .. (p.tag == TExpr.Vararg and "..." or p.name) .. " ")
                 end
             end
         end
@@ -381,7 +391,7 @@ return function(scope, stmts, warn, import, typecheck)
         for i, var in ipairs(node.vars) do
             local ltype = node.types and node.types[i]
             if ltype and rtypes[i] then
-                check(ltype, rtypes[i], node, "type annotation ")
+                check_sub(rtypes[i], ltype, node, "type annotation ")
             end
             declare(var, solv.extend(new(), ltype or rtypes[i] or ty["nil"]()))
         end

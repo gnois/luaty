@@ -35,18 +35,20 @@ return {
 	}
 
 	, Type = {
-		New = 'New'
+		New = 'New' -- TypeVar in MLstruct
 		, Any = 'Any'
 		, Nil = 'Nil'
 		, Val = 'Val'
 		, Tuple = 'Tuple'
-		, Func = 'Func'
-		, Tbl = 'Tbl'
-		, Or = 'Or'
-		, And = 'And'
+		, Func = 'Func' -- FuncType in MLstruct
+		, Tbl = 'Tbl' -- RecordType in MLstruct
+		, Or = 'Or' -- Union in MLstruct
+		, And = 'And' -- Intersect in MLstruct
 		, Name = 'Name'
 		, Index = 'Index'
 		, Typeof = 'Typeof'
+		, Top = 'Top'
+		, Bot = 'Bot'
 	}
 
 	, Constraint = {
