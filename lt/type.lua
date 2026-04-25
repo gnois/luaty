@@ -287,6 +287,15 @@ local Type = {
     , typeof = function(var)
         return create(TType.Typeof, {var = var})
     end
+    , top = function()
+        return create(TType.Top, {})
+    end
+    , bot = function()
+        return create(TType.Bot, {})
+    end
+    , typevar = function(sub, sup)
+        return create(TType.New, {sub = sub or {}, sup = sup or {}})
+    end
 }
 local varargs = function(t)
     assert(TType[t.tag])
@@ -395,6 +404,8 @@ return {
     , name = Type.name
     , index = Type.index
     , typeof = Type.typeof
+    , top = Type.top
+    , bot = Type.bot
     , varargs = varargs
     , same = same
     , clone = clone
