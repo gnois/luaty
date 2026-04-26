@@ -34,8 +34,8 @@ var report = \color, get_source ->
 	var warnings = {}
 	var severe = 0
 	var lines = nil
-	var syntax_by_anchor = {}
-	var syntax_total = 0
+	var warn_anchor = {}
+	var total_warns = 0
 
 	return {
 		warn = \line, col, severity, msg ->
@@ -43,21 +43,22 @@ var report = \color, get_source ->
 			if severity > severe
 				severe = severity
 
-			if severity >= 3
-				syntax_total = syntax_total + 1
-				var key = tostring(line) .. ":" .. tostring(col)
-				var prior = syntax_by_anchor[key]
-				if prior or syntax_total > 20 -- max 20 errors to avoid flooding
-					return
+			var key = tostring(line) .. ":" .. tostring(col)
+			var prior = warn_anchor[key]
+			if prior
+				if severity > prior.severity
+					prior.severity = severity
+					prior.msg = msg
+				return
+
+			total_warns = total_warns + 1
+			if total_warns > 20
+				return
 
 			var w = { line = line, col = col, severity = severity, msg = msg }
-			if severity >= 3
-				syntax_by_anchor[tostring(line) .. ":" .. tostring(col)] = w
+			warn_anchor[key] = w
 
 			for i, m in ipairs(warnings)
-				-- skip errors at the same line with lower severity
-				if line == m.line and severity < m.severity -- and col == m.col and msg == m.msg
-					return
 				if line < m.line or (line == m.line and col < m.col)
 					-- insert
 					table.insert(warnings, i, w)

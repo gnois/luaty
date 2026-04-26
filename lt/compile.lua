@@ -36,29 +36,29 @@ local report = function(color, get_source)
     local warnings = {}
     local severe = 0
     local lines = nil
-    local syntax_by_anchor = {}
-    local syntax_total = 0
+    local warn_anchor = {}
+    local total_warns = 0
     return {warn = function(line, col, severity, msg)
         line, col = norm_pos(line, col)
         if severity > severe then
             severe = severity
         end
-        if severity >= 3 then
-            syntax_total = syntax_total + 1
-            local key = tostring(line) .. ":" .. tostring(col)
-            local prior = syntax_by_anchor[key]
-            if prior or syntax_total > 20 then
-                return 
+        local key = tostring(line) .. ":" .. tostring(col)
+        local prior = warn_anchor[key]
+        if prior then
+            if severity > prior.severity then
+                prior.severity = severity
+                prior.msg = msg
             end
+            return 
+        end
+        total_warns = total_warns + 1
+        if total_warns > 20 then
+            return 
         end
         local w = {line = line, col = col, severity = severity, msg = msg}
-        if severity >= 3 then
-            syntax_by_anchor[tostring(line) .. ":" .. tostring(col)] = w
-        end
+        warn_anchor[key] = w
         for i, m in ipairs(warnings) do
-            if line == m.line and severity < m.severity then
-                return 
-            end
             if line < m.line or line == m.line and col < m.col then
                 table.insert(warnings, i, w)
                 return 
