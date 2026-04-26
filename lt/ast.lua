@@ -21,8 +21,8 @@ local Statement = {
     , assign = function(lhs, rhs, ls)
         return make(TStmt.Assign, {lefts = lhs, rights = rhs}, ls)
     end
-    , ["local"] = function(vars, types, exprs, ls)
-        return make(TStmt.Local, {vars = vars, types = types, exprs = exprs}, ls)
+    , ["local"] = function(vars, exprs, ls)
+        return make(TStmt.Local, {vars = vars, exprs = exprs}, ls)
     end
     , ["do"] = function(body, ls)
         return make(TStmt.Do, {body = body}, ls)
@@ -30,8 +30,8 @@ local Statement = {
     , ["if"] = function(tests, thenss, elses, ls)
         return make(TStmt.If, {tests = tests, thenss = thenss, elses = elses}, ls)
     end
-    , forin = function(vars, types, exprs, body, ls)
-        return make(TStmt.Forin, {vars = vars, types = types, exprs = exprs, body = body}, ls)
+    , forin = function(vars, exprs, body, ls)
+        return make(TStmt.Forin, {vars = vars, exprs = exprs, body = body}, ls)
     end
     , fornum = function(var, first, last, step, body, ls)
         return make(TStmt.Fornum, {var = var, first = first, last = last, step = step, body = body}, ls)
@@ -74,8 +74,8 @@ local Expression = {
     , string = function(val, long, ls)
         return make(TExpr.String, {value = val, long = long}, ls)
     end
-    , ["function"] = function(params, types, retypes, body, ls)
-        return make(TExpr.Function, {params = params, types = types, retypes = retypes, body = body}, ls)
+    , ["function"] = function(params, body, ls)
+        return make(TExpr.Function, {params = params, body = body}, ls)
     end
     , table = function(valkeys, ls)
         return make(TExpr.Table, {valkeys = valkeys}, ls)

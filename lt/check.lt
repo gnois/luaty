@@ -16,7 +16,6 @@ return \scope, stmts, warn, import, typecheck ->
 
 	var Stmt = {}
 	var Expr = {}
-	var Type = {}
 	var solv = solve()
 	var lvl = 0
 
@@ -27,10 +26,8 @@ return \scope, stmts, warn, import, typecheck ->
 		lvl = prev
 		return out
 
-	var id = 0
 	var new = \level ->
-		id = id + 1 -- use line + col next time
-		return { tag = TType.New, id = id, level = level or lvl, sub = {}, sup = {} }
+		return solv.fresh_var(level or lvl)
 
 
 	var fail = \node ->
@@ -42,17 +39,23 @@ return \scope, stmts, warn, import, typecheck ->
 
 	var check = \x, y, node, msg ->
 		if typecheck
-			var t, err = solv.unify(x, y)
-			if not t
+			var ok, err = solv.constrain(y, x)
+			if not ok
 				warn(node.line, node.col, 1, msg .. err)
-			return t
+			return ok and y or false
 		return x
+
+	var describe_type = \t ->
+		if solv.describe
+			return solv.describe(t)
+		return ty.tostr(solv.apply(t))
 
 	var check_sub = \lhs, rhs, node, msg ->
 		if typecheck
 			var ok, err = solv.constrain(lhs, rhs)
 			if not ok
-				warn(node.line, node.col, 1, msg .. err)
+				var snapshot = " [" .. describe_type(lhs) .. " <: " .. describe_type(rhs) .. "]"
+				warn(node.line, node.col, 1, msg .. err .. snapshot)
 			return ok and lhs or false
 		return lhs
 
@@ -94,17 +97,6 @@ return \scope, stmts, warn, import, typecheck ->
 		return ty.tuple_any()
 
 
-	-- check type annotation
-	var check_type = \tnode, loc ->
-		var rule = Type[tnode.tag]
-		if rule
-			rule(tnode, loc)
-
-	var check_types = \tnodes, loc ->
-		if tnodes
-			for _, node in ipairs(tnodes)
-				check_type(node, loc)
-
 	var check_stmts = \nodes ->
 		for _, node in ipairs(nodes)
 			var rule = Stmt[node.tag]
@@ -141,18 +133,19 @@ return \scope, stmts, warn, import, typecheck ->
 				types[t] = nt
 		return types
 
+	var scope_name = \name ->
+		if name == '@'
+			return 'self'
+		return name
+
 	var declare = \var, vtype ->
 		assert(var.tag == TExpr.Id)
-		var name = var.name
-		if name == '@'
-			name = 'self'
+		var name = scope_name(var.name)
 		scope.new_var(name, vtype, var.line, var.col)
 
 	var declared_raw_type = \var ->
 		assert(var.tag == TExpr.Id)
-		var name = var.name
-		if name == '@'
-			name = 'self'
+		var name = scope_name(var.name)
 		var __, t = scope.declared(name)
 		return t
 
@@ -161,40 +154,6 @@ return \scope, stmts, warn, import, typecheck ->
 		var l = #lefts
 		if r > l
 			warn(rights[1].line, rights[1].col, 1, "assigning " .. r .. " values to " .. l .. " variable(s)")
-
-	--------- Types --------------------------
-	Type[TType.Func] = \node, loc ->
-		check_types(node.ins, loc)
-		check_types(node.outs, loc)
-
-	Type[TType.Tbl] = \node, loc ->
-			var vtypes = {}
-			var keys = {}
-			for i, vk in ipairs(node)
-				var key = vk[2]
-				if key
-					var dup = 0
-					if "string" == type(key) -- key can be string, or type desc
-						for n = 1, #keys
-							if "string" == type(keys[n]) and key == keys[n]
-								dup = n
-					else
-						check_type(key, loc)
-						for n = 1, #keys
-							if keys[n] and ty.same(keys[n], key)
-								dup = n
-					if dup > 0
-						warn(loc.line, loc.col, 1, "duplicate key types at position " .. i .. " and " .. dup .. " in table type annotation")
-				keys[i] = key
-
-				var vt = vk[1]
-				check_type(vt, loc)
-				if vt and not key
-					for n = 1, #vtypes
-						if vtypes[n] and ty.same(vtypes[n], vt)
-							warn(loc.line, loc.col, 1, "similar value types at position " .. i .. " and " .. n .. " in table type annotation")
-					vtypes[i] = vt
-
 
 	--------- Expressions --------------------
 	Expr[TExpr.Nil] = ->
@@ -217,9 +176,7 @@ return \scope, stmts, warn, import, typecheck ->
 	Expr[TExpr.Id] = \node ->
 		var line, t
 		if node.name  -- node.name can be nil, bcoz the parser continues despite error
-			var name = node.name
-			if name == '@'
-				name = 'self'
+			var name = scope_name(node.name)
 			line, t = scope.declared(name)
 			if line == 0
 				warn(node.line, node.col, 1, "undeclared identifier `" .. node.name .. "`")
@@ -231,12 +188,10 @@ return \scope, stmts, warn, import, typecheck ->
 
 	Expr[TExpr.Function] = \node ->
 		scope.begin_func()
-		check_types(node.types, node)
-		check_types(node.retypes, node)
 
 		var ptypes = {}
 		for i, p in ipairs(node.params)
-			var t = node.types and node.types[i] or new()
+			var t = new()
 			if p.tag == TExpr.Vararg
 				scope.varargs()
 				t = ty.varargs(t)
@@ -244,16 +199,7 @@ return \scope, stmts, warn, import, typecheck ->
 				declare(p, t)
 			ptypes[i] = t
 
-		-- retypes can be null, means no annotation
-		scope.set_returns(node.retypes)
 		check_block(node.body)
-
-		-- check parameter usage
-		var anno = node.types
-		if anno
-			for i, p in ipairs(node.params)
-				if anno[i]
-					check_sub(infer_expr(p), anno[i], p, "parameter " .. (p.tag == TExpr.Vararg and "..." or p.name) .. " ")
 
 		var rtuple = scope.get_returns() or ty.tuple_none()
 		scope.end_func()
@@ -368,21 +314,16 @@ return \scope, stmts, warn, import, typecheck ->
 
 	--------- Statements --------------------
 	Stmt[TStmt.Expr] = \node ->
-		var etype
-		etype = infer_expr(node.expr)
+		infer_expr(node.expr)
 
 	Stmt[TStmt.Local] = \node ->
-		check_types(node.types, node)
 		balance_check(node.vars, node.exprs)
 		-- TODO: rtypes can be Or[{tuple1 + any.vararg}, {tuple2}], need to combine lhs as Or tuple
 		var rtypes = with_lvl(1, ->
 			return infer_exprs(node.exprs)
 		)
 		for i, var in ipairs(node.vars)
-			var ltype = node.types and node.types[i]
-			if ltype and rtypes[i]
-				check_sub(rtypes[i], ltype, node, "type annotation ")
-			declare(var, solv.extend(new(), ltype or rtypes[i] or ty.nil()))
+			declare(var, solv.extend(new(), rtypes[i] or ty.nil()))
 
 
 	var assign_field = \node, otype, field, rtype ->
@@ -398,15 +339,15 @@ return \scope, stmts, warn, import, typecheck ->
 					if tk[2] == field
 						-- reassignment of different type to same field
 						tk[1] = ty.or(tk[1], rtype)
-						solv.extend(otype, t)
+						if otype.tag == TType.New
+							solv.extend(otype, t)
 						return
 
 				-- try to add a new field
 				-- clone in case it is a parameter so that for f: t1 -> t2,  t2 is different from t1
 				var param = node.obj.name
 				if param
-					if param == '@'
-						param = 'self'
+					param = scope_name(param)
 					t = ty.clone(t)
 					tbl = ty.get_tbl(t)
 					tbl[#tbl + 1] = tytys[1]
@@ -426,7 +367,8 @@ return \scope, stmts, warn, import, typecheck ->
 				-- warn if reassignment of different type
 				-- check(ltype, rtype, n, "assigment ")
 				if not solv.constrain(rtype, ltype)
-					solv.extend(ltype, ty.or(solv.apply(ltype), rtype))
+					if ltype.tag == TType.New
+						solv.extend(ltype, ty.or(solv.apply(ltype), rtype))
 			else
 				var ot = infer_expr(n.obj)
 				if check(ty.tbl({}), ot, n, "assignment ")
@@ -450,11 +392,10 @@ return \scope, stmts, warn, import, typecheck ->
 
 	Stmt[TStmt.Forin] = \node ->
 		scope.enter_forin()
-		check_types(node.types, node)
 		infer_exprs(node.exprs)
 		-- declare var into scope after rhs
-		for i, var in ipairs(node.vars)
-			declare(var, node.types and node.types[i])
+		for _, var in ipairs(node.vars)
+			declare(var, new())
 		check_block(node.body)
 		scope.leave()
 

@@ -16,12 +16,12 @@ var make = \tag, node, ls ->
 var Statement = {
 	expression = \expr, ls ->
 		return make(TStmt.Expr, {expr = expr}, ls)
-	
+
 	, assign = \lhs, rhs, ls ->
 		return make(TStmt.Assign, {lefts = lhs, rights = rhs}, ls)
 
-	, local = \vars, types, exprs, ls ->
-		return make(TStmt.Local, {vars = vars, types = types, exprs = exprs}, ls)
+	, local = \vars, exprs, ls ->
+		return make(TStmt.Local, {vars = vars, exprs = exprs}, ls)
 
 	, do = \body, ls ->
 		return make(TStmt.Do, {body = body}, ls)
@@ -29,8 +29,8 @@ var Statement = {
 	, if = \tests, thenss, elses, ls ->
 		return make(TStmt.If, {tests = tests, thenss = thenss, elses = elses}, ls)
 
-	, forin = \vars, types, exprs, body, ls ->
-		return make(TStmt.Forin, {vars = vars, types = types, exprs = exprs, body = body}, ls)
+	, forin = \vars, exprs, body, ls ->
+		return make(TStmt.Forin, {vars = vars, exprs = exprs, body = body}, ls)
 
 	, fornum = \var, first, last, step, body, ls ->
 		return make(TStmt.Fornum, {var = var, first = first, last = last, step = step, body = body}, ls)
@@ -73,8 +73,8 @@ var Expression = {
 	, string = \val, long, ls ->
 		return make(TExpr.String, {value = val, long = long}, ls)
 
-	, function = \params, types, retypes, body, ls ->
-		return make(TExpr.Function, {params = params, types = types, retypes = retypes, body = body}, ls)
+	, function = \params, body, ls ->
+		return make(TExpr.Function, {params = params, body = body}, ls)
 
 	, table = \valkeys, ls ->
 		return make(TExpr.Table, {valkeys = valkeys}, ls)
@@ -95,7 +95,7 @@ var Expression = {
 	, union = \variants, test, argm, ls ->
 		return make(TExpr.Union, {variants = variants, test = test, arg = argm}, ls)
 	--``
-	
+
 	, unary = \op, right, ls ->
 		return make(TExpr.Unary, {op = op, right = right}, ls)
 

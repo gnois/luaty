@@ -25,7 +25,7 @@ return ->
 	var fresh_var = \level ->
 		while vars[next_id] or subs[next_id]
 			next_id = next_id + 1
-		var node = { tag = TType.New, id = next_id, level = level or 0, sub = {}, sup = {} }
+		var node = ty.new_var(next_id, level or 0)
 		next_id = next_id + 1
 		return ensure_var(node)
 
@@ -36,15 +36,81 @@ return ->
 		list[#list + 1] = t
 		return true
 
-	var touch = \node ->
-		if node and node.tag == TType.New
-			ensure_var(node)
-		return node
-
 	var maybe_varargs = \src, dst ->
 		if src and src.varargs
 			dst.varargs = true
 		return dst
+
+	var map_list = \node, mapper ->
+		var out = {}
+		for i, v in ipairs(node)
+			out[i] = mapper(v)
+		return out
+
+	var apply
+	var coalesce
+	var describe
+
+	coalesce = \node, pol, seen ->
+		pol = pol ~= false
+		seen = seen or {}
+		if not node
+			return ty.nil()
+
+		if node.tag == TType.New
+			ensure_var(node)
+			var rep = subs[node.id]
+			if rep and rep ~= node
+				return coalesce(rep, pol, seen)
+			var mark = tostring(node.id) .. (pol and "+" or "-")
+			if seen[mark]
+				return node
+			seen[mark] = true
+			var bounds = pol and node.sub or node.sup
+			var out = node
+			for _, b in ipairs(bounds)
+				var c = coalesce(b, pol, seen)
+				if pol
+					out = ty.or(out, c)
+				else
+					out = ty.and(out, c)
+			seen[mark] = nil
+			return maybe_varargs(node, out)
+
+		if node.tag == TType.Func
+			return maybe_varargs(node, {
+				tag = TType.Func
+				, ins = coalesce(node.ins, not pol, seen)
+				, outs = coalesce(node.outs, pol, seen)
+			})
+
+		if node.tag == TType.Tuple
+			var out = map_list(node, \v -> coalesce(v, pol, seen))
+			return maybe_varargs(node, { tag = TType.Tuple, unpack(out) })
+
+		if node.tag == TType.Or
+			var out = map_list(node, \v -> coalesce(v, pol, seen))
+			return maybe_varargs(node, ty.or(unpack(out)))
+
+		if node.tag == TType.And
+			var out = map_list(node, \v -> coalesce(v, pol, seen))
+			return maybe_varargs(node, ty.and(unpack(out)))
+
+		if node.tag == TType.Tbl
+			var out = {}
+			for i, tk in ipairs(node)
+				var key = tk[2]
+				if "table" == type(key)
+					key = coalesce(key, pol, seen)
+				out[i] = { coalesce(tk[1], pol, seen), key }
+			return maybe_varargs(node, { tag = TType.Tbl, unpack(out) })
+
+		return node
+
+	describe = \node ->
+		if not node
+			return "<nil>"
+		return ty.tostr(coalesce(node, true, {}))
 
 	------ subst in place --------------
 	var Subst = {}
@@ -80,17 +146,22 @@ return ->
 			node[i] = subst(node[i], tvar, texp)
 		return node
 
+	Subst[TType.And] = \node, tvar, texp ->
+		for i = 1, #node
+			node[i] = subst(node[i], tvar, texp)
+		return node
+
 
 	------ apply in place --------------
 	var Apply = {}
-	var apply = \node ->
+	apply = \node ->
 		var rule = Apply[node.tag]
 		if rule
 			return rule(node)
 		return node
 
 	Apply[TType.New] = \node ->
-		touch(node)
+		ensure_var(node)
 		return subs[node.id] or node
 
 	Apply[TType.Tuple] = \node ->
@@ -113,42 +184,62 @@ return ->
 			node[i] = apply(node[i])
 		return node
 
+	Apply[TType.And] = \node ->
+		for i = 1, #node
+			node[i] = apply(node[i])
+		return node
+
 
 	------ occur --------------
 	var Occur = {}
-	var occurs = \x, y ->
+	var occurs = \x, y, seen ->
+		y = apply(y)
+		if not y
+			return false
+		seen = seen or {}
+		if y and type(y) == "table"
+			if seen[y]
+				return false
+			seen[y] = true
 		var rule = Occur[y.tag]
 		if rule
-			return rule(x, y)
+			return rule(x, y, seen)
 		return false
 
 	Occur[TType.New] = \x, node ->
 		return x.id == node.id
 
-	Occur[TType.Tuple] = \x, node ->
+	Occur[TType.Tuple] = \x, node, seen ->
 		for _, p in ipairs(node)
-			if occurs(x, p)
+			if occurs(x, p, seen)
 				return true
 		return false
 
-	Occur[TType.Func] = \x, node ->
-		return occurs(x, node.ins) or occurs(x, node.outs)
+	Occur[TType.Func] = \x, node, seen ->
+		return occurs(x, node.ins, seen) or occurs(x, node.outs, seen)
 
-	Occur[TType.Tbl] = \x, node ->
+	Occur[TType.Tbl] = \x, node, seen ->
 		for _, tk in ipairs(node)
-			if occurs(x, tk[1]) or (tk[2] and occurs(x, tk[2]))
+			if occurs(x, tk[1], seen) or (tk[2] and occurs(x, tk[2], seen))
 				return true
 		return false
 
-	Occur[TType.Or] = \x, node ->
+	Occur[TType.Or] = \x, node, seen ->
 		for _, t in ipairs(node)
-			if occurs(x, t)
+			if occurs(x, t, seen)
+				return true
+		return false
+
+	Occur[TType.And] = \x, node, seen ->
+		for _, t in ipairs(node)
+			if occurs(x, t, seen)
 				return true
 		return false
 
 
 	var extend = \tvar, texp, ignore ->
-		assert(tvar.tag == TType.New)
+		if not tvar or tvar.tag ~= TType.New
+			return false, ignore and "" or ("cannot extend non-typevar " .. (tvar and ty.tostr(tvar) or "<nil>"))
 		ensure_var(tvar)
 		if occurs(tvar, texp)
 			return false, ignore and "" or ("contains recursive type " .. ty.tostr(tvar) .. " in " .. ty.tostr(texp))
@@ -157,125 +248,6 @@ return ->
 			subs[id] = subst(t, tvar, texp)
 		subs[tvar.id] = texp
 		return tvar
-
-
-	------ unification --------------
-	var unify
-
-	var unify_tuple = \x, y, ignore ->
-		var i, n = 0, #x
-		-- check if y too few
-		var t, err
-		while i < n
-			i = i + 1
-			if y[i]
-				t, err = unify(x[i], y[i], ignore)
-				if not t
-					return false, ignore and "" or ("parameter " .. i .. " " .. err)
-			else
-				if not x[i].varargs
-					return false, ignore and "" or ("expects " .. n .. " arguments but only got " .. (i-1))
-				return x
-
-		-- check if y too many
-		n = #y
-		if i < n
-			if i < 1 or not x[i].varargs
-				return false, ignore and "" or ("expects only " .. i .. " arguments but got " .. n)
-
-		return x
-
-
-	-- return x if x is contained in y
-	var unify_tbl = \x, y, ignore ->
-		var key_str = \k ->
-			return "string" == type(k) and k or ty.tostr(k)
-
-		var keys = {}
-		-- convert to lookup table
-		for __, tty in ipairs(y)
-			if tty[2]
-				keys[tty[2]] = tty[1]
-
-		for _, ttx in ipairs(x)
-			if ttx[2]
-				var vy = keys[ttx[2]]
-				if vy
-					var ok, err = unify(ttx[1], vy, ignore)
-					if not ok
-						return false, err
-				else
-					return false, ignore and "" or ("expects key `" .. key_str(ttx[2]) .. "` in " .. ty.tostr(y))
-
-		return x
-
-
-	-- return false, msg if type mismatch
-	unify = \x, y, ignore ->
-		-- shortcut
-		if x == y
-			return x
-		x = apply(x)
-		y = apply(y)
-
-		if x.tag == TType.New
-			return extend(x, y)
-
-		if y.tag == TType.New
-			return extend(y, x)
-
-		-- any match all except pure nil
-		if x.tag == TType.Any and y.tag ~= TType.Nil
-			return x
-
-		if y.tag == TType.Any and x.tag ~= TType.Nil
-			return x
-
-		if x.tag == TType.Or
-			for _, t in ipairs(x)
-				var tt = unify(t, y, ignore)
-				if tt
-					return tt
-
-		if y.tag == TType.Or
-			for _, t in ipairs(y)
-				var tt = unify(x, t, ignore)
-				if tt
-					return tt
-
-		if x.tag == y.tag
-			if x.tag == TType.Nil
-				return x
-
-			if x.tag == TType.Val
-				if x.type == y.type
-					return x
-
-			if x.tag == TType.Tuple
-				return unify_tuple(x, y, ignore)
-
-			if x.tag == TType.Func
-				var xouts = x.outs or ty.tuple_none()
-				var youts = y.outs or ty.tuple_none()
-				var ok, err = unify(x.ins, y.ins, ignore)
-				if not ok
-					return false, err
-				ok, err = unify(xouts, youts, ignore)
-				if not ok
-					return false, ignore and "" or ("return " .. err)
-				return x
-
-			if x.tag == TType.Tbl
-				return unify_tbl(x, y, ignore)
-
-
-		if x.tag == TType.Tuple
-			return unify(x[1] or ty.nil(), y)
-
-		if y.tag == TType.Tuple
-			return unify(x, y[1] or ty.nil())
-
-		return false, ignore and "" or ("expects " .. ty.tostr(x) .. " instead of " .. ty.tostr(y))
 
 
 	------ subtyping constraints (MVP) --------------
@@ -299,6 +271,11 @@ return ->
 			if tk[2] and same_key(tk[2], key)
 				return tk[1]
 		return nil
+
+	var key_tostr = \key ->
+		if "string" == type(key)
+			return key
+		return describe(key)
 
 	var constrain
 
@@ -348,6 +325,74 @@ return ->
 				return false, err
 		return true
 
+	var level_of
+	level_of = \node ->
+		node = apply(node)
+		if not node
+			return 0
+		if node.tag == TType.New
+			ensure_var(node)
+			return node.level or 0
+		if node.tag == TType.Func
+			return math.max(level_of(node.ins), level_of(node.outs))
+		if node.tag == TType.Tuple or node.tag == TType.Or or node.tag == TType.And
+			var lvl = 0
+			for _, v in ipairs(node)
+				lvl = math.max(lvl, level_of(v))
+			return lvl
+		if node.tag == TType.Tbl
+			var lvl = 0
+			for _, tk in ipairs(node)
+				lvl = math.max(lvl, level_of(tk[1]))
+				if "table" == type(tk[2])
+					lvl = math.max(lvl, level_of(tk[2]))
+			return lvl
+		return 0
+
+	var extrude
+	extrude = \node, pol, lim, cache ->
+		node = apply(node)
+		cache = cache or {}
+		if not node
+			return node
+		if node.tag == TType.New
+			ensure_var(node)
+			if (node.level or 0) <= lim
+				return node
+			var key = tostring(node.id) .. ":" .. (pol and "p" or "n")
+			var nv = cache[key]
+			if nv
+				return nv
+			nv = fresh_var(lim)
+			cache[key] = nv
+			if pol
+				push_unique(node.sup, nv)
+				for _, b in ipairs(node.sub)
+					nv.sub[#nv.sub + 1] = extrude(b, pol, lim, cache)
+			else
+				push_unique(node.sub, nv)
+				for _, b in ipairs(node.sup)
+					nv.sup[#nv.sup + 1] = extrude(b, pol, lim, cache)
+			return maybe_varargs(node, nv)
+		if node.tag == TType.Func
+			return maybe_varargs(node, {
+				tag = TType.Func
+				, ins = extrude(node.ins, not pol, lim, cache)
+				, outs = extrude(node.outs, pol, lim, cache)
+			})
+		if node.tag == TType.Tuple or node.tag == TType.Or or node.tag == TType.And
+			var out = map_list(node, \v -> extrude(v, pol, lim, cache))
+			return maybe_varargs(node, { tag = node.tag, unpack(out) })
+		if node.tag == TType.Tbl
+			var out = {}
+			for i, tk in ipairs(node)
+				var key = tk[2]
+				if "table" == type(key)
+					key = extrude(key, pol, lim, cache)
+				out[i] = { extrude(tk[1], pol, lim, cache), key }
+			return maybe_varargs(node, { tag = TType.Tbl, unpack(out) })
+		return node
+
 	var instantiate = \tyexp, lim, to_lvl ->
 		lim = lim or 0
 		to_lvl = to_lvl or lim
@@ -371,9 +416,7 @@ return ->
 					fv.sup[#fv.sup + 1] = rec(b)
 				return maybe_varargs(node, fv)
 			if node.tag == TType.Tuple or node.tag == TType.Or or node.tag == TType.And
-				var out = {}
-				for i, v in ipairs(node)
-					out[i] = rec(v)
+				var out = map_list(node, rec)
 				return maybe_varargs(node, { tag = node.tag, unpack(out) })
 			if node.tag == TType.Func
 				return maybe_varargs(node, {
@@ -419,17 +462,18 @@ return ->
 			return false, "<any> is too wide"
 
 		if lhs.tag == TType.New
-			var ok, err = bind_upper(lhs, rhs, cache)
-			if not ok
-				return false, err
-			if rhs.tag == TType.New
-				ok, err = bind_lower(rhs, lhs, cache)
-				if not ok
-					return false, err
-			return true
+			var lhsv = ensure_var(lhs)
+			if level_of(rhs) <= lhsv.level
+				return bind_upper(lhsv, rhs, cache)
+			var rhsx = extrude(rhs, false, lhsv.level, {})
+			return constrain(lhsv, rhsx, cache)
 
 		if rhs.tag == TType.New
-			return bind_lower(rhs, lhs, cache)
+			var rhsv = ensure_var(rhs)
+			if level_of(lhs) <= rhsv.level
+				return bind_lower(rhsv, lhs, cache)
+			var lhsx = extrude(lhs, true, rhsv.level, {})
+			return constrain(lhsx, rhsv, cache)
 
 		if lhs.tag == TType.Or
 			for _, t in ipairs(lhs)
@@ -446,11 +490,13 @@ return ->
 			return false, "cannot fit into union"
 
 		if lhs.tag == TType.And
+			var last_err = "cannot constrain intersection"
 			for _, t in ipairs(lhs)
 				var ok, err = constrain(t, rhs, cache)
-				if not ok
-					return false, err
-			return true
+				if ok
+					return true
+				last_err = err or last_err
+			return false, last_err
 
 		if rhs.tag == TType.And
 			for _, t in ipairs(rhs)
@@ -473,7 +519,7 @@ return ->
 			if lhs.tag == TType.Val
 				if lhs.type == rhs.type
 					return true
-				return false, "primitive mismatch"
+				return false, "primitive mismatch: " .. describe(lhs) .. " vs " .. describe(rhs)
 			if lhs.tag == TType.Func
 				var lhs_outs = lhs.outs or ty.tuple_none()
 				var rhs_outs = rhs.outs or ty.tuple_none()
@@ -489,20 +535,19 @@ return ->
 					if tk[2]
 						var lv = find_field(lhs, tk[2])
 						if not lv
-							return false, "missing required field"
+							return false, "missing required field `" .. key_tostr(tk[2]) .. "` in " .. describe(lhs)
 						var ok, err = constrain(lv, tk[1], cache)
 						if not ok
 							return false, err
 				return true
 
-		return false, "cannot constrain " .. ty.tostr(lhs) .. " <: " .. ty.tostr(rhs)
+		return false, "cannot constrain " .. describe(lhs) .. " <: " .. describe(rhs)
 
 	return {
 		apply = apply
-		, touch = touch
 		, fresh_var = fresh_var
 		, instantiate = instantiate
+		, describe = describe
 		, extend = extend
-		, unify = unify
 		, constrain = constrain
 	}

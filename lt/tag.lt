@@ -44,16 +44,7 @@ return {
 		, Tbl = 'Tbl' -- RecordType in MLstruct
 		, Or = 'Or' -- Union in MLstruct
 		, And = 'And' -- Intersect in MLstruct
-		, Name = 'Name'
-		, Index = 'Index'
-		, Typeof = 'Typeof'
 		, Top = 'Top'
 		, Bot = 'Bot'
-	}
-
-	, Constraint = {
-		Eq = 'Eq'
-		, Sub = 'Sub'
-		, Opt = 'Opt'
 	}
 }
