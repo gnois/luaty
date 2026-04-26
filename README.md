@@ -4,7 +4,7 @@ Luaty is an indent sensitive language that transpiles to readable Lua.
 
 It appears like Lua to most syntax highlighting editors, and aims to be usable within minutes to one familiar with Lua.
 
-The transpiler has a built-in static analyzer and limited but optional HM type inferencer.
+The transpiler has a built-in static analyzer and an optional type checker.
 
 Its name is a play on *type* homonym - requires less **ty**ping, but more typed than **Lua**.
 
@@ -46,26 +46,24 @@ var tbl = {
 ```
 
 
-Optional static type inferencer/checker
+Optional static type checker
 ---
 
-A command line switch can be enabled to check consistent usage of variables.
-Once enabled, the transpiler will try to statically infer variable types with a limited subset of Lua, but is probably wrong in non trivial cases for now.
-
-Improving the type inferencer is a work in progress.
+Enable `-t` to check type consistency during transpilation.
+Type checking is constraint-based and best-effort (it is intentionally conservative due to Lua dynamic nature).
 
 ```
 var j = \a -> return a
-j(4, 5)                   -- function expects only 1 arguments but got 2
+j(4, 5)                   -- function `j` tuple arity mismatch [(T3)->(T3) <: (<num>, <num>)->(<any>*)]
 
 var k = \a -> return a + 0
-k('s')                    -- function parameter 1 expects <num> instead of <str>
+k('s')                    -- function `k` primitive mismatch: <str> vs <num> [(T3)->(T3) <: (<str>)->(<any>*)]
 
 var p = {q = 5}
-p.q.r = 7                 -- assignment expects {} instead of <num>  (q is a number)
+p.q.r = 7                 -- assignment cannot constrain <num> <: {}
 
 var n
-if n > 0                  -- operator `>` expects <num> instead of <nil>
+if n > 0                  -- operator `>` cannot constrain <num> <: <nil>
    ...
 
 ```
@@ -185,7 +183,7 @@ Quick start
 ---
 
 Luaty only requires LuaJIT to run.
-With LuaJIT executable in your path, run Luaty through the provided launchers:
+With LuaJIT executable in your path, run luaty through the provided launchers. Without argument, the below will begin a Read-Generate-Eval-Print Loop (RGEPL)
 
 Linux/Unix shell
 ```
@@ -198,42 +196,22 @@ Windows command prompt
 bin\luaty.bat
 ```
 
-Both launchers resolve Luaty location from their own path, so running from any working directory is supported.
-
-If you prefer alias-based invocation, create a command alias for Luaty like below, replacing both `path/to/luaty` with your extracted luaty folder location.
 
 
-Linux/Unix shell
-```
+Usage
+---
 
-alias luaty="luajit -e \"package.path=package.path .. ';/path/to/luaty/?.lua'\" /path/to/luaty/lt.lua"
+Below assumes luaty has ben added to your path.
 
-```
-Windows command prompt
-```
-doskey luaty=luajit -e "package.path=package.path .. ';\\path\\to\\luaty\\?.lua'" \path\to\luaty\lt.lua $*
-```
-
-
-
-To begin a Read-Generate-Eval-Print Loop (RGEPL)
-```
-luaty
-```
-
-To run a Luaty source file
+To run a luaty source file
 ```
 luaty /path/to/source
 ```
 source is assumed to end with .lt
 
 
-
-Usage
----
-
 The transpiler processes its main input file *and its dependencies*, unless it's told otherwise.
-Given a main.lt file with its required .lt files under its subfolders, Luaty can transpile and generate a full mirror folder structure of .lua output files.
+Given a main.lt file with its required .lt files under its subfolders, luaty can transpile and generate a full mirror folder structure of .lua output files.
 
 Suppose our source files are laid out like below, where *main* requires *sub*, which in turn requires *foo* and *bar* under lib folder:
 
@@ -363,7 +341,7 @@ assert(b == 7)                                  -- each `;` terminates one singl
 Development
 ---
 
-Luaty is written in itself and transpiled to Lua. To modify and overwrite Luaty itself, use
+Luaty is written in itself and transpiled to Lua. To modify and overwrite luaty itself, use
 ```
 luaty -f lt.lt .
 ```
@@ -373,7 +351,7 @@ To run tests in the [tests folder](https://github.com/gnois/luaty/tree/master/te
 luajit run-test.lua
 ```
 
-See the [tests folder](https://github.com/gnois/luaty/tree/master/tests) for more code examples, and Luaty transpiler and [Losty](https://github.com/gnois/losty) for real world usage.
+See the [tests folder](https://github.com/gnois/luaty/tree/master/tests) for more code examples, and luaty transpiler and [Losty](https://github.com/gnois/losty) for real world usage.
 
 
 Redistribution notes
@@ -381,7 +359,7 @@ Redistribution notes
 
 For easiest cross-platform redistribution:
 
-1. Keep Luaty source as-is and ship the repo (or a subset containing `lt.lua`, `term.lua`, `lt/`, `lib/`, and `bin/`) with both launchers.
+1. Keep luaty source as-is and ship the repo (or a subset containing `lt.lua`, `term.lua`, `lt/`, `lib/`, and `bin/`) with both launchers.
 2. Include LuaJIT runtime per target OS, or require users to have `luajit` in PATH.
 
 About "without dependency":
