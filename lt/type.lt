@@ -1,151 +1,65 @@
 var Tag = require('lt.tag')
 -- check if ast are the same
 var same
-same = \a, b ->
-	if a and b and a.tag == b.tag
-		-- http://stackoverflow.com/questions/27674367/lua-check-if-a-table-can-be-looped-through-via-ipairs-ipairs-starting-at-0
-		if #a ~= #b
-			return false
-		-- check array part
-		var last = 1
-		for i, v in ipairs(a)
-			last = i
-			if 'table' == type(v)
-				if not same(v, b[i])
-					return false
-			else if b[i] ~= v
-				return false
-		-- check hashmap part
-		for k, v in pairs(a)
-			if 'number' ~= type(k) or k < 1 or k > last or math.floor(k) ~= k
-				-- ignore line,col
-				if k ~= 'line' and k ~= 'col'
-					if 'table' == type(v)
-						if not same(v, b[k])
-							return false
-					else if b[k] ~= v
-						return false
-		-- b may have more keys than a
-		for k, v in pairs(b)
-			if 'number' ~= type(k) or k < 1 or k > last or math.floor(k) ~= k
-				-- ignore line,col
-				if k ~= 'line' and k ~= 'col'
-					if 'table' == type(v)
-						if not same(v, a[k])
-							return false
-					else if a[k] ~= v
-						return false
+same = \a, b, seen ->
+	if a == b
 		return true
-	return false
+	if type(a) ~= type(b)
+		return false
+	if 'table' ~= type(a)
+		return a == b
+	if not (a and b and a.tag == b.tag)
+		return false
+
+	seen = seen or {}
+	var row = seen[a]
+	if not row
+		row = {}
+		seen[a] = row
+	else if row[b]
+		return true
+	row[b] = true
+
+	-- http://stackoverflow.com/questions/27674367/lua-check-if-a-table-can-be-looped-through-via-ipairs-ipairs-starting-at-0
+	if #a ~= #b
+		return false
+	-- check array part
+	var last = 1
+	for i, v in ipairs(a)
+		last = i
+		if not same(v, b[i], seen)
+			return false
+	-- check hashmap part
+	for k, v in pairs(a)
+		if 'number' ~= type(k) or k < 1 or k > last or math.floor(k) ~= k
+			-- ignore line,col
+			if k ~= 'line' and k ~= 'col'
+				if not same(v, b[k], seen)
+					return false
+	-- b may have more keys than a
+	for k, v in pairs(b)
+		if 'number' ~= type(k) or k < 1 or k > last or math.floor(k) ~= k
+			-- ignore line,col
+			if k ~= 'line' and k ~= 'col'
+				if not same(v, a[k], seen)
+					return false
+	return true
 var clone
-clone = \t ->
+clone = \t, seen ->
+	seen = seen or {}
 	if type(t) == "table"
+		if seen[t]
+			return seen[t]
 		var copy = {}
+		seen[t] = copy
 		for i, v in ipairs(t)
-			copy[i] = clone(v)
+			copy[i] = clone(v, seen)
 		for k, v in pairs(t)
-			copy[clone(k)] = clone(v)
+			copy[clone(k, seen)] = clone(v, seen)
 		--setmetatable(copy, clone(getmetatable(t)))
 		return copy
 	return t
 var TType = Tag.Type
----------------- subtyping ---------------------
-var subtype
-var subtype_tuple = \a, s ->
-	var i, n = 0, #a
-	while i < n
-		i = i + 1
-		if s[i]
-			if not subtype(a[i], s[i])
-				return false
-		else
-			if not a[i].varargs
-				return false
-	if i < #s
-		i = i + 1
-		if not s[i].varargs
-			return false
-	return true
-var subtype_func = \a, s ->
-	var as, ss = a.ins, s.ins
-	var i, n = 0, #as
-	-- check if too few args
-	-- params are contravariant
-	while i < n
-		i = i + 1
-		if ss[i]
-			if not subtype(ss[i], as[i])
-				return false
-		else
-			if not as[i].varargs
-				return false
-			return true
-	-- check if too many args
-	n = #ss
-	if i < n
-		if i < 1 or not as[i].varargs
-			return false
-	-- return types are covariant
-	as, ss = a.outs or {}, s.outs or {}
-	i, n = 0, #as
-	while i < n
-		i = i + 1
-		if not ss[i]
-			return false
-		if not subtype(as[i], ss[i])
-			return false
-	-- ignore extra returns for now
-	return true
-var subtype_tbl = \a, s ->
-	-- convert to lookup table first
-	var keys = {}
-	var arrty
-	for __, tty in ipairs(s)
-		if tty[2]
-			keys[tty[2]] = tty[1]
-		else
-			assert(not arrty)
-			arrty = tty[1]
-	for _, ttx in ipairs(a)
-		if ttx[2]
-			var vs = keys[ttx[2]]
-			if vs
-				if not subtype(ttx[1], vs)
-					return false
-			else
-				return false
-		else
-			if arrty and not subtype(ttx[1], arrty)
-				return false
-	return true
-subtype = \a, s ->
-	if a == s
-		return true
-	if not a or not s
-		return false
-	if a.tag == TType.Or
-		for _, v in ipairs(a)
-			if not subtype(v, s)
-				return false
-		return true
-	if s.tag == TType.Or
-		for _, v in ipairs(s)
-			if subtype(a, v)
-				return true
-		return false
-	if a.tag == s.tag
-		if a.tag == TType.Nil
-			return true
-		if a.tag == TType.Val
-			if a.type == s.type
-				return true
-		if a.tag == TType.Tuple
-			return subtype_tuple(a, s)
-		if a.tag == TType.Func
-			return subtype_func(a, s)
-		if a.tag == TType.Tbl
-			return subtype_tbl(a, s)
-	return false
 -- return the tbl or union of tbl, ...
 -- else nil
 var get_tbl = \t ->
@@ -157,34 +71,6 @@ var get_tbl = \t ->
 				break
 	if tbl.tag == TType.Tbl
 		return tbl
--- prevent multiple level of Or/Tuple
-var flatten = \ty, types ->
-	-- flatten
-	var list, l = {}, 0
-	for _, t in ipairs(types)
-		if t.tag == ty
-			for __, tt in ipairs(t)
-				l = l + 1
-				list[l] = tt
-		else
-			l = l + 1
-			list[l] = t
-	-- remove subtypes
-	-- this is WRONG for now
-	-- PARAMS ARE CONTRAVARIANT, RETURN ARE COVARIANT
-	if l > 1
-		var out, o = {}, 0
-		for _, t in ipairs(list)
-			var skip = false
-			for __, v in ipairs(out)
-				if subtype(t, v)
-					skip = true
-					break
-			if not skip
-				o = o + 1
-				out[o] = t
-		return out
-	return list
 ------------------ types ------------------------
 --``
 # number
@@ -199,11 +85,7 @@ Either:
   - optional/nillable. If used in func return [:-] means void  <- NOPE
   ? nil if used by itself. *? means nillable. [$:?] means function taking string, returns nil
 1,2,3, .. typevar
-&  typeof,  &var means typeof var
 Eg:
-&"a"  means $
-&9 means #
-&false means !
 var x&6 means var x #
 var y $#!  means y is a value type
 --``
@@ -211,6 +93,33 @@ var create = \tag, node ->
 	assert('table' == type(node))
 	node.tag = tag
 	return node
+var new_var = \id, level, sub, sup ->
+	return create(TType.New, {id = id, level = level or 0, sub = sub or {}, sup = sup or {}})
+
+var normalize_assoc = \tag, types ->
+	var list, l = {}, 0
+	for _, t in ipairs(types)
+		if t.tag == tag
+			for __, tt in ipairs(t)
+				l = l + 1
+				list[l] = tt
+		else
+			l = l + 1
+			list[l] = t
+	if l > 1
+		var out, o = {}, 0
+		for _, t in ipairs(list)
+			var dup = false
+			for __, v in ipairs(out)
+				if same(t, v)
+					dup = true
+					break
+			if not dup
+				o = o + 1
+				out[o] = t
+		return out
+	return list
+
 -- table needed, coz some function names are keywords
 var Type = {
 	any = ->
@@ -235,22 +144,10 @@ var Type = {
 	, tbl = \typetypes ->
 		return create(TType.Tbl, typetypes)
 	, or = \... ->
-		var list = flatten(TType.Or, {...})
-		return create(TType.Or, list)
+		return create(TType.Or, normalize_assoc(TType.Or, {...}))
 	, and = \... ->
-		return create(TType.And, {...})
-	, name = \name ->
-		return create(TType.Name, {name = name})
-	, index = \obj, idx ->
-		return create(TType.Index, {obj = obj, idx = idx})
-	, typeof = \var ->
-		return create(TType.Typeof, {var = var})
-	, top = ->
-		return create(TType.Top, {})
-	, bot = ->
-		return create(TType.Bot, {})
-	, typevar = \sub, sup ->
-		return create(TType.New, {sub = sub or {}, sup = sup or {}})
+		return create(TType.And, normalize_assoc(TType.And, {...}))
+	, new_var = new_var
 }
 var varargs = \t ->
 	assert(TType[t.tag])  -- must be type node
@@ -258,13 +155,26 @@ var varargs = \t ->
 	return t
 ----------------- type to string ------------------
 var Str = {}
-var tostr = \t ->
+var Prec = {
+	[TType.Or] = 1
+	, [TType.And] = 2
+	, [TType.Func] = 0
+}
+var tostr
+var render = \t, parent_prec ->
 	assert(TType[t.tag])
+	parent_prec = parent_prec or -1
 	var rule = Str[t.tag]
 	var s = rule(t)
 	if t.varargs
-		return s .. "*"
+		s = s .. "*"
+	var my_prec = Prec[t.tag] or 3
+	if my_prec < parent_prec
+		return "(" .. s .. ")"
 	return s
+
+tostr = \t ->
+	return render(t, -1)
 -- build switch table only once
 Str[TType.New] = \t ->
 	return "T" .. t.id
@@ -277,10 +187,10 @@ Str[TType.Val] = \t ->
 Str[TType.Tuple] = \t ->
 	var out = {}
 	for i, v in ipairs(t)
-		out[i] = tostr(v)
+		out[i] = render(v, -1)
 	return '(' .. table.concat(out, ', ') .. ')'
 Str[TType.Func] = \t ->
-	return table.concat({tostr(t.ins), '->', tostr(t.outs)})
+	return table.concat({render(t.ins, 3), '->', render(t.outs, 3)})
 Str[TType.Tbl] = \t ->
 	var out, o = {}, 1
 	var val
@@ -289,20 +199,25 @@ Str[TType.Tbl] = \t ->
 		var kty = ty[2]
 		if kty
 			if "string" == type(kty)
-				out[o] = kty .. ': ' .. tostr(vty)
+				out[o] = kty .. ': ' .. render(vty, 3)
 			else
-				out[o] = tostr(kty) .. ': ' .. tostr(vty)
+				out[o] = render(kty, 3) .. ': ' .. render(vty, 3)
 			o = o + 1
 		else
-			val = tostr(vty)
+			val = render(vty, 3)
 	if val
 		out[o] = val
 	return '{' .. table.concat(out, ', ') .. '}'
 Str[TType.Or] = \t ->
 	var list = {}
 	for i, x in ipairs(t)
-		list[i] = tostr(x)
+		list[i] = render(x, Prec[TType.Or])
 	return table.concat(list, '|')
+Str[TType.And] = \t ->
+	var list = {}
+	for i, x in ipairs(t)
+		list[i] = render(x, Prec[TType.And])
+	return table.concat(list, '&')
 -- shortcut
 var any_t = Type.any()
 var nil_t = Type.nil()
@@ -326,11 +241,7 @@ return {
 	, tbl = Type.tbl
 	, or = Type.or
 	, and = Type.and
-	, name = Type.name
-	, index = Type.index
-	, typeof = Type.typeof
-	, top = Type.top
-	, bot = Type.bot
+	, new_var = Type.new_var
 	, varargs = varargs
 	, same = same
 	, clone = clone

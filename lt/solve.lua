@@ -7,6 +7,7 @@ local TType = Tag.Type
 return function()
     local subs = {}
     local vars = {}
+    local next_id = 1
     local ensure_var = function(node)
         assert(node and node.tag == TType.New)
         if not node.sub then
@@ -18,8 +19,19 @@ return function()
         if not node.level then
             node.level = 0
         end
+        if node.id >= next_id then
+            next_id = node.id + 1
+        end
         vars[node.id] = node
         return node
+    end
+    local fresh_var = function(level)
+        while vars[next_id] or subs[next_id] do
+            next_id = next_id + 1
+        end
+        local node = ty.new_var(next_id, level or 0)
+        next_id = next_id + 1
+        return ensure_var(node)
     end
     local push_unique = function(list, t)
         for _, v in ipairs(list) do
@@ -30,11 +42,91 @@ return function()
         list[#list + 1] = t
         return true
     end
-    local touch = function(node)
-        if node and node.tag == TType.New then
+    local maybe_varargs = function(src, dst)
+        if src and src.varargs then
+            dst.varargs = true
+        end
+        return dst
+    end
+    local map_list = function(node, mapper)
+        local out = {}
+        for i, v in ipairs(node) do
+            out[i] = mapper(v)
+        end
+        return out
+    end
+    local apply
+    local coalesce
+    local describe
+    coalesce = function(node, pol, seen)
+        pol = pol ~= false
+        seen = seen or {}
+        if not node then
+            return ty["nil"]()
+        end
+        if node.tag == TType.New then
             ensure_var(node)
+            local rep = subs[node.id]
+            if rep and rep ~= node then
+                return coalesce(rep, pol, seen)
+            end
+            local mark = tostring(node.id) .. (pol and "+" or "-")
+            if seen[mark] then
+                return node
+            end
+            seen[mark] = true
+            local bounds = pol and node.sub or node.sup
+            local out = node
+            for _, b in ipairs(bounds) do
+                local c = coalesce(b, pol, seen)
+                if pol then
+                    out = ty["or"](out, c)
+                else
+                    out = ty["and"](out, c)
+                end
+            end
+            seen[mark] = nil
+            return maybe_varargs(node, out)
+        end
+        if node.tag == TType.Func then
+            return maybe_varargs(node, {tag = TType.Func, ins = coalesce(node.ins, not pol, seen), outs = coalesce(node.outs, pol, seen)})
+        end
+        if node.tag == TType.Tuple then
+            local out = map_list(node, function(v)
+                coalesce(v, pol, seen)
+            end)
+            return maybe_varargs(node, {tag = TType.Tuple, unpack(out)})
+        end
+        if node.tag == TType.Or then
+            local out = map_list(node, function(v)
+                coalesce(v, pol, seen)
+            end)
+            return maybe_varargs(node, ty["or"](unpack(out)))
+        end
+        if node.tag == TType.And then
+            local out = map_list(node, function(v)
+                coalesce(v, pol, seen)
+            end)
+            return maybe_varargs(node, ty["and"](unpack(out)))
+        end
+        if node.tag == TType.Tbl then
+            local out = {}
+            for i, tk in ipairs(node) do
+                local key = tk[2]
+                if "table" == type(key) then
+                    key = coalesce(key, pol, seen)
+                end
+                out[i] = {coalesce(tk[1], pol, seen), key}
+            end
+            return maybe_varargs(node, {tag = TType.Tbl, unpack(out)})
         end
         return node
+    end
+    describe = function(node)
+        if not node then
+            return "<nil>"
+        end
+        return ty.tostr(coalesce(node, true, {}))
     end
     local Subst = {}
     local subst = function(node, tvar, texp)
@@ -74,8 +166,14 @@ return function()
         end
         return node
     end
+    Subst[TType.And] = function(node, tvar, texp)
+        for i = 1, #node do
+            node[i] = subst(node[i], tvar, texp)
+        end
+        return node
+    end
     local Apply = {}
-    local apply = function(node)
+    apply = function(node)
         local rule = Apply[node.tag]
         if rule then
             return rule(node)
@@ -83,7 +181,7 @@ return function()
         return node
     end
     Apply[TType.New] = function(node)
-        touch(node)
+        ensure_var(node)
         return subs[node.id] or node
     end
     Apply[TType.Tuple] = function(node)
@@ -109,46 +207,73 @@ return function()
         end
         return node
     end
+    Apply[TType.And] = function(node)
+        for i = 1, #node do
+            node[i] = apply(node[i])
+        end
+        return node
+    end
     local Occur = {}
-    local occurs = function(x, y)
+    local occurs = function(x, y, seen)
+        y = apply(y)
+        if not y then
+            return false
+        end
+        seen = seen or {}
+        if y and type(y) == "table" then
+            if seen[y] then
+                return false
+            end
+            seen[y] = true
+        end
         local rule = Occur[y.tag]
         if rule then
-            return rule(x, y)
+            return rule(x, y, seen)
         end
         return false
     end
     Occur[TType.New] = function(x, node)
         return x.id == node.id
     end
-    Occur[TType.Tuple] = function(x, node)
+    Occur[TType.Tuple] = function(x, node, seen)
         for _, p in ipairs(node) do
-            if occurs(x, p) then
+            if occurs(x, p, seen) then
                 return true
             end
         end
         return false
     end
-    Occur[TType.Func] = function(x, node)
-        return occurs(x, node.ins) or occurs(x, node.outs)
+    Occur[TType.Func] = function(x, node, seen)
+        return occurs(x, node.ins, seen) or occurs(x, node.outs, seen)
     end
-    Occur[TType.Tbl] = function(x, node)
+    Occur[TType.Tbl] = function(x, node, seen)
         for _, tk in ipairs(node) do
-            if occurs(x, tk[1]) or tk[2] and occurs(x, tk[2]) then
+            if occurs(x, tk[1], seen) or tk[2] and occurs(x, tk[2], seen) then
                 return true
             end
         end
         return false
     end
-    Occur[TType.Or] = function(x, node)
+    Occur[TType.Or] = function(x, node, seen)
         for _, t in ipairs(node) do
-            if occurs(x, t) then
+            if occurs(x, t, seen) then
+                return true
+            end
+        end
+        return false
+    end
+    Occur[TType.And] = function(x, node, seen)
+        for _, t in ipairs(node) do
+            if occurs(x, t, seen) then
                 return true
             end
         end
         return false
     end
     local extend = function(tvar, texp, ignore)
-        assert(tvar.tag == TType.New)
+        if not tvar or tvar.tag ~= TType.New then
+            return false, ignore and "" or "cannot extend non-typevar " .. (tvar and ty.tostr(tvar) or "<nil>")
+        end
         ensure_var(tvar)
         if occurs(tvar, texp) then
             return false, ignore and "" or "contains recursive type " .. ty.tostr(tvar) .. " in " .. ty.tostr(texp)
@@ -158,128 +283,6 @@ return function()
         end
         subs[tvar.id] = texp
         return tvar
-    end
-    local unify
-    local unify_tuple = function(x, y, ignore)
-        local i, n = 0, #x
-        local t, err
-        while i < n do
-            i = i + 1
-            if y[i] then
-                t, err = unify(x[i], y[i], ignore)
-                if not t then
-                    return false, ignore and "" or "parameter " .. i .. " " .. err
-                end
-            else
-                if not x[i].varargs then
-                    return false, ignore and "" or "expects " .. n .. " arguments but only got " .. i - 1
-                end
-                return x
-            end
-        end
-        n = #y
-        if i < n then
-            if i < 1 or not x[i].varargs then
-                return false, ignore and "" or "expects only " .. i .. " arguments but got " .. n
-            end
-        end
-        return x
-    end
-    local unify_tbl = function(x, y, ignore)
-        local key_str = function(k)
-            return "string" == type(k) and k or ty.tostr(k)
-        end
-        local keys = {}
-        for __, tty in ipairs(y) do
-            if tty[2] then
-                keys[tty[2]] = tty[1]
-            end
-        end
-        for _, ttx in ipairs(x) do
-            if ttx[2] then
-                local vy = keys[ttx[2]]
-                if vy then
-                    local ok, err = unify(ttx[1], vy, ignore)
-                    if not ok then
-                        return false, err
-                    end
-                else
-                    return false, ignore and "" or "expects key `" .. key_str(ttx[2]) .. "` in " .. ty.tostr(y)
-                end
-            end
-        end
-        return x
-    end
-    unify = function(x, y, ignore)
-        if x == y then
-            return x
-        end
-        x = apply(x)
-        y = apply(y)
-        if x.tag == TType.New then
-            return extend(x, y)
-        end
-        if y.tag == TType.New then
-            return extend(y, x)
-        end
-        if x.tag == TType.Any and y.tag ~= TType.Nil then
-            return x
-        end
-        if y.tag == TType.Any and x.tag ~= TType.Nil then
-            return x
-        end
-        if x.tag == TType.Or then
-            for _, t in ipairs(x) do
-                local tt = unify(t, y, ignore)
-                if tt then
-                    return tt
-                end
-            end
-        end
-        if y.tag == TType.Or then
-            for _, t in ipairs(y) do
-                local tt = unify(x, t, ignore)
-                if tt then
-                    return tt
-                end
-            end
-        end
-        if x.tag == y.tag then
-            if x.tag == TType.Nil then
-                return x
-            end
-            if x.tag == TType.Val then
-                if x.type == y.type then
-                    return x
-                end
-            end
-            if x.tag == TType.Tuple then
-                return unify_tuple(x, y, ignore)
-            end
-            if x.tag == TType.Func then
-                local xouts = x.outs or ty.tuple_none()
-                local youts = y.outs or ty.tuple_none()
-                local ok, err = unify(x.ins, y.ins, ignore)
-                if not ok then
-                    return false, err
-                end
-                ok, err = unify(xouts, youts, ignore)
-                if not ok then
-                    return false, ignore and "" or "return " .. err
-                end
-                return x
-            end
-            if x.tag == TType.Tbl then
-                return unify_tbl(x, y, ignore)
-            end
-        end
-        if x.tag == TType.Tuple then
-            return unify(x[1] or ty["nil"](), y)
-        end
-        if y.tag == TType.Tuple then
-            return unify(x, y[1] or ty["nil"]())
-        end
-        return false, ignore and "" or "expects " .. ty.tostr(x) .. " instead of " .. ty.tostr(y)
     end
     local seen_pair = function(cache, lhs, rhs)
         local row = cache[lhs]
@@ -306,6 +309,12 @@ return function()
             end
         end
         return nil
+    end
+    local key_tostr = function(key)
+        if "string" == type(key) then
+            return key
+        end
+        return describe(key)
     end
     local constrain
     local constrain_tuple = function(lhs, rhs, contra, cache)
@@ -367,6 +376,136 @@ return function()
         end
         return true
     end
+    local level_of
+    level_of = function(node)
+        node = apply(node)
+        if not node then
+            return 0
+        end
+        if node.tag == TType.New then
+            ensure_var(node)
+            return node.level or 0
+        end
+        if node.tag == TType.Func then
+            return math.max(level_of(node.ins), level_of(node.outs))
+        end
+        if node.tag == TType.Tuple or node.tag == TType.Or or node.tag == TType.And then
+            local lvl = 0
+            for _, v in ipairs(node) do
+                lvl = math.max(lvl, level_of(v))
+            end
+            return lvl
+        end
+        if node.tag == TType.Tbl then
+            local lvl = 0
+            for _, tk in ipairs(node) do
+                lvl = math.max(lvl, level_of(tk[1]))
+                if "table" == type(tk[2]) then
+                    lvl = math.max(lvl, level_of(tk[2]))
+                end
+            end
+            return lvl
+        end
+        return 0
+    end
+    local extrude
+    extrude = function(node, pol, lim, cache)
+        node = apply(node)
+        cache = cache or {}
+        if not node then
+            return node
+        end
+        if node.tag == TType.New then
+            ensure_var(node)
+            if (node.level or 0) <= lim then
+                return node
+            end
+            local key = tostring(node.id) .. ":" .. (pol and "p" or "n")
+            local nv = cache[key]
+            if nv then
+                return nv
+            end
+            nv = fresh_var(lim)
+            cache[key] = nv
+            if pol then
+                push_unique(node.sup, nv)
+                for _, b in ipairs(node.sub) do
+                    nv.sub[#nv.sub + 1] = extrude(b, pol, lim, cache)
+                end
+            else
+                push_unique(node.sub, nv)
+                for _, b in ipairs(node.sup) do
+                    nv.sup[#nv.sup + 1] = extrude(b, pol, lim, cache)
+                end
+            end
+            return maybe_varargs(node, nv)
+        end
+        if node.tag == TType.Func then
+            return maybe_varargs(node, {tag = TType.Func, ins = extrude(node.ins, not pol, lim, cache), outs = extrude(node.outs, pol, lim, cache)})
+        end
+        if node.tag == TType.Tuple or node.tag == TType.Or or node.tag == TType.And then
+            local out = map_list(node, function(v)
+                extrude(v, pol, lim, cache)
+            end)
+            return maybe_varargs(node, {tag = node.tag, unpack(out)})
+        end
+        if node.tag == TType.Tbl then
+            local out = {}
+            for i, tk in ipairs(node) do
+                local key = tk[2]
+                if "table" == type(key) then
+                    key = extrude(key, pol, lim, cache)
+                end
+                out[i] = {extrude(tk[1], pol, lim, cache), key}
+            end
+            return maybe_varargs(node, {tag = TType.Tbl, unpack(out)})
+        end
+        return node
+    end
+    local instantiate = function(tyexp, lim, to_lvl)
+        lim = lim or 0
+        to_lvl = to_lvl or lim
+        local freshened = {}
+        local rec
+        rec = function(node)
+            node = apply(node)
+            if node.tag == TType.New then
+                ensure_var(node)
+                if node.level <= lim then
+                    return node
+                end
+                local fv = freshened[node.id]
+                if fv then
+                    return fv
+                end
+                fv = fresh_var(to_lvl)
+                freshened[node.id] = fv
+                for _, b in ipairs(node.sub) do
+                    fv.sub[#fv.sub + 1] = rec(b)
+                end
+                for _, b in ipairs(node.sup) do
+                    fv.sup[#fv.sup + 1] = rec(b)
+                end
+                return maybe_varargs(node, fv)
+            end
+            if node.tag == TType.Tuple or node.tag == TType.Or or node.tag == TType.And then
+                local out = map_list(node, rec)
+                return maybe_varargs(node, {tag = node.tag, unpack(out)})
+            end
+            if node.tag == TType.Func then
+                return maybe_varargs(node, {tag = TType.Func, ins = rec(node.ins), outs = rec(node.outs)})
+            end
+            if node.tag == TType.Tbl then
+                local out = {}
+                for i, tk in ipairs(node) do
+                    out[i] = {rec(tk[1]), tk[2] and rec(tk[2]) or tk[2]}
+                end
+                return maybe_varargs(node, {tag = TType.Tbl, unpack(out)})
+            end
+            return node
+        end
+        return rec(tyexp)
+    end
     constrain = function(lhs, rhs, cache)
         lhs = apply(lhs)
         rhs = apply(rhs)
@@ -396,20 +535,20 @@ return function()
             return false, "<any> is too wide"
         end
         if lhs.tag == TType.New then
-            local ok, err = bind_upper(lhs, rhs, cache)
-            if not ok then
-                return false, err
+            local lhsv = ensure_var(lhs)
+            if level_of(rhs) <= lhsv.level then
+                return bind_upper(lhsv, rhs, cache)
             end
-            if rhs.tag == TType.New then
-                ok, err = bind_lower(rhs, lhs, cache)
-                if not ok then
-                    return false, err
-                end
-            end
-            return true
+            local rhsx = extrude(rhs, false, lhsv.level, {})
+            return constrain(lhsv, rhsx, cache)
         end
         if rhs.tag == TType.New then
-            return bind_lower(rhs, lhs, cache)
+            local rhsv = ensure_var(rhs)
+            if level_of(lhs) <= rhsv.level then
+                return bind_lower(rhsv, lhs, cache)
+            end
+            local lhsx = extrude(lhs, true, rhsv.level, {})
+            return constrain(lhsx, rhsv, cache)
         end
         if lhs.tag == TType.Or then
             for _, t in ipairs(lhs) do
@@ -430,13 +569,15 @@ return function()
             return false, "cannot fit into union"
         end
         if lhs.tag == TType.And then
+            local last_err = "cannot constrain intersection"
             for _, t in ipairs(lhs) do
                 local ok, err = constrain(t, rhs, cache)
-                if not ok then
-                    return false, err
+                if ok then
+                    return true
                 end
+                last_err = err or last_err
             end
-            return true
+            return false, last_err
         end
         if rhs.tag == TType.And then
             for _, t in ipairs(rhs) do
@@ -464,7 +605,7 @@ return function()
                 if lhs.type == rhs.type then
                     return true
                 end
-                return false, "primitive mismatch"
+                return false, "primitive mismatch: " .. describe(lhs) .. " vs " .. describe(rhs)
             end
             if lhs.tag == TType.Func then
                 local lhs_outs = lhs.outs or ty.tuple_none()
@@ -484,7 +625,7 @@ return function()
                     if tk[2] then
                         local lv = find_field(lhs, tk[2])
                         if not lv then
-                            return false, "missing required field"
+                            return false, "missing required field `" .. key_tostr(tk[2]) .. "` in " .. describe(lhs)
                         end
                         local ok, err = constrain(lv, tk[1], cache)
                         if not ok then
@@ -495,7 +636,14 @@ return function()
                 return true
             end
         end
-        return false, "cannot constrain " .. ty.tostr(lhs) .. " <: " .. ty.tostr(rhs)
+        return false, "cannot constrain " .. describe(lhs) .. " <: " .. describe(rhs)
     end
-    return {apply = apply, touch = touch, extend = extend, unify = unify, constrain = constrain}
+    return {
+        apply = apply
+        , fresh_var = fresh_var
+        , instantiate = instantiate
+        , describe = describe
+        , extend = extend
+        , constrain = constrain
+    }
 end

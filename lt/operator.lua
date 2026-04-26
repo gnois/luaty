@@ -25,9 +25,6 @@ local is_binop = function(op)
     return binop[op]
 end
 local typeop = {["|"] = 1 * 256 + 1, ["&"] = 2 * 256 + 2, ["?"] = 2 * 256 + 2}
-local is_typeop = function(op)
-    return typeop[op]
-end
 local left_priority = function(op)
     local val = binop[op] or typeop[op]
     return bit.rshift(val, 8)
@@ -36,11 +33,4 @@ local right_priority = function(op)
     local val = binop[op] or typeop[op]
     return bit.band(val, 0xff)
 end
-return {
-    is_binop = is_binop
-    , is_typeop = is_typeop
-    , left_priority = left_priority
-    , right_priority = right_priority
-    , unary_priority = unary_priority
-    , ident_priority = ident_priority
-}
+return {is_binop = is_binop, left_priority = left_priority, right_priority = right_priority, unary_priority = unary_priority, ident_priority = ident_priority}

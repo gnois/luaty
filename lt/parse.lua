@@ -2,7 +2,6 @@
 -- Generated from parse.lt
 --
 local ast = require("lt.ast")
-local ty = require("lt.type")
 local operator = require("lt.operator")
 local reserved = require("lt.reserved")
 local Stmt = ast.Stmt
@@ -133,185 +132,12 @@ return function(ls, warn)
             err_instead(3, "%s expected to match %s at line %d", ls.astext("TK_dedent"), ls.astext("TK_indent"), line)
         end
     end
-    local skip_stmt = function()
-        while not EndOfBlock[ls.token] and not NewLine[ls.token] and ls.token ~= "TK_eof" do
-            ls.step()
-        end
-    end
     local skip_ends = function()
         while ls.token == ";" or ls.token == "TK_end" do
             err_symbol()
             ls.step()
         end
         lex_opt("TK_newline")
-    end
-    local parse_type, type_unary, type_binary, type_basic
-    local type_tbl = function(loc)
-        ls.step()
-        local vks, n = {}, 0
-        local dented = false
-        while ls.token ~= "}" do
-            dented = lex_opt_dent(dented)
-            if not dented and ls.token == "TK_dedent" then
-                err_symbol()
-                ls.step()
-            end
-            if ls.token == "}" then
-                break
-            end
-            local val = parse_type()
-            local key
-            if ls.token == ":" then
-                ls.step()
-                key = val
-                val = parse_type()
-            end
-            if key and not val then
-                err_instead(3, "value type expected in table type annotation")
-            end
-            n = n + 1
-            vks[n] = {val, key}
-            dented = lex_opt_dent(dented)
-            if not lex_opt(",") then
-                break
-            end
-        end
-        if dented and not lex_dedent() then
-            err_instead(3, "%s expected to match %s at line %d", ls.astext("TK_dedent"), ls.astext("TK_indent"), loc.line)
-        end
-        lex_match("}", "{", loc.line)
-        return ty.tbl(vks)
-    end
-    local type_tuple = function(isparam)
-        local list, l = {}, 0
-        if not (isparam and ls.token == ":" or ls.token == "]") then
-            repeat
-                if ls.token == "..." then
-                    ls.step()
-                    l = l + 1
-                    list[l] = parse_type(true)
-                    break
-                else
-                    l = l + 1
-                    list[l] = parse_type()
-                end
-            until not lex_opt(",")
-        end
-        return ty.tuple(list)
-    end
-    local type_func = function(loc)
-        ls.step()
-        local params = type_tuple(true)
-        local returns
-        if ls.token == ":" then
-            ls.step()
-            returns = type_tuple(false)
-        end
-        lex_match("]", "[", loc.line)
-        return ty.func(params, returns)
-    end
-    local type_prefix = function()
-        local loc = ls.loc()
-        local typ
-        if ls.token == "TK_name" then
-            typ = ty.name(ls.value)
-            ls.step()
-        elseif ls.token == "(" then
-            ls.step()
-            local inner = parse_type()
-            if inner then
-                typ = ast.bracket(inner)
-            else
-                parse_error(3, "invalid type annotation %s", ls_value() or ls.astext(ls.token))
-                typ = ty.any()
-            end
-            lex_match(")", "(", loc.line)
-        else
-            return 
-        end
-        while ls.token == "." do
-            ls.step()
-            if ls.token ~= "TK_name" then
-                break
-            end
-            typ = ty.index(typ, ls.value)
-            ls.step()
-        end
-        return typ
-    end
-    type_basic = function()
-        local loc = ls.loc()
-        local val
-        if ls.token == "TK_name" then
-            val = ls.value
-        end
-        local typ
-        if val == "any" then
-            typ = ty.any()
-        elseif val == "num" then
-            typ = ty.num()
-        elseif val == "str" then
-            typ = ty.str()
-        elseif val == "bool" then
-            typ = ty.bool()
-        else
-            if ls.token == "[" then
-                return type_func(loc)
-            end
-            if ls.token == "{" then
-                return type_tbl(loc)
-            end
-            return type_prefix()
-        end
-        ls.step()
-        return typ
-    end
-    type_unary = function()
-        local tk = ls.token
-        if tk == "~" then
-            ls.step()
-            local t = type_binary(operator.unary_priority)
-            return ty.typeof(t)
-        else
-            return type_basic()
-        end
-    end
-    type_binary = function(limit)
-        local l = type_unary()
-        local op = ls.token
-        while operator.is_typeop(op) and operator.left_priority(op) > limit do
-            ls.step()
-            local r, nextop = type_binary(operator.right_priority(op))
-            if op == "?" then
-                l = ty["or"](l, ty["nil"]())
-            elseif op == "|" then
-                l = ty["or"](l, r)
-            elseif op == "&" then
-                l = ty["and"](l, r)
-            else
-                parse_error(3, "unexpected %s", ls_value() or ls.astext(ls.token))
-                break
-            end
-            op = nextop
-        end
-        return l, op
-    end
-    parse_type = function(varargs)
-        local typ = type_binary(0)
-        if typ and varargs then
-            return ast.varargs(typ)
-        end
-        return typ
-    end
-    local opt_type = function(types, n, varargs)
-        local t = parse_type(varargs)
-        if t then
-            if not types then
-                types = {}
-            end
-            types[n] = t
-        end
-        return types
     end
     local expr_primary, expr, expr_unop, expr_binop, expr_simple, expr_list, expr_table
     local parse_body, parse_args, parse_block
@@ -379,8 +205,8 @@ return function(ls, warn)
         if ls.token == "\\" then
             ls.step()
         end
-        local curry, params, types, _, retypes, body = parse_body(loc.line)
-        local lambda = Expr["function"](params, types, retypes, body, loc)
+        local curry, params, _, body = parse_body(loc.line)
+        local lambda = Expr["function"](params, body, loc)
         if curry then
             local cargs = {Expr.number(#params, loc), lambda}
             return Expr.call(Expr.id("curry", loc), cargs, loc)
@@ -526,16 +352,14 @@ return function(ls, warn)
             return parse_for_num(loc)
         end
         local vars, n = {}, 0
-        local types
         repeat
             n = n + 1
             vars[n] = Expr.id(lex_str())
-            types = opt_type(types, n)
         until not lex_opt(",")
         lex_check("TK_in")
         local exps = expr_list()
         local body = parse_block(loc.line, "TK_for")
-        return Stmt.forin(vars, types, exps, body, loc)
+        return Stmt.forin(vars, exps, body, loc)
     end
     parse_args = function()
         local line = ls.line
@@ -587,17 +411,15 @@ return function(ls, warn)
     end
     local parse_var = function(loc)
         local lhs, i = {}, 0
-        local types
         repeat
             i = i + 1
             lhs[i] = Expr.id(lex_str())
-            types = opt_type(types, i)
         until not lex_opt(",")
         local rhs = {}
         if lex_opt("=") then
             rhs = expr_list()
         end
-        return Stmt["local"](lhs, types, rhs, loc)
+        return Stmt["local"](lhs, rhs, loc)
     end
     local parse_while = function(loc)
         ls.step()
@@ -734,35 +556,22 @@ return function(ls, warn)
     end
     local parse_params = function()
         local params, n = {}, 0
-        local ptypes, rtypes
         local varargs = false
         if ls.token ~= "->" and ls.token ~= "~>" then
             repeat
                 if ls.token == "TK_name" then
                     n = n + 1
                     params[n] = Expr.id(lex_str())
-                    ptypes = opt_type(ptypes, n)
                 elseif ls.token == "..." then
                     ls.step()
                     varargs = true
                     n = n + 1
                     params[n] = Expr.vararg(ls)
-                    ptypes = opt_type(ptypes, n, true)
-                    if ls.next() ~= ":" then
-                        break
-                    end
-                elseif ls.token == ":" then
-                    ls.step()
-                    local r = 1
-                    repeat
-                        rtypes = opt_type(rtypes, r)
-                        r = r + 1
-                    until not lex_opt(",")
                     break
                 else
                     err_instead(2, "parameter expected in function declaration")
                 end
-            until not lex_opt(",") and ls.token ~= ":"
+            until not lex_opt(",")
         end
         local curry = false
         if ls.token == "->" then
@@ -779,18 +588,12 @@ return function(ls, warn)
         else
             err_expect("->")
         end
-        if ptypes then
-            ptypes = ty.tuple(ptypes)
-        end
-        if rtypes then
-            rtypes = ty.tuple(rtypes)
-        end
-        return curry, params, ptypes, varargs, rtypes
+        return curry, params, varargs
     end
     parse_body = function(line)
-        local curry, params, types, varargs, retypes = parse_params()
+        local curry, params, varargs = parse_params()
         local body = parse_block(line, "->")
-        return curry, params, types, varargs, retypes, body
+        return curry, params, varargs, body
     end
     ls.step()
     lex_opt("TK_newline")

@@ -29,10 +29,6 @@ var typeop = {
 }
 
 
-var is_typeop = \op ->
-	return typeop[op]
-
-
 -- works for binop or typeop
 var left_priority = \op ->
 	var val = binop[op] or typeop[op]
@@ -46,7 +42,6 @@ var right_priority = \op ->
 
 return {
 	is_binop       = is_binop
-	, is_typeop    = is_typeop
 	, left_priority  = left_priority
 	, right_priority = right_priority
 	, unary_priority = unary_priority

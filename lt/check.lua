@@ -16,12 +16,17 @@ end
 return function(scope, stmts, warn, import, typecheck)
     local Stmt = {}
     local Expr = {}
-    local Type = {}
     local solv = solve()
-    local id = 0
-    local new = function()
-        id = id + 1
-        return {tag = TType.New, id = id, sub = {}, sup = {}}
+    local lvl = 0
+    local with_lvl = function(delta, fn)
+        local prev = lvl
+        lvl = lvl + (delta or 0)
+        local out = fn()
+        lvl = prev
+        return out
+    end
+    local new = function(level)
+        return solv.fresh_var(level or lvl)
     end
     local fail = function(node)
         local msg = (node.tag or "nil") .. " cannot match a statement type"
@@ -33,19 +38,26 @@ return function(scope, stmts, warn, import, typecheck)
     end
     local check = function(x, y, node, msg)
         if typecheck then
-            local t, err = solv.unify(x, y)
-            if not t then
+            local ok, err = solv.constrain(y, x)
+            if not ok then
                 warn(node.line, node.col, 1, msg .. err)
             end
-            return t
+            return ok and y or false
         end
         return x
+    end
+    local describe_type = function(t)
+        if solv.describe then
+            return solv.describe(t)
+        end
+        return ty.tostr(solv.apply(t))
     end
     local check_sub = function(lhs, rhs, node, msg)
         if typecheck then
             local ok, err = solv.constrain(lhs, rhs)
             if not ok then
-                warn(node.line, node.col, 1, msg .. err)
+                local snapshot = " [" .. describe_type(lhs) .. " <: " .. describe_type(rhs) .. "]"
+                warn(node.line, node.col, 1, msg .. err .. snapshot)
             end
             return ok and lhs or false
         end
@@ -93,19 +105,6 @@ return function(scope, stmts, warn, import, typecheck)
         end
         return ty.tuple_any()
     end
-    local check_type = function(tnode, loc)
-        local rule = Type[tnode.tag]
-        if rule then
-            rule(tnode, loc)
-        end
-    end
-    local check_types = function(tnodes, loc)
-        if tnodes then
-            for _, node in ipairs(tnodes) do
-                check_type(node, loc)
-            end
-        end
-    end
     local check_stmts = function(nodes)
         for _, node in ipairs(nodes) do
             local rule = Stmt[node.tag]
@@ -148,61 +147,28 @@ return function(scope, stmts, warn, import, typecheck)
         end
         return types
     end
+    local scope_name = function(name)
+        if name == "@" then
+            return "self"
+        end
+        return name
+    end
     local declare = function(var, vtype)
         assert(var.tag == TExpr.Id)
-        local name = var.name
-        if name == "@" then
-            name = "self"
-        end
+        local name = scope_name(var.name)
         scope.new_var(name, vtype, var.line, var.col)
+    end
+    local declared_raw_type = function(var)
+        assert(var.tag == TExpr.Id)
+        local name = scope_name(var.name)
+        local __, t = scope.declared(name)
+        return t
     end
     local balance_check = function(lefts, rights)
         local r = #rights
         local l = #lefts
         if r > l then
             warn(rights[1].line, rights[1].col, 1, "assigning " .. r .. " values to " .. l .. " variable(s)")
-        end
-    end
-    Type[TType.Func] = function(node, loc)
-        check_types(node.ins, loc)
-        check_types(node.outs, loc)
-    end
-    Type[TType.Tbl] = function(node, loc)
-        local vtypes = {}
-        local keys = {}
-        for i, vk in ipairs(node) do
-            local key = vk[2]
-            if key then
-                local dup = 0
-                if "string" == type(key) then
-                    for n = 1, #keys do
-                        if "string" == type(keys[n]) and key == keys[n] then
-                            dup = n
-                        end
-                    end
-                else
-                    check_type(key, loc)
-                    for n = 1, #keys do
-                        if keys[n] and ty.same(keys[n], key) then
-                            dup = n
-                        end
-                    end
-                end
-                if dup > 0 then
-                    warn(loc.line, loc.col, 1, "duplicate key types at position " .. i .. " and " .. dup .. " in table type annotation")
-                end
-            end
-            keys[i] = key
-            local vt = vk[1]
-            check_type(vt, loc)
-            if vt and not key then
-                for n = 1, #vtypes do
-                    if vtypes[n] and ty.same(vtypes[n], vt) then
-                        warn(loc.line, loc.col, 1, "similar value types at position " .. i .. " and " .. n .. " in table type annotation")
-                    end
-                end
-                vtypes[i] = vt
-            end
         end
     end
     Expr[TExpr.Nil] = function()
@@ -226,27 +192,24 @@ return function(scope, stmts, warn, import, typecheck)
     Expr[TExpr.Id] = function(node)
         local line, t
         if node.name then
-            local name = node.name
-            if name == "@" then
-                name = "self"
-            end
+            local name = scope_name(node.name)
             line, t = scope.declared(name)
             if line == 0 then
                 warn(node.line, node.col, 1, "undeclared identifier `" .. node.name .. "`")
             end
             if not t then
                 t = new()
+            else
+                t = solv.instantiate(t, lvl, lvl)
             end
         end
         return t
     end
     Expr[TExpr.Function] = function(node)
         scope.begin_func()
-        check_types(node.types, node)
-        check_types(node.retypes, node)
         local ptypes = {}
         for i, p in ipairs(node.params) do
-            local t = node.types and node.types[i] or new()
+            local t = new()
             if p.tag == TExpr.Vararg then
                 scope.varargs()
                 t = ty.varargs(t)
@@ -255,16 +218,7 @@ return function(scope, stmts, warn, import, typecheck)
             end
             ptypes[i] = t
         end
-        scope.set_returns(node.retypes)
         check_block(node.body)
-        local anno = node.types
-        if anno then
-            for i, p in ipairs(node.params) do
-                if anno[i] then
-                    check_sub(infer_expr(p), anno[i], p, "parameter " .. (p.tag == TExpr.Vararg and "..." or p.name) .. " ")
-                end
-            end
-        end
         local rtuple = scope.get_returns() or ty.tuple_none()
         scope.end_func()
         return ty.func(ty.tuple(ptypes), rtuple)
@@ -381,24 +335,20 @@ return function(scope, stmts, warn, import, typecheck)
         return ty.any()
     end
     Stmt[TStmt.Expr] = function(node)
-        local etype
-        etype = infer_expr(node.expr)
+        infer_expr(node.expr)
     end
     Stmt[TStmt.Local] = function(node)
-        check_types(node.types, node)
         balance_check(node.vars, node.exprs)
-        local rtypes = infer_exprs(node.exprs)
+        local rtypes = with_lvl(1, function()
+            return infer_exprs(node.exprs)
+        end)
         for i, var in ipairs(node.vars) do
-            local ltype = node.types and node.types[i]
-            if ltype and rtypes[i] then
-                check_sub(rtypes[i], ltype, node, "type annotation ")
-            end
-            declare(var, solv.extend(new(), ltype or rtypes[i] or ty["nil"]()))
+            declare(var, solv.extend(new(), rtypes[i] or ty["nil"]()))
         end
     end
     local assign_field = function(node, otype, field, rtype)
         local tytys = {{rtype, field}}
-        local ok = solv.unify(ty.tbl(tytys), otype, true)
+        local ok = solv.constrain(ty.tbl(tytys), otype)
         if not ok then
             local t = solv.apply(otype)
             local tbl = ty.get_tbl(t)
@@ -406,15 +356,15 @@ return function(scope, stmts, warn, import, typecheck)
                 for _, tk in ipairs(tbl) do
                     if tk[2] == field then
                         tk[1] = ty["or"](tk[1], rtype)
-                        solv.extend(otype, t)
+                        if otype.tag == TType.New then
+                            solv.extend(otype, t)
+                        end
                         return 
                     end
                 end
                 local param = node.obj.name
                 if param then
-                    if param == "@" then
-                        param = "self"
-                    end
+                    param = scope_name(param)
                     t = ty.clone(t)
                     tbl = ty.get_tbl(t)
                     tbl[#tbl + 1] = tytys[1]
@@ -432,9 +382,11 @@ return function(scope, stmts, warn, import, typecheck)
             local rtype = rtypes[i] or ty["nil"]()
             local ltype
             if n.tag == TExpr.Id then
-                ltype = infer_expr(n)
-                if not solv.unify(ltype, rtype, true) then
-                    solv.extend(ltype, ty["or"](solv.apply(ltype), rtype))
+                ltype = declared_raw_type(n) or infer_expr(n)
+                if not solv.constrain(rtype, ltype) then
+                    if ltype.tag == TType.New then
+                        solv.extend(ltype, ty["or"](solv.apply(ltype), rtype))
+                    end
                 end
             else
                 local ot = infer_expr(n.obj)
@@ -465,10 +417,9 @@ return function(scope, stmts, warn, import, typecheck)
     end
     Stmt[TStmt.Forin] = function(node)
         scope.enter_forin()
-        check_types(node.types, node)
         infer_exprs(node.exprs)
-        for i, var in ipairs(node.vars) do
-            declare(var, node.types and node.types[i])
+        for _, var in ipairs(node.vars) do
+            declare(var, new())
         end
         check_block(node.body)
         scope.leave()

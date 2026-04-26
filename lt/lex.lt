@@ -100,12 +100,6 @@ return \read, warn ->
 		var k = p + m
 		return string.sub(data, k, k)
 
-	--`
-	var skip = \len ->
-		n = n - len
-		p = p + len
-	--`
-
 	var add_buffer = \c ->
 		buff[bi] = c
 		bi = bi + 1
