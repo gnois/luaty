@@ -44,6 +44,8 @@ same = \a, b, seen ->
 				if not same(v, a[k], seen)
 					return false
 	return true
+
+
 var clone
 clone = \t, seen ->
 	seen = seen or {}
@@ -59,6 +61,8 @@ clone = \t, seen ->
 		--setmetatable(copy, clone(getmetatable(t)))
 		return copy
 	return t
+
+
 var TType = Tag.Type
 -- return the tbl or union of tbl, ...
 -- else nil
@@ -71,32 +75,17 @@ var get_tbl = \t ->
 				break
 	if tbl.tag == TType.Tbl
 		return tbl
------------------- types ------------------------
---``
-# number
-$ string
-! bool
-. vararg <- perhaps not needed
-* any, but not nil
-[:] type tuple to type tuple - function
-{:} type to type - table
-{} array
-Either:
-  - optional/nillable. If used in func return [:-] means void  <- NOPE
-  ? nil if used by itself. *? means nillable. [$:?] means function taking string, returns nil
-1,2,3, .. typevar
-Eg:
-var x&6 means var x #
-var y $#!  means y is a value type
---``
+
+
 var create = \tag, node ->
 	assert('table' == type(node))
 	node.tag = tag
 	return node
+
 var new_var = \id, level, sub, sup ->
 	return create(TType.New, {id = id, level = level or 0, sub = sub or {}, sup = sup or {}})
 
-var normalize_assoc = \tag, types ->
+var flatten_type = \tag, types ->
 	var list, l = {}, 0
 	for _, t in ipairs(types)
 		if t.tag == tag
@@ -138,21 +127,24 @@ var Type = {
 	-- ins and outs are tuples
 	, func = \ins, outs ->
 		return create(TType.Func, {ins = ins, outs = outs or create(TType.Tuple, {})})
-	-- Lua table key can be any type
+	-- Lua table key can be any type except nil or longstring
 	-- If it's string, we'll use back the string literal, else it is a Type object
 	-- typetypes is array of { type: type } or { name: type }
 	, tbl = \typetypes ->
 		return create(TType.Tbl, typetypes)
 	, or = \... ->
-		return create(TType.Or, normalize_assoc(TType.Or, {...}))
+		return create(TType.Or, flatten_type(TType.Or, {...}))
 	, and = \... ->
-		return create(TType.And, normalize_assoc(TType.And, {...}))
+		return create(TType.And, flatten_type(TType.And, {...}))
 	, new_var = new_var
 }
+
 var varargs = \t ->
 	assert(TType[t.tag])  -- must be type node
 	t.varargs = true
 	return t
+
+
 ----------------- type to string ------------------
 var Str = {}
 var Prec = {
@@ -160,6 +152,7 @@ var Prec = {
 	, [TType.And] = 2
 	, [TType.Func] = 0
 }
+
 var tostr
 var render = \t, parent_prec ->
 	assert(TType[t.tag])
@@ -175,6 +168,7 @@ var render = \t, parent_prec ->
 
 tostr = \t ->
 	return render(t, -1)
+
 -- build switch table only once
 Str[TType.New] = \t ->
 	return "T" .. t.id
@@ -227,6 +221,7 @@ var bool_t = Type.bool()
 var any_vars_t = varargs(any_t)
 var tuple_none_t = Type.tuple({})
 var tuple_any_t = Type.tuple({any_vars_t})
+
 return {
 	any = -> return any_t
 	, nil = -> return nil_t
@@ -248,3 +243,23 @@ return {
 	, get_tbl = get_tbl
 	, tostr = tostr
 }
+
+
+------------------ type annotation ------------------------
+--``
+# number
+$ string
+! bool
+. vararg <- perhaps not needed
+* any, but not nil
+[:] type tuple to type tuple - function
+{:} type to type - table
+{} array
+Either:
+  - optional/nillable. If used in func return [:-] means void  <- NOPE
+  ? nil if used by itself. *? means nillable. [$:?] means function taking string, returns nil
+1,2,3, .. typevar
+Eg:
+var x&6 means var x #
+var y $#!  means y is a value type
+--``

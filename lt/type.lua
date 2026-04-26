@@ -97,7 +97,7 @@ end
 local new_var = function(id, level, sub, sup)
     return create(TType.New, {id = id, level = level or 0, sub = sub or {}, sup = sup or {}})
 end
-local normalize_assoc = function(tag, types)
+local flatten_type = function(tag, types)
     local list, l = {}, 0
     for _, t in ipairs(types) do
         if t.tag == tag then
@@ -155,10 +155,10 @@ local Type = {
         return create(TType.Tbl, typetypes)
     end
     , ["or"] = function(...)
-        return create(TType.Or, normalize_assoc(TType.Or, {...}))
+        return create(TType.Or, flatten_type(TType.Or, {...}))
     end
     , ["and"] = function(...)
-        return create(TType.And, normalize_assoc(TType.And, {...}))
+        return create(TType.And, flatten_type(TType.And, {...}))
     end
     , new_var = new_var
 }
