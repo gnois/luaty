@@ -18,10 +18,10 @@ return function(scope, stmts, warn, import, typecheck)
     local Expr = {}
     local solv = solve()
     local lvl = 0
-    local with_lvl = function(delta, fn)
+    local with_lvl = function(delta, fn, ...)
         local prev = lvl
         lvl = lvl + (delta or 0)
-        local out = fn()
+        local out = fn(...)
         lvl = prev
         return out
     end
@@ -47,9 +47,6 @@ return function(scope, stmts, warn, import, typecheck)
         return x
     end
     local describe_type = function(t)
-        if solv.describe then
-            return solv.describe(t)
-        end
         return ty.tostr(solv.apply(t))
     end
     local check_sub = function(lhs, rhs, node, msg)
@@ -147,7 +144,7 @@ return function(scope, stmts, warn, import, typecheck)
         end
         return types
     end
-    local scope_name = function(name)
+    local maybe_self = function(name)
         if name == "@" then
             return "self"
         end
@@ -155,12 +152,12 @@ return function(scope, stmts, warn, import, typecheck)
     end
     local declare = function(var, vtype)
         assert(var.tag == TExpr.Id)
-        local name = scope_name(var.name)
+        local name = maybe_self(var.name)
         scope.new_var(name, vtype, var.line, var.col)
     end
-    local declared_raw_type = function(var)
+    local declared_type = function(var)
         assert(var.tag == TExpr.Id)
-        local name = scope_name(var.name)
+        local name = maybe_self(var.name)
         local __, t = scope.declared(name)
         return t
     end
@@ -192,7 +189,7 @@ return function(scope, stmts, warn, import, typecheck)
     Expr[TExpr.Id] = function(node)
         local line, t
         if node.name then
-            local name = scope_name(node.name)
+            local name = maybe_self(node.name)
             line, t = scope.declared(name)
             if line == 0 then
                 warn(node.line, node.col, 1, "undeclared identifier `" .. node.name .. "`")
@@ -318,7 +315,13 @@ return function(scope, stmts, warn, import, typecheck)
         end
         if arithmetic(op) or relational(op) then
             if op ~= "==" and op ~= "~=" then
-                check_op(ltype, rtype, node, op)
+                if arithmetic(op) then
+                    check_op(ty.num(), ltype, node, op)
+                    check_op(ty.num(), rtype, node, op)
+                else
+                    check_op(ltype, rtype, node, op)
+                    check_op(rtype, ltype, node, op)
+                end
             end
             if relational(op) then
                 return ty.bool()
@@ -339,9 +342,7 @@ return function(scope, stmts, warn, import, typecheck)
     end
     Stmt[TStmt.Local] = function(node)
         balance_check(node.vars, node.exprs)
-        local rtypes = with_lvl(1, function()
-            return infer_exprs(node.exprs)
-        end)
+        local rtypes = with_lvl(1, infer_exprs, node.exprs)
         for i, var in ipairs(node.vars) do
             declare(var, solv.extend(new(), rtypes[i] or ty["nil"]()))
         end
@@ -364,7 +365,7 @@ return function(scope, stmts, warn, import, typecheck)
                 end
                 local param = node.obj.name
                 if param then
-                    param = scope_name(param)
+                    param = maybe_self(param)
                     t = ty.clone(t)
                     tbl = ty.get_tbl(t)
                     tbl[#tbl + 1] = tytys[1]
@@ -382,7 +383,7 @@ return function(scope, stmts, warn, import, typecheck)
             local rtype = rtypes[i] or ty["nil"]()
             local ltype
             if n.tag == TExpr.Id then
-                ltype = declared_raw_type(n) or infer_expr(n)
+                ltype = declared_type(n) or infer_expr(n)
                 if not solv.constrain(rtype, ltype) then
                     if ltype.tag == TType.New then
                         solv.extend(ltype, ty["or"](solv.apply(ltype), rtype))

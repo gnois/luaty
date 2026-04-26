@@ -19,16 +19,15 @@ return \scope, stmts, warn, import, typecheck ->
 	var solv = solve()
 	var lvl = 0
 
-	var with_lvl = \delta, fn ->
+	var with_lvl = \delta, fn, ... ->
 		var prev = lvl
 		lvl = lvl + (delta or 0)
-		var out = fn()
+		var out = fn(...)
 		lvl = prev
 		return out
 
 	var new = \level ->
 		return solv.fresh_var(level or lvl)
-
 
 	var fail = \node ->
 		var msg = (node.tag or 'nil') .. " cannot match a statement type"
@@ -46,8 +45,6 @@ return \scope, stmts, warn, import, typecheck ->
 		return x
 
 	var describe_type = \t ->
-		if solv.describe
-			return solv.describe(t)
 		return ty.tostr(solv.apply(t))
 
 	var check_sub = \lhs, rhs, node, msg ->
@@ -133,19 +130,19 @@ return \scope, stmts, warn, import, typecheck ->
 				types[t] = nt
 		return types
 
-	var scope_name = \name ->
+	var maybe_self = \name ->
 		if name == '@'
 			return 'self'
 		return name
 
 	var declare = \var, vtype ->
 		assert(var.tag == TExpr.Id)
-		var name = scope_name(var.name)
+		var name = maybe_self(var.name)
 		scope.new_var(name, vtype, var.line, var.col)
 
-	var declared_raw_type = \var ->
+	var declared_type = \var ->
 		assert(var.tag == TExpr.Id)
-		var name = scope_name(var.name)
+		var name = maybe_self(var.name)
 		var __, t = scope.declared(name)
 		return t
 
@@ -176,7 +173,7 @@ return \scope, stmts, warn, import, typecheck ->
 	Expr[TExpr.Id] = \node ->
 		var line, t
 		if node.name  -- node.name can be nil, bcoz the parser continues despite error
-			var name = scope_name(node.name)
+			var name = maybe_self(node.name)
 			line, t = scope.declared(name)
 			if line == 0
 				warn(node.line, node.col, 1, "undeclared identifier `" .. node.name .. "`")
@@ -298,11 +295,18 @@ return \scope, stmts, warn, import, typecheck ->
 		if arithmetic(op) or relational(op)
 			-- skip equal and not equal, coz they can compare anything
 			if op ~= '==' and op ~= '~='
-				check_op(ltype, rtype, node, op)
+				-- symmetric check
+				if arithmetic(op)
+					check_op(ty.num(), ltype, node, op)
+					check_op(ty.num(), rtype, node, op)
+				else
+					check_op(ltype, rtype, node, op)
+					check_op(rtype, ltype, node, op)
 			if relational(op)
 				return ty.bool()
 		else if op == '..'
 			var strnum = ty.or(ty.num(), ty.str())
+			-- symmetric check
 			check_op(strnum, rtype, node, op)
 			check_op(strnum, ltype, node, op)
 			return ty.str()
@@ -318,10 +322,7 @@ return \scope, stmts, warn, import, typecheck ->
 
 	Stmt[TStmt.Local] = \node ->
 		balance_check(node.vars, node.exprs)
-		-- TODO: rtypes can be Or[{tuple1 + any.vararg}, {tuple2}], need to combine lhs as Or tuple
-		var rtypes = with_lvl(1, ->
-			return infer_exprs(node.exprs)
-		)
+		var rtypes = with_lvl(1, infer_exprs, node.exprs)
 		for i, var in ipairs(node.vars)
 			declare(var, solv.extend(new(), rtypes[i] or ty.nil()))
 
@@ -347,7 +348,7 @@ return \scope, stmts, warn, import, typecheck ->
 				-- clone in case it is a parameter so that for f: t1 -> t2,  t2 is different from t1
 				var param = node.obj.name
 				if param
-					param = scope_name(param)
+					param = maybe_self(param)
 					t = ty.clone(t)
 					tbl = ty.get_tbl(t)
 					tbl[#tbl + 1] = tytys[1]
@@ -363,7 +364,7 @@ return \scope, stmts, warn, import, typecheck ->
 			var rtype = rtypes[i] or ty.nil()
 			var ltype
 			if n.tag == TExpr.Id
-				ltype = declared_raw_type(n) or infer_expr(n)
+				ltype = declared_type(n) or infer_expr(n)
 				-- warn if reassignment of different type
 				-- check(ltype, rtype, n, "assigment ")
 				if not solv.constrain(rtype, ltype)
